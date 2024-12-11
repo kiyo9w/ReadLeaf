@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'screens/home_screen.dart';
 import 'screens/pdf_viewer.dart';
-import 'blocs/FileBloc/bloc/file_bloc.dart';
+import 'blocs/FileBloc/file_bloc.dart';
 
 void main() {
   runApp(const MyApp());

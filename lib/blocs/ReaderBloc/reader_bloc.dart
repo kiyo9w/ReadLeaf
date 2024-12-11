@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:meta/meta.dart';
-import 'package:migrated/blocs/FileBloc/bloc/file_bloc.dart';
+import 'package:migrated/blocs/FileBloc/file_bloc.dart';
 
 part 'reader_event.dart';
 part 'reader_state.dart';

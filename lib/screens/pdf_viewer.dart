@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
-import '../blocs/FileBloc/bloc/file_bloc.dart';
+import '../blocs/FileBloc/file_bloc.dart';
 
 class PDFViewerScreen extends StatelessWidget {
   const PDFViewerScreen({super.key});
