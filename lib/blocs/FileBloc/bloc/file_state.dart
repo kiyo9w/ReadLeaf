@@ -41,3 +41,12 @@ class FileName extends FileState {
   @override
   List<Object> get props => [name];
 }
+
+class FileSelected extends FileState{
+  final bool selected;
+
+  const FileSelected(this.selected);
+
+  @override
+  List<Object> get props => [selected];
+}

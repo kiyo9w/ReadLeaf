@@ -28,6 +28,8 @@ class FileBloc extends Bloc<FileEvent, FileState> {
         } catch (e) {
           yield FileError(message: e.toString());
         }
+      } else if (event is SelectFile) {
+        yield FileSelected(true);
       }
     }
   }

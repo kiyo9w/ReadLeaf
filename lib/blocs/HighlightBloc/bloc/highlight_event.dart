@@ -27,4 +27,6 @@ class RemoveHighlight extends HighlightEvent {
   List<Object> get props => [text, pageIndex];
 }
 
-class ClearHighlights extends HighlightEvent {}
+class ClearHighlights extends HighlightEvent {
+  // Call remove for all highlights
+}

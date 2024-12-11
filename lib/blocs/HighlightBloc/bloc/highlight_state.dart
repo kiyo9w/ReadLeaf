@@ -10,7 +10,7 @@ abstract class HighlightState extends Equatable {
 class HighlightInitial extends HighlightState {}
 
 class HighlightLoaded extends HighlightState {
-  final Map<int, List<String>> highlights;
+  final Map<int, int> highlights;
 
   const HighlightLoaded(this.highlights);
 
