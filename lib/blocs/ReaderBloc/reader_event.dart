@@ -32,3 +32,27 @@ class CloseReader extends ReaderEvent {
   @override
   List<Object> get props => [];
 }
+
+class NextPage extends ReaderEvent {}
+
+class PreviousPage extends ReaderEvent {}
+
+class JumpToPage extends ReaderEvent {
+  final int pageIndex;
+
+  const JumpToPage(this.pageIndex);
+
+  @override
+  List<Object> get props => [pageIndex];
+}
+
+class SetZoomLevel extends ReaderEvent {
+  final double zoomLevel;
+
+  const SetZoomLevel(this.zoomLevel);
+
+  @override
+  List<Object> get props => [zoomLevel];
+}
+
+class ToggleReadingMode extends ReaderEvent {}
