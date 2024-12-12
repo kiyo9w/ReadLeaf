@@ -1,15 +1,24 @@
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'dart:io';
+
 import '../../models/file_info.dart';
 import '../../utils/file_utils.dart';
+
+// Import the AnnaArchive classes:
+import '../../services/annas_archieve.dart';
+// Make sure the 'annas_archieve.dart' file is in the correct path.
+// Also ensure you've copied the AnnasArchieve, BookData, and BookInfoData classes into your project structure.
 
 part 'file_event.dart';
 part 'file_state.dart';
 
 class FileBloc extends Bloc<FileEvent, FileState> {
   final FileRepository fileRepository;
-  FileLoaded? _lastLoadedState; // Keep track of the last FileLoaded state
+  FileLoaded? _lastLoadedState;
+
+  // Create an instance of AnnasArchieve for searching
+  final AnnasArchieve annasArchieve = AnnasArchieve();
 
   FileBloc({required this.fileRepository}) : super(FileInitial()) {
     on<InitFiles>(_onInitFiles);
@@ -18,6 +27,10 @@ class FileBloc extends Bloc<FileEvent, FileState> {
     on<ViewFile>(_onViewFile);
     on<RemoveFile>(_onRemoveFile);
     on<CloseViewer>(_onCloseViewer);
+
+    // New event handlers for AnnaArchive integration
+    on<SearchBooks>(_onSearchBooks);
+    on<LoadBookInfo>(_onLoadBookInfo);
   }
 
   Future<void> _onInitFiles(InitFiles event, Emitter<FileState> emit) async {
@@ -107,11 +120,38 @@ class FileBloc extends Bloc<FileEvent, FileState> {
   }
 
   void _onCloseViewer(CloseViewer event, Emitter<FileState> emit) {
-    // When closing the viewer, revert back to the last known loaded state
     if (_lastLoadedState != null) {
       emit(_lastLoadedState!);
     } else {
       emit(FileInitial());
+    }
+  }
+
+  // New method: Handle SearchBooks event
+  Future<void> _onSearchBooks(SearchBooks event, Emitter<FileState> emit) async {
+    try {
+      emit(FileSearchLoading());
+      final books = await annasArchieve.searchBooks(
+        searchQuery: event.query,
+        content: event.content,
+        sort: event.sort,
+        fileType: event.fileType,
+        enableFilters: event.enableFilters,
+      );
+      emit(FileSearchResults(books));
+    } catch (e) {
+      emit(FileError(message: e.toString()));
+    }
+  }
+
+  // New method: Handle LoadBookInfo event
+  Future<void> _onLoadBookInfo(LoadBookInfo event, Emitter<FileState> emit) async {
+    try {
+      emit(FileBookInfoLoading());
+      final bookInfo = await annasArchieve.bookInfo(url: event.url);
+      emit(FileBookInfoLoaded(bookInfo));
+    } catch (e) {
+      emit(FileError(message: e.toString()));
     }
   }
 }

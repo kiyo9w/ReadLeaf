@@ -24,14 +24,7 @@ class OpenReader extends ReaderEvent {
   List<Object> get props => [];
 }
 
-class CloseReader extends ReaderEvent {
-  final File file;
-
-  CloseReader(this.file);
-
-  @override
-  List<Object> get props => [];
-}
+class CloseReader extends ReaderEvent {}
 
 class NextPage extends ReaderEvent {}
 

@@ -35,3 +35,26 @@ class FileError extends FileState {
   @override
   List<Object> get props => [message];
 }
+
+// New states for searching and book info
+class FileSearchLoading extends FileState {}
+
+class FileSearchResults extends FileState {
+  final List<BookData> books;
+
+  const FileSearchResults(this.books);
+
+  @override
+  List<Object> get props => [books];
+}
+
+class FileBookInfoLoading extends FileState {}
+
+class FileBookInfoLoaded extends FileState {
+  final BookInfoData bookInfo;
+
+  const FileBookInfoLoaded(this.bookInfo);
+
+  @override
+  List<Object> get props => [bookInfo];
+}
