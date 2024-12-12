@@ -5,25 +5,27 @@ import 'screens/pdf_viewer.dart';
 import 'blocs/FileBloc/file_bloc.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(MyApp());
 }
 
 // test test test
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
-
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Book Reader',
-      routes: {
-        '/': (context) => BlocProvider(
-              create: (_) => FileBloc(),
-              child: const HomeScreen(),
-            ),
-        '/viewer': (context) => const PDFViewerScreen(),
-      },
-      initialRoute: '/',
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<FileBloc>(
+          create: (context) => FileBloc(),
+        ),
+        // Add other bloc providers if needed
+      ],
+      child: MaterialApp(
+        // your app configuration
+        routes: {
+          '/': (context) => HomeScreen(),
+          '/viewer': (context) => PDFViewerScreen(),
+        },
+      ),
     );
   }
 }

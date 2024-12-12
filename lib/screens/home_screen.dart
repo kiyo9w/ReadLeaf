@@ -29,6 +29,7 @@ class HomeScreen extends StatelessWidget {
                   filePath: file.filePath,
                   fileSize: file.fileSize,
                   isSelected: file.isSelected,
+                  title: FileCard.extractFileName(file.filePath),
                   onSelected: () {
                     fileBloc.add(SelectFile(file.filePath));
                   },

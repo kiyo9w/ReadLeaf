@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:fluttericon/elusive_icons.dart';
 import 'package:fluttericon/font_awesome5_icons.dart';
 import 'package:fluttericon/octicons_icons.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
+import 'package:path/path.dart';
 
 class FileCard extends StatelessWidget {
   final String filePath;
@@ -12,7 +15,7 @@ class FileCard extends StatelessWidget {
   final VoidCallback onView;
   final VoidCallback onRemove;
   final String imageUrl = 'https://link.springer.com/book/10.1007/978-1-4842-5181-2';
-  final String title = 'beginning app development with flutter ';
+  final String title;
   final String fileType = 'pdf';
   final double progress = 10.7;
 
@@ -23,6 +26,7 @@ class FileCard extends StatelessWidget {
     required this.onSelected,
     required this.onView,
     required this.onRemove,
+    required this.title,
     Key? key,
   }) : super(key: key);
 
@@ -81,7 +85,7 @@ class FileCard extends StatelessWidget {
                     Row(
                       children: [
                         Text(
-                          fileSize != null ? '$fileSize' : "Empty",
+                          fileSize != null ? formatFileSize(fileSize) : "Empty",
                           style: TextStyle(
                             fontSize: 14.0,
                             color: isSelected ? Colors.grey[500] : Colors.grey,
@@ -151,5 +155,22 @@ class FileCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static String extractFileName(String filePath) {
+    File file = new File(filePath);
+    return basename(file.path);
+  }
+
+  String formatFileSize(int bytes) {
+    if (bytes < 1024) {
+      return '${bytes} B';
+    } else if (bytes < 1000000) {
+      return '${(bytes / 1000).toStringAsFixed(2)} KB';
+    } else if (bytes < 1000000000) {
+      return '${(bytes / 1000000).toStringAsFixed(2)} MB';
+    } else {
+      return '${(bytes / 1000000000).toStringAsFixed(2)} GB';
+    }
   }
 }
