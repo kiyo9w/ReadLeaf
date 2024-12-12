@@ -16,11 +16,29 @@ class LoadFile extends FileEvent {
   List<Object> get props => [filePath];
 }
 
-class SelectFile extends FileEvent{
-  final bool selected;
+class SelectFile extends FileEvent {
+  final String filePath;
 
-  const SelectFile(this.selected);
+  const SelectFile(this.filePath);
 
   @override
-  List<Object> get props => [selected];
+  List<Object> get props => [filePath];
+}
+
+class ViewFile extends FileEvent {
+  final String filePath;
+
+  const ViewFile(this.filePath);
+
+  @override
+  List<Object> get props => [filePath];
+}
+
+class RemoveFile extends FileEvent {
+  final String filePath;
+
+  const RemoveFile(this.filePath);
+
+  @override
+  List<Object> get props => [filePath];
 }

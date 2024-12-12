@@ -9,19 +9,22 @@ abstract class FileState extends Equatable {
 
 class FileInitial extends FileState {}
 
-class FileLoading extends FileState {}
-
 class FileLoaded extends FileState {
-  final String filePath;
-  final int fileSize;
+  final List<FileInfo> files;
 
-  const FileLoaded(
-    this.filePath,
-    this.fileSize,
-  );
+  const FileLoaded(this.files);
 
   @override
-  List<Object> get props => [filePath, fileSize];
+  List<Object> get props => [files];
+}
+
+class FileViewing extends FileState {
+  final String filePath;
+
+  const FileViewing(this.filePath);
+
+  @override
+  List<Object> get props => [filePath];
 }
 
 class FileError extends FileState {
@@ -31,22 +34,4 @@ class FileError extends FileState {
 
   @override
   List<Object> get props => [message];
-}
-
-class FileName extends FileState {
-  final String name;
-
-  const FileName({required this.name});
-
-  @override
-  List<Object> get props => [name];
-}
-
-class FileSelected extends FileState{
-  final bool selected;
-
-  const FileSelected(this.selected);
-
-  @override
-  List<Object> get props => [selected];
 }
