@@ -9,6 +9,7 @@ part 'file_state.dart';
 
 class FileBloc extends Bloc<FileEvent, FileState> {
   final FileRepository fileRepository;
+  FileLoaded? _lastLoadedState; // Keep track of the last FileLoaded state
 
   FileBloc({required this.fileRepository}) : super(FileInitial()) {
     on<InitFiles>(_onInitFiles);
@@ -16,12 +17,15 @@ class FileBloc extends Bloc<FileEvent, FileState> {
     on<SelectFile>(_onSelectFile);
     on<ViewFile>(_onViewFile);
     on<RemoveFile>(_onRemoveFile);
+    on<CloseViewer>(_onCloseViewer);
   }
 
   Future<void> _onInitFiles(InitFiles event, Emitter<FileState> emit) async {
     final savedFiles = await fileRepository.loadFiles();
     if (savedFiles.isNotEmpty) {
-      emit(FileLoaded(savedFiles));
+      final loadedState = FileLoaded(savedFiles);
+      _lastLoadedState = loadedState;
+      emit(loadedState);
     } else {
       emit(FileInitial());
     }
@@ -47,7 +51,9 @@ class FileBloc extends Bloc<FileEvent, FileState> {
         currentFiles = (state as FileLoaded).files;
       }
       final newFiles = [...currentFiles, FileInfo(filePath, fileSize)];
-      emit(FileLoaded(newFiles));
+      final newState = FileLoaded(newFiles);
+      _lastLoadedState = newState;
+      emit(newState);
       await fileRepository.saveFiles(newFiles);
     } catch (e) {
       emit(FileError(message: e.toString()));
@@ -62,20 +68,21 @@ class FileBloc extends Bloc<FileEvent, FileState> {
           ? file.copyWith(isSelected: true)
           : file.copyWith(isSelected: false)
       ).toList();
-      emit(FileLoaded(updatedFiles));
+      final newState = FileLoaded(updatedFiles);
+      _lastLoadedState = newState;
+      emit(newState);
       await fileRepository.saveFiles(updatedFiles);
     }
   }
 
   void _onViewFile(ViewFile event, Emitter<FileState> emit) {
     if (state is FileLoaded) {
-      final currentState = state as FileLoaded;
-      final fileToView = currentState.files.firstWhere(
+      _lastLoadedState = state as FileLoaded;
+      final fileToView = _lastLoadedState!.files.firstWhere(
               (file) => file.filePath == event.filePath,
-          orElse: () => currentState.files.first
+          orElse: () => _lastLoadedState!.files.first
       );
       emit(FileViewing(fileToView.filePath));
-      // No need to save here since we're just viewing
     }
   }
 
@@ -87,12 +94,24 @@ class FileBloc extends Bloc<FileEvent, FileState> {
           .toList();
 
       if (updatedFiles.isEmpty) {
+        _lastLoadedState = null;
         emit(FileInitial());
-        await fileRepository.saveFiles([]); // Clear saved files
+        await fileRepository.saveFiles([]);
       } else {
-        emit(FileLoaded(updatedFiles));
+        final newState = FileLoaded(updatedFiles);
+        _lastLoadedState = newState;
+        emit(newState);
         await fileRepository.saveFiles(updatedFiles);
       }
+    }
+  }
+
+  void _onCloseViewer(CloseViewer event, Emitter<FileState> emit) {
+    // When closing the viewer, revert back to the last known loaded state
+    if (_lastLoadedState != null) {
+      emit(_lastLoadedState!);
+    } else {
+      emit(FileInitial());
     }
   }
 }

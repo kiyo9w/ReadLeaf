@@ -18,6 +18,8 @@ class LoadFile extends FileEvent {
   List<Object> get props => [filePath];
 }
 
+class CloseViewer extends FileEvent {}
+
 class SelectFile extends FileEvent {
   final String filePath;
 

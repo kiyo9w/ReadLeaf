@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'screens/home_screen.dart';
 import 'screens/pdf_viewer.dart';
 import 'blocs/FileBloc/file_bloc.dart';
 import 'utils/file_utils.dart';
+import 'screens/nav_screen.dart';
 
 void main() {
   final fileRepository = FileRepository();
@@ -21,12 +21,13 @@ class MyApp extends StatelessWidget {
       providers: [
         BlocProvider<FileBloc>(
           create: (context) => FileBloc(fileRepository: fileRepository)
-            ..add(InitFiles()), // Load saved files on startup
+            ..add(InitFiles()),
         ),
       ],
       child: MaterialApp(
+        initialRoute: '/',
         routes: {
-          '/': (context) => const HomeScreen(),
+          '/': (context) => const NavScreen(),
           '/viewer': (context) => const PDFViewerScreen(),
         },
       ),
