@@ -8,21 +8,21 @@ class PDFViewerScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<FileBloc, FileState>(builder: (context, state) {
-      if (state is FileLoading) {
-        return const Center(
-          child: CircularProgressIndicator(),
-        );
-      } else if (state is FileLoaded) {
-        return PDFView(
-          filePath: state.filePath,
-        );
-      } else if (state is FileError) {
-        return Center(child: Text('Error: ${state.message}'));
-      } else {
-        return const Center(child: Text('Please select a PDF'));
-      }
-    });
+    return BlocBuilder<FileBloc, FileState>(
+      builder: (context, state) {
+        if (state is FileViewing) {
+          return Scaffold(
+            appBar: AppBar(title: Text('title')),
+            body: PDFView(
+              filePath: state.filePath,
+            ),
+          );
+        } else if (state is FileError) {
+          return Center(child: Text('Error: ${state.message}'));
+        } else {
+          return const Center(child: Text('Please select a PDF'));
+        }
+      },
+    );
   }
 }
-
