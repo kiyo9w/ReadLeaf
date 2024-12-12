@@ -7,6 +7,10 @@ import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 class PDFViewerScreen extends StatelessWidget {
   const PDFViewerScreen({Key? key}) : super(key: key);
 
+  bool _isInternetBook(String filePath) {
+    return filePath.startsWith('http://') || filePath.startsWith('https://');
+  }
+
   @override
   Widget build(BuildContext context) {
     final fileBloc = BlocProvider.of<FileBloc>(context);
@@ -14,25 +18,26 @@ class PDFViewerScreen extends StatelessWidget {
     return BlocBuilder<FileBloc, FileState>(
       builder: (context, state) {
         if (state is FileViewing) {
-          return PopScope(
-            canPop: true,
-            onPopInvoked: (didPop) {
-              if (didPop) {
-                fileBloc.add(CloseViewer());
-              }
+          final isInternetBook = _isInternetBook(state.filePath);
+          return WillPopScope(
+            onWillPop: () async {
+              fileBloc.add(CloseViewer());
+              return true;
             },
             child: Scaffold(
               appBar: AppBar(
-                title: Text('PDF Viewer'),
+                title: const Text('PDF Viewer'),
                 leading: IconButton(
-                  icon: Icon(Icons.arrow_back),
+                  icon: const Icon(Icons.arrow_back),
                   onPressed: () {
                     fileBloc.add(CloseViewer());
                     Navigator.pop(context);
                   },
                 ),
               ),
-              body: SfPdfViewer.file(File(state.filePath)),
+              body: isInternetBook
+                  ? SfPdfViewer.network(state.filePath)
+                  : SfPdfViewer.file(File(state.filePath)),
             ),
           );
         } else if (state is FileError) {

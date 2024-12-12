@@ -19,10 +19,16 @@ class ResultPage extends StatelessWidget {
         backgroundColor: Theme.of(context).colorScheme.surface,
         titleTextStyle: Theme.of(context).textTheme.displayLarge,
       ),
-      body: BlocBuilder<FileBloc, FileState>(
+      // Use BlocConsumer instead of BlocBuilder to also have a listener
+      body: BlocConsumer<FileBloc, FileState>(
+        listener: (context, state) {
+          // If FileViewing state is emitted, navigate to /viewer
+          if (state is FileViewing) {
+            Navigator.pushNamed(context, '/viewer');
+          }
+        },
         builder: (context, state) {
           if (state is FileSearchLoading) {
-            // Show a loading indicator while search results are being fetched.
             return Column(
               mainAxisAlignment: MainAxisAlignment.start,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -53,36 +59,35 @@ class ResultPage extends StatelessWidget {
                       child: TitleText("Results"),
                     ),
                     SliverList(
-                        delegate: SliverChildListDelegate(
-                          data.map((book) {
-                            return FileCard(
-                              filePath: book.link,      // Using the book link as a pseudo filePath
-                              fileSize: 0,              // Unknown size, so just use 0
-                              isSelected: false,        // No selection logic for search results
-                              onSelected: () {
-                                fileBloc.add(SelectFile(book.link));
-                              },        // No action on long press
-                              onView: () {
-                                // Instead of navigating to BookInfoPage, just do nothing or show a message
-                                fileBloc.add(ViewFile(book.link));
-                              },
-                              onRemove: () {},          // No remove action for search results
-                              title: book.title,        // Show the book title
-                            );
-                          }).toList(),
-                        ),
+                      delegate: SliverChildListDelegate(
+                        data.map((book) {
+                          return FileCard(
+                            filePath: book.link,
+                            fileSize: 0,
+                            isSelected: false,
+                            onSelected: () {
+                              fileBloc.add(SelectFile(book.link));
+                            },
+                            onView: () {
+                              fileBloc.add(ViewFile(book.link));
+                            },
+                            onRemove: () {},
+                            title: book.title,
+                            isInternetBook: true,
+                            author: book.author,
+                            thumbnailUrl: book.thumbnail,
+                          );
+                        }).toList(),
                       ),
+                    ),
                   ],
                 ),
               );
             } else {
-              // No results found
               return Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Display a "no results" image if you have one
-                    // For now, just show a text
                     const SizedBox(height: 30),
                     Text(
                       "No Results Found!",
@@ -113,7 +118,7 @@ class ResultPage extends StatelessWidget {
                   const SizedBox(height: 20),
                   ElevatedButton(
                     onPressed: () {
-                      BlocProvider.of<FileBloc>(context).add(SearchBooks(query: searchQuery));
+                      fileBloc.add(SearchBooks(query: searchQuery));
                     },
                     child: const Text('Retry'),
                   ),

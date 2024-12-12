@@ -5,6 +5,7 @@ import 'package:fluttericon/elusive_icons.dart';
 import 'package:fluttericon/font_awesome5_icons.dart';
 import 'package:fluttericon/octicons_icons.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
+import 'package:migrated/screens/search_screen.dart';
 import 'package:path/path.dart';
 
 class FileCard extends StatelessWidget {
@@ -14,10 +15,11 @@ class FileCard extends StatelessWidget {
   final VoidCallback onSelected;
   final VoidCallback onView;
   final VoidCallback onRemove;
-  final String imageUrl = 'https://link.springer.com/book/10.1007/978-1-4842-5181-2';
   final String title;
-  final String fileType = 'pdf';
-  final double progress = 10.7;
+
+  final bool isInternetBook;
+  final String? author;
+  final String? thumbnailUrl;
 
   const FileCard({
     required this.filePath,
@@ -27,11 +29,18 @@ class FileCard extends StatelessWidget {
     required this.onView,
     required this.onRemove,
     required this.title,
+    this.isInternetBook = false,
+    this.author,
+    this.thumbnailUrl,
     Key? key,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    final displayImageUrl = isInternetBook && thumbnailUrl != null
+        ? thumbnailUrl!
+        : 'https://picsum.photos/200/300?random=${DateTime.now().millisecondsSinceEpoch}';
+
     return GestureDetector(
       onLongPress: onSelected,
       onTap: onView,
@@ -48,7 +57,7 @@ class FileCard extends StatelessWidget {
                   bottomLeft: Radius.circular(8.0),
                 ),
                 child: Image.network(
-                  imageUrl,
+                  displayImageUrl,
                   width: double.infinity,
                   height: 150,
                   fit: BoxFit.cover,
@@ -61,94 +70,9 @@ class FileCard extends StatelessWidget {
               flex: 3,
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 18.0,
-                        fontWeight: FontWeight.bold,
-                        color: isSelected ? Colors.grey[600] : Colors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 8.0),
-                    if (isSelected)
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Icon(
-                          MdiIcons.fromString('checkbox-marked'),
-                          color: Colors.blue,
-                          size: 24,
-                        ),
-                      ),
-                    Row(
-                      children: [
-                        Text(
-                          fileSize != null ? formatFileSize(fileSize) : "Empty",
-                          style: TextStyle(
-                            fontSize: 14.0,
-                            color: isSelected ? Colors.grey[500] : Colors.grey,
-                          ),
-                        ),
-                        const SizedBox(width: 8.0),
-                        Text(
-                          fileType,
-                          style: TextStyle(
-                            fontSize: 14.0,
-                            color: isSelected ? Colors.grey[500] : Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12.0),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(1.0),
-                      child: LinearProgressIndicator(
-                        value: progress / 100,
-                        backgroundColor: isSelected ? Colors.grey[300] : Colors.grey[200],
-                        color: isSelected ? Colors.grey[500] : Colors.grey[400],
-                      ),
-                    ),
-                    const SizedBox(height: 12.0),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () {
-                            // Add your button logic here
-                          },
-                          child: Icon(
-                            Icons.star_border_outlined,
-                            color: Colors.yellow,
-                            size: 24.0,
-                            semanticLabel: 'Star',
-                          ),
-                        ),
-                        const SizedBox(width: 8.0),
-                        TextButton(
-                          onPressed: () {
-
-                          },
-                          child: Icon(
-                              Octicons.saved,
-                              color: Colors.grey[500],
-                          ),
-                        ),
-                        const SizedBox(width: 8.0),
-                        TextButton(
-                          onPressed: () {
-
-                          },
-                          child: Icon(
-                            FontAwesome5.readme,
-                            color: Colors.grey[500],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                child: isInternetBook
+                    ? _buildInternetBookInfo(context)
+                    : _buildLocalFileInfo(context),
               ),
             ),
           ],
@@ -157,8 +81,133 @@ class FileCard extends StatelessWidget {
     );
   }
 
+  Widget _buildLocalFileInfo(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 18.0,
+            fontWeight: FontWeight.bold,
+            color: isSelected ? Colors.grey[600] : Colors.black,
+          ),
+        ),
+        const SizedBox(height: 8.0),
+        if (isSelected)
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Icon(
+              MdiIcons.fromString('checkbox-marked'),
+              color: Colors.blue,
+              size: 24,
+            ),
+          ),
+        Row(
+          children: [
+            Text(
+              formatFileSize(fileSize),
+              style: TextStyle(
+                fontSize: 14.0,
+                color: isSelected ? Colors.grey[500] : Colors.grey,
+              ),
+            ),
+            const SizedBox(width: 8.0),
+            Text(
+              'pdf',
+              style: TextStyle(
+                fontSize: 14.0,
+                color: isSelected ? Colors.grey[500] : Colors.grey,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12.0),
+        // progress bar for local file (if you want to keep it)
+        ClipRRect(
+          borderRadius: BorderRadius.circular(1.0),
+          child: LinearProgressIndicator(
+            value: 10.7 / 100,
+            backgroundColor: isSelected ? Colors.grey[300] : Colors.grey[200],
+            color: isSelected ? Colors.grey[500] : Colors.grey[400],
+          ),
+        ),
+        const SizedBox(height: 12.0),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TextButton(
+              onPressed: () {},
+              child: Icon(
+                Icons.star_border_outlined,
+                color: Colors.yellow,
+                size: 24.0,
+                semanticLabel: 'Star',
+              ),
+            ),
+            const SizedBox(width: 8.0),
+            TextButton(
+              onPressed: () {},
+              child: Icon(
+                Octicons.saved,
+                color: Colors.grey[500],
+              ),
+            ),
+            const SizedBox(width: 8.0),
+            TextButton(
+              onPressed: () {},
+              child: Icon(
+                FontAwesome5.readme,
+                color: Colors.grey[500],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInternetBookInfo(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(fontSize: 18.0, fontWeight: FontWeight.bold),
+        ),
+        if (author != null && author!.isNotEmpty) ...[
+          const SizedBox(height: 8.0),
+          Text(
+            'Author: $author',
+            style: const TextStyle(fontSize: 14.0, color: Colors.grey),
+          ),
+        ],
+        const SizedBox(height: 8.0),
+        Text(
+          'Type: $fileType',
+          style: const TextStyle(fontSize: 14.0, color: Colors.grey),
+        ),
+        const SizedBox(height: 12.0),
+        // For internet books, we might not show file size or progress,
+        // Just a simple layout.
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TextButton(
+              onPressed: () {},
+              child: Icon(
+                Octicons.saved,
+                color: Colors.grey[500],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   static String extractFileName(String filePath) {
-    File file = new File(filePath);
+    File file = File(filePath);
     return basename(file.path);
   }
 

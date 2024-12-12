@@ -97,6 +97,9 @@ class FileBloc extends Bloc<FileEvent, FileState> {
       );
       emit(FileViewing(fileToView.filePath));
     }
+    else if (state is FileSearchResults) {
+      emit(FileViewing(event.filePath));
+    }
   }
 
   Future<void> _onRemoveFile(RemoveFile event, Emitter<FileState> emit) async {
