@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:file_picker/file_picker.dart';
 import '../blocs/FileBloc/file_bloc.dart';
 import '../widgets/file_card.dart';
 import '../utils/file_utils.dart';
@@ -16,7 +15,12 @@ class HomeScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('File Reader'),
       ),
-      body: BlocBuilder<FileBloc, FileState>(
+      body: BlocConsumer<FileBloc, FileState>(
+        listener: (context, state) {
+          if (state is FileViewing) {
+            Navigator.pushNamed(context, '/viewer');
+          }
+        },
         builder: (context, state) {
           if (state is FileInitial) {
             return const Center(child: Text('No files loaded.'));
@@ -44,6 +48,8 @@ class HomeScreen extends StatelessWidget {
             );
           } else if (state is FileError) {
             return Center(child: Text('Error: ${state.message}'));
+          } else if (state is FileViewing) {
+            return const SizedBox();
           } else {
             return const Center(child: Text('Unexpected state'));
           }

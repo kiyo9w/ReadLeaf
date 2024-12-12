@@ -7,6 +7,8 @@ abstract class FileEvent extends Equatable {
   List<Object> get props => [];
 }
 
+class InitFiles extends FileEvent {}
+
 class LoadFile extends FileEvent {
   final String filePath;
 
