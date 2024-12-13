@@ -19,12 +19,7 @@ class PDFViewerScreen extends StatelessWidget {
       builder: (context, state) {
         if (state is FileViewing) {
           final isInternetBook = _isInternetBook(state.filePath);
-          return WillPopScope(
-            onWillPop: () async {
-              fileBloc.add(CloseViewer());
-              return true;
-            },
-            child: Scaffold(
+          return Scaffold(
               appBar: AppBar(
                 title: const Text('PDF Viewer'),
                 leading: IconButton(
@@ -36,14 +31,20 @@ class PDFViewerScreen extends StatelessWidget {
                 ),
               ),
               body: isInternetBook
-                  ? SfPdfViewer.network(state.filePath)
+                  ? SfPdfViewer.network('http://www.orimi.com/pdf-test.pdf')
                   : SfPdfViewer.file(File(state.filePath)),
-            ),
-          );
+            );
         } else if (state is FileError) {
           return Center(child: Text('Error: ${state.message}'));
         } else {
-          return const Center(child: Text('Please select a PDF'));
+          return WillPopScope(
+            onWillPop: () async {
+              fileBloc.add(CloseViewer());
+              return true;
+            },
+            child: Scaffold(
+            ),
+          );
         }
       },
     );

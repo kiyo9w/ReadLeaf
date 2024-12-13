@@ -7,6 +7,8 @@ import 'package:fluttericon/octicons_icons.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:migrated/screens/search_screen.dart';
 import 'package:path/path.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:migrated/blocs/DownloadBloc/download_bloc.dart';
 
 class FileCard extends StatelessWidget {
   final String filePath;
@@ -41,6 +43,19 @@ class FileCard extends StatelessWidget {
         ? thumbnailUrl!
         : 'https://picsum.photos/200/300?random=${DateTime.now().millisecondsSinceEpoch}';
 
+    //   return BlocBuilder<DownloadBloc, DownloadState>(
+    //     builder: (context, downloadState) {
+    //       if (downloadState is DownloadInProgress && downloadState.message == filePath) {
+    //         return _buildDownloadingCard(downloadState.progress);
+    //       } else if (downloadState is DownloadCompleted && downloadState.filePath == filePath) {
+    //         return _buildCompletedCard(context);
+    //       }
+    //       return _buildDefaultCard(context, displayImageUrl);
+    //     },
+    //   );
+    // }
+    //
+    // Widget _buildDefaultCard(BuildContext context, String displayImageUrl) {
     return GestureDetector(
       onLongPress: onSelected,
       onTap: onView,
@@ -81,6 +96,10 @@ class FileCard extends StatelessWidget {
     );
   }
 
+  // Widget _buildDownloadingCard(double progress) {}
+  //
+  // Widget _buildCompletedCard(BuildContext context) {}
+
   Widget _buildLocalFileInfo(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -98,7 +117,7 @@ class FileCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Icon(
-              MdiIcons.fromString('checkbox-marked'),
+              Icons.check_box,
               color: Colors.blue,
               size: 24,
             ),
@@ -113,24 +132,14 @@ class FileCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8.0),
-            Text(
+            const Text(
               'pdf',
               style: TextStyle(
                 fontSize: 14.0,
-                color: isSelected ? Colors.grey[500] : Colors.grey,
+                color: Colors.grey,
               ),
             ),
           ],
-        ),
-        const SizedBox(height: 12.0),
-        // progress bar for local file (if you want to keep it)
-        ClipRRect(
-          borderRadius: BorderRadius.circular(1.0),
-          child: LinearProgressIndicator(
-            value: 10.7 / 100,
-            backgroundColor: isSelected ? Colors.grey[300] : Colors.grey[200],
-            color: isSelected ? Colors.grey[500] : Colors.grey[400],
-          ),
         ),
         const SizedBox(height: 12.0),
         Row(
@@ -175,30 +184,24 @@ class FileCard extends StatelessWidget {
           title,
           style: const TextStyle(fontSize: 18.0, fontWeight: FontWeight.bold),
         ),
-        if (author != null && author!.isNotEmpty) ...[
-          const SizedBox(height: 8.0),
-          Text(
-            'Author: $author',
-            style: const TextStyle(fontSize: 14.0, color: Colors.grey),
+        if (author != null && author!.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Text(
+              'Author: $author',
+              style: const TextStyle(fontSize: 14.0, color: Colors.grey),
+            ),
           ),
-        ],
         const SizedBox(height: 8.0),
-        Text(
-          'Type: $fileType',
-          style: const TextStyle(fontSize: 14.0, color: Colors.grey),
-        ),
-        const SizedBox(height: 12.0),
-        // For internet books, we might not show file size or progress,
-        // Just a simple layout.
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            TextButton(
-              onPressed: () {},
-              child: Icon(
-                Octicons.saved,
-                color: Colors.grey[500],
-              ),
+            IconButton(
+              icon: const Icon(Icons.download),
+              onPressed: () {
+                final downloadBloc = BlocProvider.of<DownloadBloc>(context);
+                downloadBloc.add(StartDownload(url: filePath, fileName: title));
+              },
             ),
           ],
         ),

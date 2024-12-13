@@ -15,16 +15,15 @@ class ResultPage extends StatelessWidget {
     final fileBloc = BlocProvider.of<FileBloc>(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Openlib"),
         backgroundColor: Theme.of(context).colorScheme.surface,
         titleTextStyle: Theme.of(context).textTheme.displayLarge,
       ),
-      // Use BlocConsumer instead of BlocBuilder to also have a listener
       body: BlocConsumer<FileBloc, FileState>(
         listener: (context, state) {
-          // If FileViewing state is emitted, navigate to /viewer
           if (state is FileViewing) {
-            Navigator.pushNamed(context, '/viewer');
+            Navigator.pushNamed(context, '/viewer').then((_) {
+              Navigator.pop(context);
+            });
           }
         },
         builder: (context, state) {

@@ -77,6 +77,9 @@ class _SearchScreenState extends State<SearchScreen> {
       },
       builder: (context, state) {
         return Scaffold(
+          appBar: AppBar(
+            title: const Text('Search'),
+          ),
           body: SingleChildScrollView(
             scrollDirection: Axis.vertical,
             child: Padding(
@@ -84,7 +87,6 @@ class _SearchScreenState extends State<SearchScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const TitleText("Search"),
                   Padding(
                     padding: const EdgeInsets.only(left: 7, right: 7, top: 10),
                     child: TextField(

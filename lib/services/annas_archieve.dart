@@ -265,6 +265,7 @@ class AnnasArchieve {
     if (content == "" && sort == "" && fileType == "") {
       return '$baseUrl/search?q=$searchQuery';
     }
+    print('$baseUrl/search?index=&q=$searchQuery&content=$content&ext=$fileType&sort=$sort');
     return '$baseUrl/search?index=&q=$searchQuery&content=$content&ext=$fileType&sort=$sort';
   }
 

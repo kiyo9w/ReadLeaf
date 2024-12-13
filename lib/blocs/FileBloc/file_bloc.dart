@@ -1,12 +1,14 @@
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'dart:io';
+import 'package:http/http.dart' as http;
 
 import '../../models/file_info.dart';
 import '../../utils/file_utils.dart';
 
 // Import the AnnaArchive classes:
 import '../../services/annas_archieve.dart';
+import 'package:path_provider/path_provider.dart';
 // Make sure the 'annas_archieve.dart' file is in the correct path.
 // Also ensure you've copied the AnnasArchieve, BookData, and BookInfoData classes into your project structure.
 
@@ -16,8 +18,8 @@ part 'file_state.dart';
 class FileBloc extends Bloc<FileEvent, FileState> {
   final FileRepository fileRepository;
   FileLoaded? _lastLoadedState;
+  BookInfoData? _lastViewedInternetBookInfo;
 
-  // Create an instance of AnnasArchieve for searching
   final AnnasArchieve annasArchieve = AnnasArchieve();
 
   FileBloc({required this.fileRepository}) : super(FileInitial()) {
@@ -88,7 +90,7 @@ class FileBloc extends Bloc<FileEvent, FileState> {
     }
   }
 
-  void _onViewFile(ViewFile event, Emitter<FileState> emit) {
+  void _onViewFile(ViewFile event, Emitter<FileState> emit) async {
     if (state is FileLoaded) {
       _lastLoadedState = state as FileLoaded;
       final fileToView = _lastLoadedState!.files.firstWhere(
@@ -97,6 +99,15 @@ class FileBloc extends Bloc<FileEvent, FileState> {
       );
       emit(FileViewing(fileToView.filePath));
     }
+  // } else if (state is FileSearchResults) {
+  // emit(FileBookInfoLoading());
+  // try {
+  // final bookInfo = await annasArchieve.bookInfo(url: event.filePath);
+  // _lastViewedInternetBookInfo = bookInfo;
+  // emit(FileViewing(bookInfo.link));
+  // } catch (e) {
+  // emit(FileError(message: e.toString()));
+  // }
     else if (state is FileSearchResults) {
       emit(FileViewing(event.filePath));
     }
@@ -123,6 +134,10 @@ class FileBloc extends Bloc<FileEvent, FileState> {
   }
 
   void _onCloseViewer(CloseViewer event, Emitter<FileState> emit) {
+    if (_lastViewedInternetBookInfo != null) {
+      _lastViewedInternetBookInfo = null;
+    }
+
     if (_lastLoadedState != null) {
       emit(_lastLoadedState!);
     } else {
@@ -147,7 +162,6 @@ class FileBloc extends Bloc<FileEvent, FileState> {
     }
   }
 
-  // New method: Handle LoadBookInfo event
   Future<void> _onLoadBookInfo(LoadBookInfo event, Emitter<FileState> emit) async {
     try {
       emit(FileBookInfoLoading());

@@ -29,39 +29,30 @@ class _NavScreenState extends State<NavScreen> {
     final backgroundColor = Colors.grey.shade200;
     final iconColor = Colors.black;
     final activeColor = Colors.white;
-    final tabBackgroundColor = Theme
-        .of(context)
-        .colorScheme
-        .secondary;
+    final tabBackgroundColor = Theme.of(context).colorScheme.secondary;
 
     return Scaffold(
-      body: _screens[_selectedIndex],
-      bottomNavigationBar: SizedBox(
-        height: 58,
-          // child: Padding(
-          // padding: const EdgeInsets.only(bottom: 20),
-          // Adjust this value to raise the bar
+      body: SafeArea(
+        child: _screens[_selectedIndex],
+      ),
+      bottomNavigationBar: SafeArea(
+        child: SizedBox(
+          height: 68,
           child: GNav(
             haptic: true,
             tabBorderRadius: 50,
             tabActiveBorder: Border.all(
-              color: Theme
-                  .of(context)
-                  .colorScheme
-                  .secondary,
+              color: Theme.of(context).colorScheme.secondary,
             ),
             tabMargin: const EdgeInsets.fromLTRB(13, 6, 13, 2.5),
             curve: Curves.fastLinearToSlowEaseIn,
             duration: const Duration(milliseconds: 25),
             gap: 5,
-            backgroundColor: Colors.grey.shade200,
-            color: Colors.black,
-            activeColor: Colors.white,
+            backgroundColor: Colors.white,
+            color: iconColor,
+            activeColor: activeColor,
             iconSize: 19,
-            tabBackgroundColor: Theme
-                .of(context)
-                .colorScheme
-                .secondary,
+            tabBackgroundColor: tabBackgroundColor,
             padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6.5),
             tabs: const [
               GButton(
@@ -113,6 +104,7 @@ class _NavScreenState extends State<NavScreen> {
             },
           ),
         ),
+      ),
     );
   }
 }

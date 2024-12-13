@@ -4,8 +4,14 @@ import 'screens/pdf_viewer.dart';
 import 'blocs/FileBloc/file_bloc.dart';
 import 'utils/file_utils.dart';
 import 'screens/nav_screen.dart';
+import 'package:flutter_downloader/flutter_downloader.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await FlutterDownloader.initialize(
+      debug: false // set to true if you want to see logs
+  );
+
   final fileRepository = FileRepository();
   runApp(MyApp(fileRepository: fileRepository));
 }
@@ -25,6 +31,7 @@ class MyApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
+        debugShowCheckedModeBanner: false,
         initialRoute: '/',
         routes: {
           '/': (context) => const NavScreen(),
