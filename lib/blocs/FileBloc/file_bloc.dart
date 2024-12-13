@@ -65,11 +65,19 @@ class FileBloc extends Bloc<FileEvent, FileState> {
       if (state is FileLoaded) {
         currentFiles = (state as FileLoaded).files;
       }
+
+      final isFileAlreadyLoaded =
+      currentFiles.any((existingFile) => existingFile.filePath == filePath);
+      if (isFileAlreadyLoaded) {
+        emit(FileLoaded(currentFiles));
+      } else {
+
       final newFiles = [...currentFiles, FileInfo(filePath, fileSize)];
       final newState = FileLoaded(newFiles);
       _lastLoadedState = newState;
       emit(newState);
       await fileRepository.saveFiles(newFiles);
+      }
     } catch (e) {
       emit(FileError(message: e.toString()));
     }

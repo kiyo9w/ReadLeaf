@@ -20,11 +20,9 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
   Future<void> _onStartDownload(StartDownload event, Emitter<DownloadState> emit) async {
     emit(DownloadInProgress(progress: 0.0, message: 'Starting download...'));
 
-    // Determine a directory to save the file.
     final dir = await getApplicationDocumentsDirectory();
     final savedDir = dir.path;
 
-    // Enqueue a new download task
     final taskId = await FlutterDownloader.enqueue(
       url: event.url,
       savedDir: savedDir,
@@ -34,7 +32,6 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
     );
 
     if (taskId != null) {
-      // We can store the taskId if we need to check status later.
       emit(DownloadInProgress(progress: 0.0, message: 'Download in progress...', taskId: taskId));
     } else {
       emit(DownloadFailed(error: 'Failed to start download'));
@@ -42,7 +39,6 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
   }
 
   Future<void> _onCheckDownloadStatus(CheckDownloadStatus event, Emitter<DownloadState> emit) async {
-    // This event can be triggered periodically, or from UI to refresh status:
     final tasks = await FlutterDownloader.loadTasks();
     if (tasks != null) {
       final matchedTasks = tasks.where((task) => task.taskId == event.taskId);
@@ -51,7 +47,6 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
       if (currentTask != null) {
         if (currentTask.status == DownloadTaskStatus.complete) {
           final filePath = currentTask.savedDir + '/' + (currentTask.filename ?? 'downloaded_file');
-          // Optionally save to your repository:
           final file = File(filePath);
           if (await file.exists()) {
             final fileSize = await file.length();
@@ -65,7 +60,6 @@ class DownloadBloc extends Bloc<DownloadEvent, DownloadState> {
         } else if (currentTask.status == DownloadTaskStatus.running) {
           emit(DownloadInProgress(progress: currentTask.progress / 100.0, message: 'Downloading...', taskId: currentTask.taskId));
         }
-        // Handle other statuses as needed (paused, canceled, etc.)
       }
     }
   }

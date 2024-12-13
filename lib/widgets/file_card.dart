@@ -43,59 +43,52 @@ class FileCard extends StatelessWidget {
         ? thumbnailUrl!
         : 'https://picsum.photos/200/300?random=${DateTime.now().millisecondsSinceEpoch}';
 
-    //   return BlocBuilder<DownloadBloc, DownloadState>(
-    //     builder: (context, downloadState) {
-    //       if (downloadState is DownloadInProgress && downloadState.message == filePath) {
-    //         return _buildDownloadingCard(downloadState.progress);
-    //       } else if (downloadState is DownloadCompleted && downloadState.filePath == filePath) {
-    //         return _buildCompletedCard(context);
-    //       }
-    //       return _buildDefaultCard(context, displayImageUrl);
-    //     },
-    //   );
-    // }
-    //
-    // Widget _buildDefaultCard(BuildContext context, String displayImageUrl) {
-    return GestureDetector(
-      onLongPress: onSelected,
-      onTap: onView,
-      child: Card(
-        color: isSelected ? Colors.grey[200] : Colors.white,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              flex: 2,
-              child: ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(8.0),
-                  bottomLeft: Radius.circular(8.0),
-                ),
-                child: Image.network(
-                  displayImageUrl,
-                  width: double.infinity,
-                  height: 150,
-                  fit: BoxFit.cover,
-                  color: isSelected ? Colors.grey.withOpacity(0.5) : null,
-                  colorBlendMode: BlendMode.darken,
+    return Dismissible(
+      key: Key(filePath),
+      direction: DismissDirection.horizontal,
+      onDismissed: (direction) {
+        onRemove();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$title removed')),
+        );
+      },
+      child: GestureDetector(
+        onLongPress: onSelected,
+        onTap: onView,
+        child: Card(
+          color: isSelected ? Colors.grey[200] : Colors.white,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 2,
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(8.0),
+                    bottomLeft: Radius.circular(8.0),
+                  ),
+                  child: Image.network(
+                    displayImageUrl,
+                    width: double.infinity,
+                    height: 150,
+                    fit: BoxFit.cover,
+                    color: isSelected ? Colors.grey.withOpacity(0.5) : null,
+                    colorBlendMode: BlendMode.darken,
+                  ),
                 ),
               ),
-            ),
-            Expanded(
-              flex: 3,
+              Expanded(
+                flex: 3,
                 child: isInternetBook
                     ? _buildInternetBookInfo(context)
                     : _buildLocalFileInfo(context),
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
-
-  // Widget _buildDownloadingCard(double progress) {}
-  //
-  // Widget _buildCompletedCard(BuildContext context) {}
 
   Widget _buildLocalFileInfo(BuildContext context) {
     return Column(
