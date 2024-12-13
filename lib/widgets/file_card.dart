@@ -83,13 +83,10 @@ class FileCard extends StatelessWidget {
             ),
             Expanded(
               flex: 3,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
                 child: isInternetBook
                     ? _buildInternetBookInfo(context)
                     : _buildLocalFileInfo(context),
               ),
-            ),
           ],
         ),
       ),
@@ -104,78 +101,98 @@ class FileCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 18.0,
-            fontWeight: FontWeight.bold,
-            color: isSelected ? Colors.grey[600] : Colors.black,
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 18.0,
+                        fontWeight: FontWeight.bold,
+                        color: isSelected ? Colors.grey[600] : Colors.black,
+                      ),
+                      maxLines: 1, // Limit to one line
+                      overflow: TextOverflow.ellipsis, // Add ellipsis if text overflows
+                    ),
+                  ),
+                  const SizedBox(width: 8.0),
+                  if (isSelected)
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Icon(
+                        Icons.check_box,
+                        color: Colors.blue,
+                        size: 24.0,
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8.0),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      formatFileSize(fileSize),
+                      style: TextStyle(
+                        fontSize: 14.0,
+                        color: isSelected ? Colors.grey[500] : Colors.grey,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8.0),
+                  const Text(
+                    'pdf',
+                    style: TextStyle(
+                      fontSize: 14.0,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12.0),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () {},
+                    child: Icon(
+                      Icons.star_border_outlined,
+                      color: Colors.yellow,
+                      size: 24.0,
+                      semanticLabel: 'Star',
+                    ),
+                  ),
+                  const SizedBox(width: 8.0),
+                  TextButton(
+                    onPressed: () {},
+                    child: Icon(
+                      Octicons.saved,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                  const SizedBox(width: 8.0),
+                  TextButton(
+                    onPressed: () {},
+                    child: Icon(
+                      FontAwesome5.readme,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ),
-        const SizedBox(height: 8.0),
-        if (isSelected)
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Icon(
-              Icons.check_box,
-              color: Colors.blue,
-              size: 24,
-            ),
-          ),
-        Row(
-          children: [
-            Text(
-              formatFileSize(fileSize),
-              style: TextStyle(
-                fontSize: 14.0,
-                color: isSelected ? Colors.grey[500] : Colors.grey,
-              ),
-            ),
-            const SizedBox(width: 8.0),
-            const Text(
-              'pdf',
-              style: TextStyle(
-                fontSize: 14.0,
-                color: Colors.grey,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12.0),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            TextButton(
-              onPressed: () {},
-              child: Icon(
-                Icons.star_border_outlined,
-                color: Colors.yellow,
-                size: 24.0,
-                semanticLabel: 'Star',
-              ),
-            ),
-            const SizedBox(width: 8.0),
-            TextButton(
-              onPressed: () {},
-              child: Icon(
-                Octicons.saved,
-                color: Colors.grey[500],
-              ),
-            ),
-            const SizedBox(width: 8.0),
-            TextButton(
-              onPressed: () {},
-              child: Icon(
-                FontAwesome5.readme,
-                color: Colors.grey[500],
-              ),
-            ),
-          ],
         ),
       ],
     );
   }
-
   Widget _buildInternetBookInfo(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
