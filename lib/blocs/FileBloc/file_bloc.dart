@@ -78,14 +78,19 @@ class FileBloc extends Bloc<FileEvent, FileState> {
   Future<void> _onSelectFile(SelectFile event, Emitter<FileState> emit) async {
     if (state is FileLoaded) {
       final currentState = state as FileLoaded;
-      final updatedFiles = currentState.files.map((file) =>
-      file.filePath == event.filePath
-          ? file.copyWith(isSelected: true)
-          : file.copyWith(isSelected: false)
-      ).toList();
+      final updatedFiles = currentState.files.map((file) {
+        if (file.filePath == event.filePath) {
+          // Toggle the `isSelected` state for the selected file
+          return file.copyWith(isSelected: !file.isSelected);
+        }
+        return file; // Keep other files unchanged
+      }).toList();
+
       final newState = FileLoaded(updatedFiles);
       _lastLoadedState = newState;
       emit(newState);
+
+      // Save updated files to repository
       await fileRepository.saveFiles(updatedFiles);
     }
   }
