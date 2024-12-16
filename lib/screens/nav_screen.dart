@@ -26,82 +26,79 @@ class _NavScreenState extends State<NavScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final backgroundColor = Colors.grey.shade200;
+    final backgroundColor = Colors.white;
     final iconColor = Colors.black;
-    final activeColor = Colors.white;
-    final tabBackgroundColor = Theme.of(context).colorScheme.secondary;
+    final activeColor = Colors.black;
+    final tabBackgroundColor = Colors.grey.shade200;
 
     return Scaffold(
       body: SafeArea(
         child: _screens[_selectedIndex],
       ),
       bottomNavigationBar: SafeArea(
-        child: SizedBox(
-          height: 68,
-          child: GNav(
-            haptic: true,
-            tabBorderRadius: 50,
-            tabActiveBorder: Border.all(
-              color: Theme.of(context).colorScheme.secondary,
+        child: Container(
+          decoration: BoxDecoration(
+            color: backgroundColor,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: GNav(
+              haptic: true,
+              tabBorderRadius: 50,
+              curve: Curves.easeInOut,
+              duration: const Duration(milliseconds: 400),
+              gap: 8,
+              backgroundColor: backgroundColor,
+              color: iconColor,
+              activeColor: activeColor,
+              iconSize: 20,
+              tabBackgroundColor: tabBackgroundColor,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              tabs: [
+                GButton(
+                  icon: FontAwesome5.home,
+                  text: 'Home',
+                  textStyle: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: _selectedIndex == 0 ? activeColor : Colors.grey,
+                    fontSize: 12,
+                  ),
+                ),
+                GButton(
+                  icon: Icons.search,
+                  text: 'Search',
+                  textStyle: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: _selectedIndex == 1 ? activeColor : Colors.grey,
+                    fontSize: 12,
+                  ),
+                ),
+                GButton(
+                  icon: Icons.collections_bookmark,
+                  text: 'My Library',
+                  textStyle: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: _selectedIndex == 2 ? activeColor : Colors.grey,
+                    fontSize: 12,
+                  ),
+                ),
+                GButton(
+                  icon: Octicons.settings,
+                  text: 'Settings',
+                  textStyle: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: _selectedIndex == 3 ? activeColor : Colors.grey,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+              selectedIndex: _selectedIndex,
+              onTabChange: (index) {
+                setState(() {
+                  _selectedIndex = index;
+                });
+              },
             ),
-            tabMargin: const EdgeInsets.fromLTRB(13, 6, 13, 2.5),
-            curve: Curves.fastLinearToSlowEaseIn,
-            duration: const Duration(milliseconds: 25),
-            gap: 5,
-            backgroundColor: Colors.white,
-            color: iconColor,
-            activeColor: activeColor,
-            iconSize: 19,
-            tabBackgroundColor: tabBackgroundColor,
-            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6.5),
-            tabs: const [
-              GButton(
-                icon: FontAwesome5.home,
-                text: ' Home',
-                iconColor: Colors.black,
-                textStyle: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white,
-                  fontSize: 11,
-                ),
-              ),
-              GButton(
-                icon: Icons.search,
-                text: 'Search',
-                iconColor: Colors.black,
-                textStyle: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white,
-                  fontSize: 11,
-                ),
-              ),
-              GButton(
-                icon: Icons.collections_bookmark,
-                text: 'My Library',
-                iconColor: Colors.black,
-                textStyle: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white,
-                  fontSize: 11,
-                ),
-              ),
-              GButton(
-                icon: Octicons.settings,
-                text: 'Settings',
-                iconColor: Colors.black,
-                textStyle: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white,
-                  fontSize: 11,
-                ),
-              ),
-            ],
-            selectedIndex: _selectedIndex,
-            onTabChange: (index) {
-              setState(() {
-                _selectedIndex = index;
-              });
-            },
           ),
         ),
       ),

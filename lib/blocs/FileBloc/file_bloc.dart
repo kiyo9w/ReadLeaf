@@ -6,11 +6,8 @@ import 'package:http/http.dart' as http;
 import '../../models/file_info.dart';
 import '../../utils/file_utils.dart';
 
-// Import the AnnaArchive classes:
 import '../../services/annas_archieve.dart';
 import 'package:path_provider/path_provider.dart';
-// Make sure the 'annas_archieve.dart' file is in the correct path.
-// Also ensure you've copied the AnnasArchieve, BookData, and BookInfoData classes into your project structure.
 
 part 'file_event.dart';
 part 'file_state.dart';
@@ -18,7 +15,6 @@ part 'file_state.dart';
 class FileBloc extends Bloc<FileEvent, FileState> {
   final FileRepository fileRepository;
   FileLoaded? _lastLoadedState;
-  BookInfoData? _lastViewedInternetBookInfo;
 
   final AnnasArchieve annasArchieve = AnnasArchieve();
 
@@ -88,17 +84,15 @@ class FileBloc extends Bloc<FileEvent, FileState> {
       final currentState = state as FileLoaded;
       final updatedFiles = currentState.files.map((file) {
         if (file.filePath == event.filePath) {
-          // Toggle the `isSelected` state for the selected file
           return file.copyWith(isSelected: !file.isSelected);
         }
-        return file; // Keep other files unchanged
+        return file;
       }).toList();
 
       final newState = FileLoaded(updatedFiles);
       _lastLoadedState = newState;
       emit(newState);
 
-      // Save updated files to repository
       await fileRepository.saveFiles(updatedFiles);
     }
   }
@@ -147,10 +141,6 @@ class FileBloc extends Bloc<FileEvent, FileState> {
   }
 
   void _onCloseViewer(CloseViewer event, Emitter<FileState> emit) {
-    if (_lastViewedInternetBookInfo != null) {
-      _lastViewedInternetBookInfo = null;
-    }
-
     if (_lastLoadedState != null) {
       emit(_lastLoadedState!);
     } else {

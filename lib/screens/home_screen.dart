@@ -12,9 +12,19 @@ class HomeScreen extends StatelessWidget {
     final fileBloc = BlocProvider.of<FileBloc>(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('File Reader'),
-      ),
+        appBar: PreferredSize(
+        preferredSize: Size.fromHeight(80), // Adjust the height as needed
+    child: Padding(
+    padding: const EdgeInsets.only(top: 10, left: 10, right: 10, bottom: 10),
+    child: AppBar(
+        backgroundColor: Colors.white,
+        centerTitle: false,
+        title: const Text(
+          'Reading now',
+          style: TextStyle(
+            fontSize: 42.0,
+          ),),
+      ),),),
       body: BlocConsumer<FileBloc, FileState>(
         listener: (context, state) {
           if (state is FileViewing) {

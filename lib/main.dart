@@ -37,6 +37,16 @@ class MyApp extends StatelessWidget {
           '/': (context) => const NavScreen(),
           '/viewer': (context) => const PDFViewerScreen(),
         },
+        theme: ThemeData(
+          scaffoldBackgroundColor: Colors.white,
+          fontFamily: 'Lato', // Set Lato as the default font
+          textTheme: const TextTheme(
+            bodyLarge: TextStyle(fontSize: 16.0), // Replaces bodyText1
+            bodyMedium: TextStyle(fontSize: 14.0), // Replaces bodyText2
+            headlineLarge: TextStyle(fontSize: 24.0, fontWeight: FontWeight.bold), // Replaces headline1
+            titleLarge: TextStyle(fontSize: 20.0, fontWeight: FontWeight.w600), // Replaces headline6
+          ),
+        ),
       ),
     );
   }

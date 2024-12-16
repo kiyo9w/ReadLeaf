@@ -55,30 +55,32 @@ class FileCard extends StatelessWidget {
       child: GestureDetector(
         onLongPress: onSelected,
         onTap: onView,
-        child: Card(
-          color: isSelected ? Colors.grey[200] : Colors.white,
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+          padding: const EdgeInsets.all(5),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFAF5F4),
+          ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                flex: 2,
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(8.0),
-                    bottomLeft: Radius.circular(8.0),
-                  ),
-                  child: Image.network(
-                    displayImageUrl,
-                    width: double.infinity,
-                    height: 150,
-                    fit: BoxFit.cover,
-                    color: isSelected ? Colors.grey.withOpacity(0.5) : null,
-                    colorBlendMode: BlendMode.darken,
+              Container(
+                width: 128.5,
+                height: 190 + 1,
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: Colors.black,
+                    width: 0.5, // Thin border width
                   ),
                 ),
+                child: Image.network(
+                  displayImageUrl,
+                  width: 135,
+                  height: 190,
+                ),
               ),
+              const SizedBox(width: 12),
               Expanded(
-                flex: 3,
                 child: isInternetBook
                     ? _buildInternetBookInfo(context)
                     : _buildLocalFileInfo(context),
@@ -91,127 +93,181 @@ class FileCard extends StatelessWidget {
   }
 
   Widget _buildLocalFileInfo(BuildContext context) {
+    final hardCodedAuthor = "Yuval Noah Harari";
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 18.0,
-                        fontWeight: FontWeight.bold,
-                        color: isSelected ? Colors.grey[600] : Colors.black,
-                      ),
-                      maxLines: 1, // Limit to one line
-                      overflow: TextOverflow.ellipsis, // Add ellipsis if text overflows
-                    ),
-                  ),
-                  const SizedBox(width: 8.0),
-                  if (isSelected)
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Icon(
-                        Icons.check_box,
-                        color: Colors.blue,
-                        size: 24.0,
-                      ),
-                    ),
-                ],
+        Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: 18.0,
+                fontWeight: FontWeight.normal,
+                color: isSelected ? Colors.grey[600] : Colors.black,
               ),
-              const SizedBox(height: 8.0),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      formatFileSize(fileSize),
-                      style: TextStyle(
-                        fontSize: 14.0,
-                        color: isSelected ? Colors.grey[500] : Colors.grey,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 8.0),
-                  const Text(
-                    'pdf',
-                    style: TextStyle(
-                      fontSize: 14.0,
-                      color: Colors.grey,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12.0),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () {},
-                    child: Icon(
-                      Icons.star_border_outlined,
-                      color: Colors.yellow,
-                      size: 24.0,
-                      semanticLabel: 'Star',
-                    ),
-                  ),
-                  const SizedBox(width: 8.0),
-                  TextButton(
-                    onPressed: () {},
-                    child: Icon(
-                      Octicons.saved,
-                      color: Colors.grey[500],
-                    ),
-                  ),
-                  const SizedBox(width: 8.0),
-                  TextButton(
-                    onPressed: () {},
-                    child: Icon(
-                      FontAwesome5.readme,
-                      color: Colors.grey[500],
-                    ),
-                  ),
-                ],
-              ),
-            ],
+              maxLines: 1, // Limit to one line
+              overflow: TextOverflow.ellipsis, // Add ellipsis if text overflows
+            ),
+          ),
+        const SizedBox(width: 8.0),
+        if (isSelected)
+            Icon(
+              Icons.check_box,
+              color: Colors.blue,
+              size: 24.0,
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        // Author
+        Text(
+          hardCodedAuthor,
+          style: const TextStyle(
+            fontSize: 14.0,
+            fontWeight: FontWeight.normal,
+            color: Colors.black,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 4),
+        // File info (PDF, size)
+        Text(
+          "PDF, ${formatFileSize(fileSize)}",
+          style: TextStyle(
+            fontSize: 14.0,
+            color: isSelected ? Colors.grey[600] : Colors.grey[800],
           ),
         ),
+        const SizedBox(height: 62),
+        Row(
+          children: [
+            _buildDot(Colors.brown.shade300),
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                height: 1,
+                color: Colors.brown.shade300,
+              ),
+            ),
+            _buildDot(Colors.brown.shade300),
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                height: 1,
+                color: Colors.brown.shade300,
+              ),
+            ),
+            _buildDot(Colors.brown.shade300),
+          ],
+        ),
+        const SizedBox(height: 22),
+        // Icons at the bottom (Star and a check icon)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Icon(
+              Icons.star_border_outlined,
+              color: Colors.black87,
+              size: 24.0,
+              semanticLabel: 'Star',
+            ),
+            const SizedBox(width: 36.0),
+            Icon(
+              FontAwesome5.check,
+              color: Colors.black87,
+              size: 20.0,
+            ),
+            const SizedBox(width: 22.0),
+            Icon(
+              Icons.more_vert,
+              color: Colors.black87,
+              size: 30.0,
+            ),
+          ],
+        ),
       ],
+    );
+  }
+
+  Widget _buildDot(Color color) {
+    return Container(
+      width: 3,
+      height: 3,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+      ),
     );
   }
   Widget _buildInternetBookInfo(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+      Text(
           title,
           style: const TextStyle(fontSize: 18.0, fontWeight: FontWeight.bold),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
+        const SizedBox(width: 8.0),
+        if (isSelected)
+            Icon(
+              Icons.check_box,
+              color: Colors.blue,
+              size: 24.0,
+            ),
+        ], ),
         if (author != null && author!.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.only(top: 8.0),
+            padding: const EdgeInsets.only(top: 4.0),
             child: Text(
-              'Author: $author',
-              style: const TextStyle(fontSize: 14.0, color: Colors.grey),
+              author!,
+              style: const TextStyle(fontSize: 14.0, color: Colors.black),
             ),
           ),
-        const SizedBox(height: 8.0),
+        const SizedBox(height: 4),
+        Text(
+          "PDF, ${formatFileSize(fileSize)}",
+          style: const TextStyle(fontSize: 14.0, color: Colors.grey),
+        ),
+        const SizedBox(height: 12),
+        // Hard-coded progress bar
         Row(
-          mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            IconButton(
-              icon: const Icon(Icons.download),
-              onPressed: () {
-                final downloadBloc = BlocProvider.of<DownloadBloc>(context);
-                downloadBloc.add(StartDownload(url: filePath, fileName: title));
-              },
+            _buildDot(Colors.brown.shade300),
+            LinearProgressIndicator(
+            value: 0.3,  // a value from 0.0 to 1.0
+            backgroundColor: Colors.brown.shade200,
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.brown.shade300),
+            ),
+            _buildDot(Colors.brown.shade300),
+            const SizedBox(width: 4),
+            _buildDot(Colors.brown.shade300),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.star_border_outlined,
+              color: Colors.black87,
+              size: 24.0,
+              semanticLabel: 'Star',
+            ),
+            const SizedBox(width: 16.0),
+            Icon(
+              FontAwesome5.check,
+              color: Colors.black87,
+              size: 20.0,
             ),
           ],
         ),
