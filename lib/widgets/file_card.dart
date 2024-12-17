@@ -5,7 +5,10 @@ import 'package:fluttericon/elusive_icons.dart';
 import 'package:fluttericon/font_awesome5_icons.dart';
 import 'package:fluttericon/octicons_icons.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
+import 'package:migrated/screens/search_screen.dart';
 import 'package:path/path.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:migrated/blocs/DownloadBloc/download_bloc.dart';
 
 class FileCard extends StatelessWidget {
   final String filePath;
@@ -14,10 +17,12 @@ class FileCard extends StatelessWidget {
   final VoidCallback onSelected;
   final VoidCallback onView;
   final VoidCallback onRemove;
-  final String imageUrl = 'https://link.springer.com/book/10.1007/978-1-4842-5181-2';
+  final VoidCallback onDownload;
   final String title;
-  final String fileType = 'pdf';
-  final double progress = 10.7;
+
+  final bool isInternetBook;
+  final String? author;
+  final String? thumbnailUrl;
 
   const FileCard({
     required this.filePath,
@@ -27,138 +32,273 @@ class FileCard extends StatelessWidget {
     required this.onView,
     required this.onRemove,
     required this.title,
+    required this.onDownload,
+    this.isInternetBook = false,
+    this.author,
+    this.thumbnailUrl,
     Key? key,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onLongPress: onSelected,
-      onTap: onView,
-      child: Card(
-        color: isSelected ? Colors.grey[200] : Colors.white,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              flex: 2,
-              child: ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(8.0),
-                  bottomLeft: Radius.circular(8.0),
+    final displayImageUrl = isInternetBook && thumbnailUrl != null
+        ? thumbnailUrl!
+        : 'https://picsum.photos/200/300?random=${DateTime.now().millisecondsSinceEpoch}';
+
+    return Dismissible(
+      key: Key(filePath),
+      direction: DismissDirection.horizontal,
+      onDismissed: (direction) {
+        onRemove();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$title removed')),
+        );
+      },
+      child: GestureDetector(
+        onLongPress: onSelected,
+        onTap: onView,
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+          padding: const EdgeInsets.all(5),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFAF5F4),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 128.5,
+                height: 190 + 1,
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: Colors.black,
+                    width: 0.5, // Thin border width
+                  ),
                 ),
                 child: Image.network(
-                  imageUrl,
-                  width: double.infinity,
-                  height: 150,
-                  fit: BoxFit.cover,
-                  color: isSelected ? Colors.grey.withOpacity(0.5) : null,
-                  colorBlendMode: BlendMode.darken,
+                  displayImageUrl,
+                  width: 135,
+                  height: 190,
                 ),
               ),
-            ),
-            Expanded(
-              flex: 3,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 18.0,
-                        fontWeight: FontWeight.bold,
-                        color: isSelected ? Colors.grey[600] : Colors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 8.0),
-                    if (isSelected)
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Icon(
-                          MdiIcons.fromString('checkbox-marked'),
-                          color: Colors.blue,
-                          size: 24,
-                        ),
-                      ),
-                    Row(
-                      children: [
-                        Text(
-                          fileSize != null ? formatFileSize(fileSize) : "Empty",
-                          style: TextStyle(
-                            fontSize: 14.0,
-                            color: isSelected ? Colors.grey[500] : Colors.grey,
-                          ),
-                        ),
-                        const SizedBox(width: 8.0),
-                        Text(
-                          fileType,
-                          style: TextStyle(
-                            fontSize: 14.0,
-                            color: isSelected ? Colors.grey[500] : Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12.0),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(1.0),
-                      child: LinearProgressIndicator(
-                        value: progress / 100,
-                        backgroundColor: isSelected ? Colors.grey[300] : Colors.grey[200],
-                        color: isSelected ? Colors.grey[500] : Colors.grey[400],
-                      ),
-                    ),
-                    const SizedBox(height: 12.0),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () {
-                            // Add your button logic here
-                          },
-                          child: Icon(
-                            Icons.star_border_outlined,
-                            color: Colors.yellow,
-                            size: 24.0,
-                            semanticLabel: 'Star',
-                          ),
-                        ),
-                        const SizedBox(width: 8.0),
-                        TextButton(
-                          onPressed: () {
-
-                          },
-                          child: Icon(
-                              Octicons.saved,
-                              color: Colors.grey[500],
-                          ),
-                        ),
-                        const SizedBox(width: 8.0),
-                        TextButton(
-                          onPressed: () {
-
-                          },
-                          child: Icon(
-                            FontAwesome5.readme,
-                            color: Colors.grey[500],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: isInternetBook
+                    ? _buildInternetBookInfo(context)
+                    : _buildLocalFileInfo(context),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
+  Widget _buildLocalFileInfo(BuildContext context) {
+    final hardCodedAuthor = "Yuval Noah Harari";
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 18.0,
+                  fontWeight: FontWeight.normal,
+                  color: isSelected ? Colors.grey[600] : Colors.black,
+                ),
+                maxLines: 1, // Limit to one line
+                overflow:
+                    TextOverflow.ellipsis, // Add ellipsis if text overflows
+              ),
+            ),
+            const SizedBox(width: 8.0),
+            if (isSelected)
+              Icon(
+                Icons.check_box,
+                color: Colors.blue,
+                size: 24.0,
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        // Author
+        Text(
+          hardCodedAuthor,
+          style: const TextStyle(
+            fontSize: 14.0,
+            fontWeight: FontWeight.normal,
+            color: Colors.black,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 4),
+        // File info (PDF, size)
+        Text(
+          "PDF, ${formatFileSize(fileSize)}",
+          style: TextStyle(
+            fontSize: 14.0,
+            color: isSelected ? Colors.grey[600] : Colors.grey[800],
+          ),
+        ),
+        const SizedBox(height: 62),
+        Row(
+          children: [
+            _buildDot(Colors.brown.shade300),
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                height: 1,
+                color: Colors.brown.shade300,
+              ),
+            ),
+            _buildDot(Colors.brown.shade300),
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                height: 1,
+                color: Colors.brown.shade300,
+              ),
+            ),
+            _buildDot(Colors.brown.shade300),
+          ],
+        ),
+        const SizedBox(height: 22),
+        // Icons at the bottom (Star and a check icon)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Icon(
+              Icons.star_border_outlined,
+              color: Colors.black87,
+              size: 24.0,
+              semanticLabel: 'Star',
+            ),
+            const SizedBox(width: 36.0),
+            Icon(
+              FontAwesome5.check,
+              color: Colors.black87,
+              size: 20.0,
+            ),
+            const SizedBox(width: 22.0),
+            Icon(
+              Icons.more_vert,
+              color: Colors.black87,
+              size: 30.0,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDot(Color color) {
+    return Container(
+      width: 3,
+      height: 3,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+      ),
+    );
+  }
+
+  Widget _buildInternetBookInfo(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 18.0,
+                  fontWeight: FontWeight.normal,
+                  color: isSelected ? Colors.grey[600] : Colors.black,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8.0),
+            if (isSelected)
+              Icon(
+                Icons.check_box,
+                color: Colors.blue,
+                size: 24.0,
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        if (author != null && author!.isNotEmpty)
+          Text(
+            author!,
+            style: const TextStyle(
+              fontSize: 14.0,
+              fontWeight: FontWeight.normal,
+              color: Colors.black,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        const SizedBox(height: 62),
+        Row(
+          children: [
+            _buildDot(Colors.brown.shade300),
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                height: 1,
+                color: Colors.brown.shade300,
+              ),
+            ),
+            _buildDot(Colors.brown.shade300),
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                height: 1,
+                color: Colors.brown.shade300,
+              ),
+            ),
+            _buildDot(Colors.brown.shade300),
+          ],
+        ),
+        const SizedBox(height: 22),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Icon(
+              Icons.star_border_outlined,
+              color: Colors.black87,
+              size: 24.0,
+              semanticLabel: 'Star',
+            ),
+            const SizedBox(width: 22.0),
+            IconButton(
+              onPressed: () {
+                onDownload();
+              },
+              icon : Icon(
+                Icons.download,
+                color: Colors.black87,
+                size: 30.0,
+              )
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   static String extractFileName(String filePath) {
-    File file = new File(filePath);
+    File file = File(filePath);
     return basename(file.path);
   }
 

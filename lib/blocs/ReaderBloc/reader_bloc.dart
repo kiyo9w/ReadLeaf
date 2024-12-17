@@ -1,99 +1,105 @@
 import 'dart:io';
-
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
-import 'package:meta/meta.dart';
-import 'package:migrated/blocs/FileBloc/file_bloc.dart';
 
 part 'reader_event.dart';
 part 'reader_state.dart';
 
 class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
-  ReaderBloc() : super(ReaderInitial());
-
-  @override
-  Stream<ReaderState> mapEventToState(ReaderEvent event) async* {
-    if (event is OpenReader) {
-      yield* _mapOpenReaderToState(event);
-    } else if (event is NextPage) {
-      yield* _mapNextPageToState();
-    } else if (event is PreviousPage) {
-      yield* _mapPreviousPageToState();
-    } else if (event is JumpToPage) {
-      yield* _mapJumpToPageToState(event);
-    } else if (event is SetZoomLevel) {
-      yield* _mapSetZoomLevelToState(event);
-    } else if (event is ToggleReadingMode) {
-      yield* _mapToggleReadingModeToState();
-    } else if (event is CloseReader) {
-      yield* _mapCloseReaderToState();
-    }
+  ReaderBloc() : super(ReaderInitial()) {
+    on<OpenReader>(_onOpenReader);
+    on<NextPage>(_onNextPage);
+    on<PreviousPage>(_onPreviousPage);
+    on<JumpToPage>(_onJumpToPage);
+    on<SetZoomLevel>(_onSetZoomLevel);
+    on<ToggleReadingMode>(_onToggleReadingMode);
+    on<CloseReader>(_onCloseReader);
+    on<ToggleUIVisibility>(_onToggleUIVisibility);
+    on<ToggleSideNav>(_onToggleSideNav);
   }
 
-  Stream<ReaderState> _mapOpenReaderToState(OpenReader event) async* {
-    yield ReaderLoading();
+  void _onOpenReader(OpenReader event, Emitter<ReaderState> emit) async {
+    emit(ReaderLoading());
     try {
       final fileType = FileParser.determineFileType(event.filePath);
       if (fileType == "unknown") {
-        yield ReaderError("Unsupported file format");
+        emit(ReaderError("Unsupported file format"));
         return;
       }
-      final totalPages = 100; // Replace with logic later
-      yield ReaderLoaded(
+      // Logic for total page and current page (last read) later
+      final totalPages = 100;
+      emit(ReaderLoaded(
         totalPages: totalPages,
-        currentPage: 1, // Replace with logic to get saved page
+        currentPage: 1, //
         zoomLevel: 1.0,
         isNightMode: false,
         file: event.file,
-      );
+        contentParsed: event.contentParsed,
+        showUI: true,
+        showSideNav: false,
+      ));
     } catch (e) {
-      yield ReaderError(e.toString());
+      emit(ReaderError(e.toString()));
     }
   }
 
-  Stream<ReaderState> _mapNextPageToState() async* {
+  void _onNextPage(NextPage event, Emitter<ReaderState> emit) {
     if (state is ReaderLoaded) {
-      final currentState = state as ReaderLoaded;
-      if (currentState.currentPage < currentState.totalPages) {
-        yield currentState.copyWith(currentPage: currentState.currentPage + 1);
+      final s = state as ReaderLoaded;
+      if (s.currentPage < s.totalPages) {
+        emit(s.copyWith(currentPage: s.currentPage + 1));
       }
     }
   }
 
-  Stream<ReaderState> _mapPreviousPageToState() async* {
+  void _onPreviousPage(PreviousPage event, Emitter<ReaderState> emit) {
     if (state is ReaderLoaded) {
-      final currentState = state as ReaderLoaded;
-      if (currentState.currentPage > 1) {
-        yield currentState.copyWith(currentPage: currentState.currentPage - 1);
+      final s = state as ReaderLoaded;
+      if (s.currentPage > 1) {
+        emit(s.copyWith(currentPage: s.currentPage - 1));
       }
     }
   }
 
-  Stream<ReaderState> _mapJumpToPageToState(JumpToPage event) async* {
+  void _onJumpToPage(JumpToPage event, Emitter<ReaderState> emit) {
     if (state is ReaderLoaded) {
-      final currentState = state as ReaderLoaded;
-      if (event.pageIndex > 0 && event.pageIndex <= currentState.totalPages) {
-        yield currentState.copyWith(currentPage: event.pageIndex);
+      final s = state as ReaderLoaded;
+      if (event.pageIndex > 0 && event.pageIndex <= s.totalPages) {
+        emit(s.copyWith(currentPage: event.pageIndex));
       }
     }
   }
 
-  Stream<ReaderState> _mapSetZoomLevelToState(SetZoomLevel event) async* {
+  void _onSetZoomLevel(SetZoomLevel event, Emitter<ReaderState> emit) {
     if (state is ReaderLoaded) {
-      final currentState = state as ReaderLoaded;
-      yield currentState.copyWith(zoomLevel: event.zoomLevel);
+      final s = state as ReaderLoaded;
+      emit(s.copyWith(zoomLevel: event.zoomLevel));
     }
   }
 
-  Stream<ReaderState> _mapToggleReadingModeToState() async* {
+  void _onToggleReadingMode(ToggleReadingMode event, Emitter<ReaderState> emit) {
     if (state is ReaderLoaded) {
-      final currentState = state as ReaderLoaded;
-      yield currentState.copyWith(isNightMode: !currentState.isNightMode);
+      final s = state as ReaderLoaded;
+      emit(s.copyWith(isNightMode: !s.isNightMode));
     }
   }
 
-  Stream<ReaderState> _mapCloseReaderToState() async* {
-    yield ReaderInitial();
+  void _onCloseReader(CloseReader event, Emitter<ReaderState> emit) {
+    emit(ReaderInitial());
+  }
+
+  void _onToggleUIVisibility(ToggleUIVisibility event, Emitter<ReaderState> emit) {
+    if (state is ReaderLoaded) {
+      final s = state as ReaderLoaded;
+      emit(s.copyWith(showUI: !s.showUI));
+    }
+  }
+
+  void _onToggleSideNav(ToggleSideNav event, Emitter<ReaderState> emit) {
+    if (state is ReaderLoaded) {
+      final s = state as ReaderLoaded;
+      emit(s.copyWith(showSideNav: !s.showSideNav));
+    }
   }
 }
 
@@ -108,7 +114,7 @@ class FileParser {
   Future<dynamic> parseFile(File file, String fileType) async {
     dynamic content;
     if (fileType == "pdf") {
-      // logic
+      // logic to parse PDF if needed
     } else if (fileType == "mobi") {
       // logic
     } else if (fileType == "markdown") {

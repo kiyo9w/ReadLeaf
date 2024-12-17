@@ -4,7 +4,7 @@ abstract class ReaderEvent extends Equatable {
   const ReaderEvent();
 
   @override
-  List<Object> get props => [];
+  List<Object?> get props => [];
 }
 
 class ParseFile extends ReaderEvent {
@@ -21,17 +21,10 @@ class OpenReader extends ReaderEvent {
   OpenReader(this.contentParsed, {required this.file, required this.filePath});
 
   @override
-  List<Object> get props => [];
+  List<Object> get props => [file, filePath, contentParsed];
 }
 
-class CloseReader extends ReaderEvent {
-  final File file;
-
-  CloseReader(this.file);
-
-  @override
-  List<Object> get props => [];
-}
+class CloseReader extends ReaderEvent {}
 
 class NextPage extends ReaderEvent {}
 
@@ -56,3 +49,7 @@ class SetZoomLevel extends ReaderEvent {
 }
 
 class ToggleReadingMode extends ReaderEvent {}
+
+class ToggleUIVisibility extends ReaderEvent {}
+
+class ToggleSideNav extends ReaderEvent {}
