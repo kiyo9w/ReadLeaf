@@ -8,15 +8,35 @@ import '../widgets/page_title_widget.dart';
 
 class ResultPage extends StatelessWidget {
   final String searchQuery;
+
   const ResultPage({Key? key, required this.searchQuery}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     final fileBloc = BlocProvider.of<FileBloc>(context);
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        titleTextStyle: Theme.of(context).textTheme.displayLarge,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(80),
+        child: Padding(
+          padding: const EdgeInsets.only(top: 10, left: 10, right: 10, bottom: 10),
+          child: AppBar(
+            backgroundColor: Colors.white,
+            centerTitle: false,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () {
+                fileBloc.add(CloseViewer());
+                Navigator.pop(context);
+              },
+            ),
+            title: const Text(
+              'Result',
+              style: TextStyle(
+                fontSize: 42.0,
+              ),
+            ),
+          ),
+        ),
       ),
       body: BlocConsumer<FileBloc, FileState>(
         listener: (context, state) {

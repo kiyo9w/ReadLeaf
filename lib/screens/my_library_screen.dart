@@ -9,6 +9,25 @@ class MyLibraryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(80), // Adjust the height as needed
+        child: Padding(
+          padding:
+              const EdgeInsets.only(top: 10, left: 10, right: 10, bottom: 10),
+          child: AppBar(
+            backgroundColor: Colors.white,
+            centerTitle: false,
+            title: const Text(
+              'My library',
+              style: TextStyle(
+                fontSize: 42.0,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
     // return BlocBuilder<FileBloc, FileState>(
     //   builder: (context, state) {
     //     if (state is FileLoaded) {

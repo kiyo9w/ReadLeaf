@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-
-// Assuming these widgets and pages exist in your project:
 import '../widgets/snack_bar_widget.dart';
 import '../blocs/FileBloc/file_bloc.dart';
 import 'results_page.dart';
-import '../widgets/page_title_widget.dart';
 
 // Example dropdown data (adjust as needed)
 final Map<String, String> typeValues = {
@@ -50,12 +47,256 @@ class _SearchScreenState extends State<SearchScreen> {
         query: searchQuery,
         content: typeValues[selectedType] ?? '',
         sort: sortValues[selectedSort] ?? '',
-        fileType: selectedFileType == "All" ? '' : selectedFileType.toLowerCase(),
+        fileType:
+        selectedFileType == "All" ? '' : selectedFileType.toLowerCase(),
         enableFilters: true,
       ));
     } else {
       showSnackBar(context: context, message: 'Search field is empty');
     }
+  }
+
+  void _showFilterModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 20.0),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Filters",
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                DropdownButtonFormField(
+                  decoration: const InputDecoration(
+                    labelText: 'Type',
+                    labelStyle: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.grey, width: 2),
+                      borderRadius: BorderRadius.all(Radius.circular(50)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.black, width: 2),
+                      borderRadius: BorderRadius.all(Radius.circular(50)),
+                    ),
+                  ),
+                  icon: const Icon(Icons.arrow_drop_down),
+                  value: selectedType,
+                  items: typeValues.keys
+                      .map<DropdownMenuItem<String>>((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(
+                        value,
+                        style: const TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (String? val) {
+                    setState(() {
+                      selectedType = val ?? 'All';
+                    });
+                  },
+                ),
+                const SizedBox(height: 20),
+                DropdownButtonFormField(
+                  decoration: const InputDecoration(
+                    labelText: 'Sort by',
+                    labelStyle: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.grey, width: 2),
+                      borderRadius: BorderRadius.all(Radius.circular(50)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.black, width: 2),
+                      borderRadius: BorderRadius.all(Radius.circular(50)),
+                    ),
+                  ),
+                  value: selectedSort,
+                  items: sortValues.keys
+                      .map<DropdownMenuItem<String>>((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(
+                        value,
+                        style: const TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (String? val) {
+                    setState(() {
+                      selectedSort = val ?? 'Most Relevant';
+                    });
+                  },
+                ),
+                const SizedBox(height: 20),
+                DropdownButtonFormField(
+                  decoration: const InputDecoration(
+                    labelText: 'File type',
+                    labelStyle: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.grey, width: 2),
+                      borderRadius: BorderRadius.all(Radius.circular(50)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.black, width: 2),
+                      borderRadius: BorderRadius.all(Radius.circular(50)),
+                    ),
+                  ),
+                  value: selectedFileType,
+                  items: fileType
+                      .map<DropdownMenuItem<String>>((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(
+                        value,
+                        style: const TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (String? val) {
+                    setState(() {
+                      selectedFileType = val ?? 'All';
+                    });
+                  },
+                ),
+                const SizedBox(height: 20),
+                Center(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: Text('Apply'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTopSearches() {
+    // Hard-coded placeholders for "Top searches"
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 10.0, vertical: 20.0),
+          child: Text(
+            'Top searches',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ),
+        // Hard-coded search items
+        ListTile(
+          title: Text('Coffee shop'),
+          subtitle: Text('CopyCat - 2023: A book about a coffee shop'),
+          onTap: () {},
+        ),
+        Divider(),
+        ListTile(
+          title: Text('Human nature'),
+          subtitle: Text('Jessie Nor - 2013: Explore the human nature'),
+          onTap: () {},
+        ),
+        Divider(),
+        ListTile(
+          title: Text('In Cold Blood'),
+          subtitle: Text('Truman Capote - 1999: A book a shop'),
+          onTap: () {},
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTrending() {
+    // Hard-coded placeholders for "Trending"
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 10.0, vertical: 20.0),
+          child: Text(
+            'Trending',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ),
+        // Just a row of placeholder categories
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10.0),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildCategoryCard('Fiction', 'A New Dawn'),
+                SizedBox(width: 10),
+                _buildCategoryCard('Novel', 'Some Book'),
+                SizedBox(width: 10),
+                _buildCategoryCard('Non-fiction', 'Great Journey'),
+                SizedBox(width: 10),
+                _buildCategoryCard('Romance', 'All This'),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCategoryCard(String category, String title) {
+    return Container(
+      width: 160,
+      height: 120,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.grey.shade300,
+        image: DecorationImage(
+          // hard code
+          image: AssetImage('/Users/ngotrung/StudioProjects/migrated/lib/assets/images/56916837.jpg'),
+          fit: BoxFit.cover,
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            bottom: 5,
+            left: 5,
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              color: Colors.black54,
+              child: Text(
+                category,
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -77,180 +318,86 @@ class _SearchScreenState extends State<SearchScreen> {
       },
       builder: (context, state) {
         return Scaffold(
-          appBar: AppBar(
-            title: const Text('Search'),
+          backgroundColor: Colors.white,
+          appBar: PreferredSize(
+            preferredSize: const Size.fromHeight(80),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 10, left: 10, right: 10, bottom: 10),
+              child: AppBar(
+                backgroundColor: Colors.white,
+                centerTitle: false,
+                title: const Text(
+                  'Search',
+                  style: TextStyle(
+                    fontSize: 42.0,
+                  ),
+                ),
+              ),
+            ),
           ),
           body: SingleChildScrollView(
             scrollDirection: Axis.vertical,
             child: Padding(
-              padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
+              padding: const EdgeInsets.only(top: 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Search bar with filter icon
                   Padding(
-                    padding: const EdgeInsets.only(left: 7, right: 7, top: 10),
-                    child: TextField(
-                      showCursor: true,
-                      cursorColor: Colors.grey,
-                      decoration: InputDecoration(
-                        enabledBorder: const OutlineInputBorder(
-                          borderSide: BorderSide(color: Colors.grey, width: 2),
-                          borderRadius: BorderRadius.all(Radius.circular(50)),
-                        ),
-                        focusedBorder: const OutlineInputBorder(
-                          borderSide: BorderSide(color: Colors.black, width: 2),
-                          borderRadius: BorderRadius.all(Radius.circular(50)),
-                        ),
-                        suffixIcon: IconButton(
-                          padding: const EdgeInsets.only(right: 5),
-                          color: Colors.black,
-                          icon: const Icon(Icons.search, size: 23),
-                          onPressed: () => onSubmit(context),
-                        ),
-                        filled: true,
-                        hintStyle: const TextStyle(
-                          color: Colors.grey,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        hintText: "Search",
-                        fillColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 15.0),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.pink.shade50,
+                        borderRadius: BorderRadius.circular(50),
                       ),
-                      onSubmitted: (String value) => onSubmit(context),
-                      style: const TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                      onChanged: (String value) {
-                        setState(() {
-                          searchQuery = value;
-                        });
-                      },
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 7, right: 7, top: 19),
-                    child: SizedBox(
-                      width: 250,
-                      child: DropdownButtonFormField(
-                        decoration: const InputDecoration(
-                          labelText: 'Type',
-                          labelStyle: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
+                      child: Row(
+                        children: [
+                          IconButton(
+                            padding: const EdgeInsets.only(right: 5),
                             color: Colors.black,
+                            icon: const Icon(Icons.search, size: 23),
+                            onPressed: () => onSubmit(context),
                           ),
-                          enabledBorder: OutlineInputBorder(
-                            borderSide: BorderSide(color: Colors.grey, width: 2),
-                            borderRadius: BorderRadius.all(Radius.circular(50)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderSide: BorderSide(color: Colors.black, width: 2),
-                            borderRadius: BorderRadius.all(Radius.circular(50)),
-                          ),
-                        ),
-                        icon: const Icon(Icons.arrow_drop_down),
-                        value: selectedType,
-                        items: typeValues.keys
-                            .map<DropdownMenuItem<String>>((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(
-                              value,
-                              style:
-                              const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          Expanded(
+                            child: TextField(
+                              showCursor: true,
+                              cursorColor: Colors.grey,
+                              decoration: InputDecoration(
+                                contentPadding: const EdgeInsets.symmetric(vertical: 15),
+                                border: InputBorder.none,
+                                hintText: "Find some books...",
+                                hintStyle: const TextStyle(
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              onSubmitted: (String value) => onSubmit(context),
+                              style: const TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                              onChanged: (String value) {
+                                setState(() {
+                                  searchQuery = value;
+                                });
+                              },
                             ),
-                          );
-                        }).toList(),
-                        onChanged: (String? val) {
-                          setState(() {
-                            selectedType = val ?? 'All';
-                          });
-                        },
+                          ),
+                          IconButton(
+                            onPressed: () => _showFilterModal(context),
+                            icon: const Icon(Icons.filter_list),
+                            color: Colors.black54,
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 7, right: 7, top: 19),
-                    child: SizedBox(
-                      width: 210,
-                      child: DropdownButtonFormField(
-                        decoration: const InputDecoration(
-                          labelText: 'Sort by',
-                          labelStyle: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderSide: BorderSide(color: Colors.grey, width: 2),
-                            borderRadius: BorderRadius.all(Radius.circular(50)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderSide: BorderSide(color: Colors.black, width: 2),
-                            borderRadius: BorderRadius.all(Radius.circular(50)),
-                          ),
-                        ),
-                        value: selectedSort,
-                        items: sortValues.keys
-                            .map<DropdownMenuItem<String>>((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(
-                              value,
-                              style:
-                              const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (String? val) {
-                          setState(() {
-                            selectedSort = val ?? 'Most Relevant';
-                          });
-                        },
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 7, right: 7, top: 19),
-                    child: SizedBox(
-                      width: 165,
-                      child: DropdownButtonFormField(
-                        decoration: const InputDecoration(
-                          labelText: 'File type',
-                          labelStyle: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderSide: BorderSide(color: Colors.grey, width: 2),
-                            borderRadius: BorderRadius.all(Radius.circular(50)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderSide: BorderSide(color: Colors.black, width: 2),
-                            borderRadius: BorderRadius.all(Radius.circular(50)),
-                          ),
-                        ),
-                        value: selectedFileType,
-                        items: fileType.map<DropdownMenuItem<String>>((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(
-                              value,
-                              style:
-                              const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (String? val) {
-                          setState(() {
-                            selectedFileType = val ?? 'All';
-                          });
-                        },
-                      ),
-                    ),
-                  ),
+
+                  _buildTopSearches(),
+
+                  _buildTrending(),
+
                   if (state is FileSearchLoading)
                     const Padding(
                       padding: EdgeInsets.only(top: 20),

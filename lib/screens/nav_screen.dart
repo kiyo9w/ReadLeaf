@@ -28,8 +28,8 @@ class _NavScreenState extends State<NavScreen> {
   Widget build(BuildContext context) {
     final backgroundColor = Colors.white;
     final iconColor = Colors.black;
-    final activeColor = Colors.black;
-    final tabBackgroundColor = Colors.grey.shade200;
+    final activeColor = Colors.blue;
+    final tabBackgroundColor = Colors.white;
 
     return Scaffold(
       body: SafeArea(
@@ -51,13 +51,12 @@ class _NavScreenState extends State<NavScreen> {
               backgroundColor: backgroundColor,
               color: iconColor,
               activeColor: activeColor,
-              iconSize: 20,
+              iconSize: 26,
               tabBackgroundColor: tabBackgroundColor,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               tabs: [
                 GButton(
-                  icon: FontAwesome5.home,
-                  text: 'Home',
+                  icon: Icons.home_filled,
                   textStyle: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: _selectedIndex == 0 ? activeColor : Colors.grey,
@@ -66,7 +65,6 @@ class _NavScreenState extends State<NavScreen> {
                 ),
                 GButton(
                   icon: Icons.search,
-                  text: 'Search',
                   textStyle: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: _selectedIndex == 1 ? activeColor : Colors.grey,
@@ -75,7 +73,6 @@ class _NavScreenState extends State<NavScreen> {
                 ),
                 GButton(
                   icon: Icons.collections_bookmark,
-                  text: 'My Library',
                   textStyle: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: _selectedIndex == 2 ? activeColor : Colors.grey,
@@ -83,8 +80,7 @@ class _NavScreenState extends State<NavScreen> {
                   ),
                 ),
                 GButton(
-                  icon: Octicons.settings,
-                  text: 'Settings',
+                  icon: Icons.settings,
                   textStyle: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: _selectedIndex == 3 ? activeColor : Colors.grey,

@@ -99,27 +99,28 @@ class FileCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                fontSize: 18.0,
-                fontWeight: FontWeight.normal,
-                color: isSelected ? Colors.grey[600] : Colors.black,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 18.0,
+                  fontWeight: FontWeight.normal,
+                  color: isSelected ? Colors.grey[600] : Colors.black,
+                ),
+                maxLines: 1, // Limit to one line
+                overflow:
+                    TextOverflow.ellipsis, // Add ellipsis if text overflows
               ),
-              maxLines: 1, // Limit to one line
-              overflow: TextOverflow.ellipsis, // Add ellipsis if text overflows
             ),
-          ),
-        const SizedBox(width: 8.0),
-        if (isSelected)
-            Icon(
-              Icons.check_box,
-              color: Colors.blue,
-              size: 24.0,
-            ),
+            const SizedBox(width: 8.0),
+            if (isSelected)
+              Icon(
+                Icons.check_box,
+                color: Colors.blue,
+                size: 24.0,
+              ),
           ],
         ),
         const SizedBox(height: 4),
@@ -204,58 +205,72 @@ class FileCard extends StatelessWidget {
       ),
     );
   }
+
   Widget _buildInternetBookInfo(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-      Text(
-          title,
-          style: const TextStyle(fontSize: 18.0, fontWeight: FontWeight.bold),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 18.0,
+                  fontWeight: FontWeight.normal,
+                  color: isSelected ? Colors.grey[600] : Colors.black,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8.0),
+            if (isSelected)
+              Icon(
+                Icons.check_box,
+                color: Colors.blue,
+                size: 24.0,
+              ),
+          ],
         ),
-        const SizedBox(width: 8.0),
-        if (isSelected)
-            Icon(
-              Icons.check_box,
-              color: Colors.blue,
-              size: 24.0,
-            ),
-        ], ),
-        if (author != null && author!.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 4.0),
-            child: Text(
-              author!,
-              style: const TextStyle(fontSize: 14.0, color: Colors.black),
-            ),
-          ),
         const SizedBox(height: 4),
-        Text(
-          "PDF, ${formatFileSize(fileSize)}",
-          style: const TextStyle(fontSize: 14.0, color: Colors.grey),
-        ),
-        const SizedBox(height: 12),
-        // Hard-coded progress bar
+        if (author != null && author!.isNotEmpty)
+          Text(
+            author!,
+            style: const TextStyle(
+              fontSize: 14.0,
+              fontWeight: FontWeight.normal,
+              color: Colors.black,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        const SizedBox(height: 62),
         Row(
           children: [
             _buildDot(Colors.brown.shade300),
-            LinearProgressIndicator(
-            value: 0.3,  // a value from 0.0 to 1.0
-            backgroundColor: Colors.brown.shade200,
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.brown.shade300),
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                height: 1,
+                color: Colors.brown.shade300,
+              ),
             ),
             _buildDot(Colors.brown.shade300),
-            const SizedBox(width: 4),
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                height: 1,
+                color: Colors.brown.shade300,
+              ),
+            ),
             _buildDot(Colors.brown.shade300),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 22),
         Row(
-          mainAxisAlignment: MainAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.end,
           children: [
             Icon(
               Icons.star_border_outlined,
@@ -263,11 +278,11 @@ class FileCard extends StatelessWidget {
               size: 24.0,
               semanticLabel: 'Star',
             ),
-            const SizedBox(width: 16.0),
+            const SizedBox(width: 22.0),
             Icon(
-              FontAwesome5.check,
+              Icons.download,
               color: Colors.black87,
-              size: 20.0,
+              size: 30.0,
             ),
           ],
         ),

@@ -10,6 +10,7 @@ import '../../services/annas_archieve.dart';
 import 'package:path_provider/path_provider.dart';
 
 part 'file_event.dart';
+
 part 'file_state.dart';
 
 class FileBloc extends Bloc<FileEvent, FileState> {
@@ -63,16 +64,15 @@ class FileBloc extends Bloc<FileEvent, FileState> {
       }
 
       final isFileAlreadyLoaded =
-      currentFiles.any((existingFile) => existingFile.filePath == filePath);
+          currentFiles.any((existingFile) => existingFile.filePath == filePath);
       if (isFileAlreadyLoaded) {
         emit(FileLoaded(currentFiles));
       } else {
-
-      final newFiles = [...currentFiles, FileInfo(filePath, fileSize)];
-      final newState = FileLoaded(newFiles);
-      _lastLoadedState = newState;
-      emit(newState);
-      await fileRepository.saveFiles(newFiles);
+        final newFiles = [...currentFiles, FileInfo(filePath, fileSize)];
+        final newState = FileLoaded(newFiles);
+        _lastLoadedState = newState;
+        emit(newState);
+        await fileRepository.saveFiles(newFiles);
       }
     } catch (e) {
       emit(FileError(message: e.toString()));
@@ -101,20 +101,19 @@ class FileBloc extends Bloc<FileEvent, FileState> {
     if (state is FileLoaded) {
       _lastLoadedState = state as FileLoaded;
       final fileToView = _lastLoadedState!.files.firstWhere(
-              (file) => file.filePath == event.filePath,
-          orElse: () => _lastLoadedState!.files.first
-      );
+          (file) => file.filePath == event.filePath,
+          orElse: () => _lastLoadedState!.files.first);
       emit(FileViewing(fileToView.filePath));
     }
-  // } else if (state is FileSearchResults) {
-  // emit(FileBookInfoLoading());
-  // try {
-  // final bookInfo = await annasArchieve.bookInfo(url: event.filePath);
-  // _lastViewedInternetBookInfo = bookInfo;
-  // emit(FileViewing(bookInfo.link));
-  // } catch (e) {
-  // emit(FileError(message: e.toString()));
-  // }
+    // } else if (state is FileSearchResults) {
+    // emit(FileBookInfoLoading());
+    // try {
+    // final bookInfo = await annasArchieve.bookInfo(url: event.filePath);
+    // _lastViewedInternetBookInfo = bookInfo;
+    // emit(FileViewing(bookInfo.link));
+    // } catch (e) {
+    // emit(FileError(message: e.toString()));
+    // }
     else if (state is FileSearchResults) {
       emit(FileViewing(event.filePath));
     }
@@ -149,7 +148,8 @@ class FileBloc extends Bloc<FileEvent, FileState> {
   }
 
   // New method: Handle SearchBooks event
-  Future<void> _onSearchBooks(SearchBooks event, Emitter<FileState> emit) async {
+  Future<void> _onSearchBooks(
+      SearchBooks event, Emitter<FileState> emit) async {
     try {
       emit(FileSearchLoading());
       final books = await annasArchieve.searchBooks(
@@ -165,7 +165,8 @@ class FileBloc extends Bloc<FileEvent, FileState> {
     }
   }
 
-  Future<void> _onLoadBookInfo(LoadBookInfo event, Emitter<FileState> emit) async {
+  Future<void> _onLoadBookInfo(
+      LoadBookInfo event, Emitter<FileState> emit) async {
     try {
       emit(FileBookInfoLoading());
       final bookInfo = await annasArchieve.bookInfo(url: event.url);
