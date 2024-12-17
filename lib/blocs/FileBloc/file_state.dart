@@ -59,3 +59,11 @@ class FileBookInfoLoaded extends FileState {
   List<Object> get props => [bookInfo];
 }
 class FileLoading extends FileState {}
+
+class FileDownloading extends FileState {
+  final double progress;
+  const FileDownloading(this.progress);
+
+  @override
+  List<Object> get props => [progress];
+}

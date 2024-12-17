@@ -17,6 +17,7 @@ class FileCard extends StatelessWidget {
   final VoidCallback onSelected;
   final VoidCallback onView;
   final VoidCallback onRemove;
+  final VoidCallback onDownload;
   final String title;
 
   final bool isInternetBook;
@@ -31,6 +32,7 @@ class FileCard extends StatelessWidget {
     required this.onView,
     required this.onRemove,
     required this.title,
+    required this.onDownload,
     this.isInternetBook = false,
     this.author,
     this.thumbnailUrl,
@@ -279,10 +281,15 @@ class FileCard extends StatelessWidget {
               semanticLabel: 'Star',
             ),
             const SizedBox(width: 22.0),
-            Icon(
-              Icons.download,
-              color: Colors.black87,
-              size: 30.0,
+            IconButton(
+              onPressed: () {
+                onDownload();
+              },
+              icon : Icon(
+                Icons.download,
+                color: Colors.black87,
+                size: 30.0,
+              )
             ),
           ],
         ),

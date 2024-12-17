@@ -1,4 +1,5 @@
 import 'package:bloc/bloc.dart';
+import 'package:dio/dio.dart';
 import 'package:equatable/equatable.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
@@ -30,6 +31,7 @@ class FileBloc extends Bloc<FileEvent, FileState> {
     // New event handlers for AnnaArchive integration
     on<SearchBooks>(_onSearchBooks);
     on<LoadBookInfo>(_onLoadBookInfo);
+    on<DownloadFile>(_onDownloadFile);
   }
 
   Future<void> _onInitFiles(InitFiles event, Emitter<FileState> emit) async {
@@ -173,6 +175,29 @@ class FileBloc extends Bloc<FileEvent, FileState> {
       emit(FileBookInfoLoaded(bookInfo));
     } catch (e) {
       emit(FileError(message: e.toString()));
+    }
+  }
+
+  Future<void> _onDownloadFile(DownloadFile event, Emitter<FileState> emit) async {
+    try {
+      emit(FileDownloading(0.0));
+      final directory = await getApplicationDocumentsDirectory();
+      final localFilePath = '${directory.path}/${event.fileName}';
+
+      Dio dio = Dio();
+      await dio.download(
+        event.url,
+        localFilePath,
+        onReceiveProgress: (received, total) {
+          if (total != -1) {
+            final progress = received / total;
+            emit(FileDownloading(progress));
+          }
+        },
+      );
+      add(LoadFile(localFilePath));
+    } catch (e) {
+      emit(FileError(message: 'Download failed: ${e.toString()}'));
     }
   }
 }

@@ -6,10 +6,17 @@ import '../blocs/FileBloc/file_bloc.dart';
 import '../widgets/file_card.dart';
 import '../widgets/page_title_widget.dart';
 
-class ResultPage extends StatelessWidget {
+class ResultPage extends StatefulWidget {
   final String searchQuery;
 
   const ResultPage({Key? key, required this.searchQuery}) : super(key: key);
+
+  @override
+  State<ResultPage> createState() => _ResultPageState();
+}
+
+class _ResultPageState extends State<ResultPage> {
+  bool _isShowingDownloadDialog = false;
 
   @override
   Widget build(BuildContext context) {
@@ -41,9 +48,31 @@ class ResultPage extends StatelessWidget {
       body: BlocConsumer<FileBloc, FileState>(
         listener: (context, state) {
           if (state is FileViewing) {
+            if (_isShowingDownloadDialog) {
+              Navigator.pop(context);
+              _isShowingDownloadDialog = false;
+            }
             Navigator.pushNamed(context, '/viewer').then((_) {
               Navigator.pop(context);
             });
+          } else if (state is FileDownloading) {
+            // Show or update the download progress dialog
+            if (!_isShowingDownloadDialog) {
+              _isShowingDownloadDialog = true;
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) => DownloadProgressDialog(progress: state.progress),
+              );
+            } else {
+              // If dialog already showing, update the state
+              Navigator.pop(context); // pop old dialog
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) => DownloadProgressDialog(progress: state.progress),
+              );
+            }
           }
         },
         builder: (context, state) {
@@ -91,6 +120,9 @@ class ResultPage extends StatelessWidget {
                               fileBloc.add(ViewFile(book.link));
                             },
                             onRemove: () {},
+                            onDownload: () {
+                              fileBloc.add(DownloadFile(url: book.link, fileName: 'test.pdf'));
+                            },
                             title: book.title,
                             isInternetBook: true,
                             author: book.author,
@@ -137,7 +169,7 @@ class ResultPage extends StatelessWidget {
                   const SizedBox(height: 20),
                   ElevatedButton(
                     onPressed: () {
-                      fileBloc.add(SearchBooks(query: searchQuery));
+                      fileBloc.add(SearchBooks(query: widget.searchQuery));
                     },
                     child: const Text('Retry'),
                   ),
@@ -147,11 +179,11 @@ class ResultPage extends StatelessWidget {
           } else {
             return Center(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.start,
                 children: [
-                  const Text(
-                    'No search initiated.',
+                  Text(
                     style: TextStyle(fontSize: 16),
+                    '$state',
                   ),
                   const SizedBox(height: 20),
                   ElevatedButton(
@@ -165,6 +197,29 @@ class ResultPage extends StatelessWidget {
             );
           }
         },
+      ),
+    );
+  }
+}
+
+class DownloadProgressDialog extends StatelessWidget {
+  final double progress;
+
+  const DownloadProgressDialog({Key? key, required this.progress})
+      : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final percentage = (progress * 100).toStringAsFixed(0);
+    return AlertDialog(
+      title: Text('Downloading...'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          LinearProgressIndicator(value: progress),
+          SizedBox(height: 10),
+          Text('$percentage%'),
+        ],
       ),
     );
   }

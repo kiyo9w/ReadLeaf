@@ -74,3 +74,13 @@ class LoadBookInfo extends FileEvent {
   @override
   List<Object> get props => [url];
 }
+
+class DownloadFile extends FileEvent {
+  final String url;
+  final String fileName;
+
+  const DownloadFile({required this.url, required this.fileName});
+
+  @override
+  List<Object> get props => [url, fileName];
+}

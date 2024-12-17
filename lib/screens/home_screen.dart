@@ -62,6 +62,7 @@ class HomeScreen extends StatelessWidget {
                   onRemove: () {
                     fileBloc.add(RemoveFile(file.filePath));
                   },
+                  onDownload: () {},
                 );
               },
             );

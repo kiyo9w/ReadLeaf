@@ -4,7 +4,6 @@ import '../widgets/snack_bar_widget.dart';
 import '../blocs/FileBloc/file_bloc.dart';
 import 'results_page.dart';
 
-// Example dropdown data (adjust as needed)
 final Map<String, String> typeValues = {
   'All': '',
   'Any Books': 'book_any',
