@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../services/webview.dart';
 
 // Project imports:
 import '../blocs/FileBloc/file_bloc.dart';
@@ -48,37 +49,14 @@ class _ResultPageState extends State<ResultPage> {
       body: BlocConsumer<FileBloc, FileState>(
         listener: (context, state) {
           if (state is FileViewing) {
-            if (_isShowingDownloadDialog) {
-              Navigator.pop(context);
-              _isShowingDownloadDialog = false;
-            }
             Navigator.pushNamed(context, '/viewer').then((_) {
               Navigator.pop(context);
             });
-          } else if (state is FileDownloading) {
-            // Show or update the download progress dialog
-            if (!_isShowingDownloadDialog) {
-              _isShowingDownloadDialog = true;
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (_) => DownloadProgressDialog(progress: state.progress),
-              );
-            } else {
-              // If dialog already showing, update the state
-              Navigator.pop(context); // pop old dialog
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (_) => DownloadProgressDialog(progress: state.progress),
-              );
-            }
           }
         },
         builder: (context, state) {
           if (state is FileSearchLoading) {
             return Column(
-              mainAxisAlignment: MainAxisAlignment.start,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Padding(
@@ -120,8 +98,21 @@ class _ResultPageState extends State<ResultPage> {
                               fileBloc.add(ViewFile(book.link));
                             },
                             onRemove: () {},
-                            onDownload: () {
-                              fileBloc.add(DownloadFile(url: book.link, fileName: 'test.pdf'));
+                            onDownload: () async {
+                              final mirrorLink = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => WebviewPage(url: book.link),
+                                ),
+                              );
+
+                              if (mirrorLink != null && mirrorLink is String) {
+                                fileBloc.add(DownloadFile(url: mirrorLink, fileName: 'test.pdf'));
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Failed to get download link')),
+                                );
+                              }
                             },
                             title: book.title,
                             isInternetBook: true,
