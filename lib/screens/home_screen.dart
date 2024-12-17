@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/FileBloc/file_bloc.dart';
 import '../widgets/file_card.dart';
 import '../utils/file_utils.dart';
+import '../blocs/ReaderBloc/reader_bloc.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -32,6 +35,8 @@ class HomeScreen extends StatelessWidget {
       body: BlocConsumer<FileBloc, FileState>(
         listener: (context, state) {
           if (state is FileViewing) {
+            final file = File(state.filePath);
+            context.read<ReaderBloc>().add(OpenReader('', file: file, filePath: state.filePath));
             Navigator.pushNamed(context, '/viewer');
           }
         },
