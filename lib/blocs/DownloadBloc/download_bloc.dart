@@ -1,5 +1,4 @@
 import 'package:bloc/bloc.dart';
-import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import '../../utils/file_utils.dart';

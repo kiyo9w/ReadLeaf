@@ -2,7 +2,6 @@ import 'package:bloc/bloc.dart';
 import 'package:dio/dio.dart';
 import 'package:equatable/equatable.dart';
 import 'dart:io';
-import 'package:http/http.dart' as http;
 
 import '../../models/file_info.dart';
 import '../../utils/file_utils.dart';
@@ -161,7 +160,11 @@ class FileBloc extends Bloc<FileEvent, FileState> {
         fileType: event.fileType,
         enableFilters: event.enableFilters,
       );
-      emit(FileSearchResults(books));
+      final detailedBooks = await Future.wait(books.map((book) async {
+        final detailedInfo = await annasArchieve.bookInfo(url: book.link);
+        return detailedInfo; // detailedInfo is a BookInfoData
+      }));
+      emit(FileSearchResults(detailedBooks));
     } catch (e) {
       emit(FileError(message: e.toString()));
     }

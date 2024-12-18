@@ -40,7 +40,7 @@ class FileError extends FileState {
 class FileSearchLoading extends FileState {}
 
 class FileSearchResults extends FileState {
-  final List<BookData> books;
+  final List<BookInfoData> books;
 
   const FileSearchResults(this.books);
 

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:migrated/services/annas_archieve.dart';
 import '../services/webview.dart';
 
 // Project imports:
 import '../blocs/FileBloc/file_bloc.dart';
 import '../widgets/file_card.dart';
 import '../widgets/page_title_widget.dart';
+import '../widgets/book_info_widget.dart';
 
 class ResultPage extends StatefulWidget {
   final String searchQuery;
@@ -25,8 +27,6 @@ class _ResultPageState extends State<ResultPage> {
     return Scaffold(
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(80),
-        child: Padding(
-          padding: const EdgeInsets.only(top: 10, left: 10, right: 10, bottom: 10),
           child: AppBar(
             backgroundColor: Colors.white,
             centerTitle: false,
@@ -44,7 +44,6 @@ class _ResultPageState extends State<ResultPage> {
               ),
             ),
           ),
-        ),
       ),
       body: BlocConsumer<FileBloc, FileState>(
         listener: (context, state) {
@@ -95,8 +94,42 @@ class _ResultPageState extends State<ResultPage> {
                               fileBloc.add(SelectFile(book.link));
                             },
                             onView: () {
-                              fileBloc.add(ViewFile(book.link));
-                            },
+                              fileBloc.add(LoadBookInfo(book.link));
+                              showModalBottomSheet(
+                                context: context,
+                                isScrollControlled: true,
+                                backgroundColor: Color(0xffEBE6E0),
+                                builder: (ctx) {
+                                    return BookInfoWidget(
+                                      genre: AnnasArchieve.getGenreFromInfo(book.info!),
+                                      thumbnailUrl: book.thumbnail,
+                                      author: book.author,
+                                      link: book.link,
+                                      description: book.description,
+                                      fileSize: AnnasArchieve.getFileSizeFromInfo(book.info!),
+                                      title: book.title,
+                                      ratings: 4,
+                                      language: AnnasArchieve.getLanguageFromInfo(book.info!),
+                                      onDownload: () async {
+                                        final mirrorLink = await Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => WebviewPage(url: book.link),
+                                          ),
+                                        );
+
+                                        if (mirrorLink != null && mirrorLink is String) {
+                                          fileBloc.add(DownloadFile(url: mirrorLink, fileName: 'test.pdf'));
+                                        } else {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(content: Text('Failed to get download link')),
+                                          );
+                                        }
+                                      },
+                                    );
+                                },
+                              );
+                              },
                             onRemove: () {},
                             onDownload: () async {
                               final mirrorLink = await Navigator.push(
@@ -177,12 +210,6 @@ class _ResultPageState extends State<ResultPage> {
                     '$state',
                   ),
                   const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    child: const Text('Go Back'),
-                  ),
                 ],
               ),
             );
