@@ -36,11 +36,10 @@ class FileError extends FileState {
   List<Object> get props => [message];
 }
 
-// New states for searching and book info
 class FileSearchLoading extends FileState {}
 
 class FileSearchResults extends FileState {
-  final List<BookInfoData> books;
+  final List<BookData> books;
 
   const FileSearchResults(this.books);
 

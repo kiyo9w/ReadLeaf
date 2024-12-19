@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../blocs/FileBloc/file_bloc.dart';
-import '../widgets/file_card.dart';
+import 'package:migrated/blocs/FileBloc/file_bloc.dart';
+import 'package:migrated/widgets/file_card.dart';
 
 class MyLibraryScreen extends StatefulWidget {
   const MyLibraryScreen({Key? key}) : super(key: key);

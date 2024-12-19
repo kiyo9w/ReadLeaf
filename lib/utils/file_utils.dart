@@ -2,7 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../models/file_info.dart';
+import 'package:migrated/models/file_info.dart';
 
 class FileUtils {
   static Future<String?> picker() async {

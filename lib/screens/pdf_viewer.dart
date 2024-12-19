@@ -2,8 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
-import '../blocs/FileBloc/file_bloc.dart';
-import '../blocs/ReaderBloc/reader_bloc.dart';
+import 'package:migrated/blocs/FileBloc/file_bloc.dart';
+import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
 
 class PDFViewerScreen extends StatefulWidget {
   const PDFViewerScreen({Key? key}) : super(key: key);

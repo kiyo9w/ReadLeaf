@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';
-import 'home_screen.dart';
-import 'search_screen.dart';
-import 'my_library_screen.dart';
-import 'settings_screen.dart';
+import 'package:migrated/screens/home_screen.dart';
+import 'package:migrated/screens/search_screen.dart';
+import 'package:migrated/screens/my_library_screen.dart';
+import 'package:migrated/screens/settings_screen.dart';
 import 'package:fluttericon/font_awesome5_icons.dart';
 import 'package:fluttericon/octicons_icons.dart';
 

@@ -2,10 +2,10 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../blocs/FileBloc/file_bloc.dart';
-import '../widgets/file_card.dart';
-import '../utils/file_utils.dart';
-import '../blocs/ReaderBloc/reader_bloc.dart';
+import 'package:migrated/blocs/FileBloc/file_bloc.dart';
+import 'package:migrated/widgets/file_card.dart';
+import 'package:migrated/utils/file_utils.dart';
+import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});

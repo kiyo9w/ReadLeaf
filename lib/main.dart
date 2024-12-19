@@ -6,6 +6,7 @@ import 'blocs/ReaderBloc/reader_bloc.dart';
 import 'utils/file_utils.dart';
 import 'screens/nav_screen.dart';
 import 'package:flutter_downloader/flutter_downloader.dart';
+import 'package:migrated/depeninject/injection.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
