@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../widgets/snack_bar_widget.dart';
-import '../blocs/FileBloc/file_bloc.dart';
+import 'package:migrated/widgets/snack_bar_widget.dart';
+import 'package:migrated/blocs/FileBloc/file_bloc.dart';
 import 'results_page.dart';
 
 final Map<String, String> typeValues = {

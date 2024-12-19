@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-
-// Project imports:
-import '../blocs/FileBloc/file_bloc.dart';
-import '../widgets/file_card.dart';
-import '../widgets/page_title_widget.dart';
+import 'package:migrated/screens/search_screen.dart';
+import 'package:migrated/services/annas_archieve.dart';
+import 'package:migrated/services/webview.dart';
+import 'package:migrated/depeninject/injection.dart';
+import 'package:migrated/blocs/FileBloc/file_bloc.dart';
+import 'package:migrated/widgets/file_card.dart';
+import 'package:migrated/widgets/page_title_widget.dart';
+import 'package:migrated/widgets/book_info_widget.dart';
 
 class ResultPage extends StatefulWidget {
   final String searchQuery;
@@ -17,68 +20,47 @@ class ResultPage extends StatefulWidget {
 
 class _ResultPageState extends State<ResultPage> {
   bool _isShowingDownloadDialog = false;
-
+  final fileBloc = getIt<FileBloc>();
+  final annasArchieve = getIt<AnnasArchieve>();
   @override
   Widget build(BuildContext context) {
-    final fileBloc = BlocProvider.of<FileBloc>(context);
+    final fileBloc = getIt<FileBloc>();
     return Scaffold(
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(80),
-        child: Padding(
-          padding: const EdgeInsets.only(top: 10, left: 10, right: 10, bottom: 10),
-          child: AppBar(
-            backgroundColor: Colors.white,
-            centerTitle: false,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () {
-                fileBloc.add(CloseViewer());
-                Navigator.pop(context);
-              },
-            ),
-            title: const Text(
-              'Result',
-              style: TextStyle(
-                fontSize: 42.0,
-              ),
+        child: AppBar(
+          backgroundColor: Colors.white,
+          centerTitle: false,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              fileBloc.add(CloseViewer());
+              Navigator.pop(context);
+            },
+          ),
+          title: const Text(
+            'Result',
+            style: TextStyle(
+              fontSize: 42.0,
             ),
           ),
         ),
       ),
       body: BlocConsumer<FileBloc, FileState>(
-        listener: (context, state) {
-          if (state is FileViewing) {
-            if (_isShowingDownloadDialog) {
-              Navigator.pop(context);
-              _isShowingDownloadDialog = false;
-            }
+        listener: (context, state) async {
+          if (state is FileError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.message)),
+            );
+          } else if (state is FileViewing) {
             Navigator.pushNamed(context, '/viewer').then((_) {
               Navigator.pop(context);
             });
-          } else if (state is FileDownloading) {
-            // Show or update the download progress dialog
-            if (!_isShowingDownloadDialog) {
-              _isShowingDownloadDialog = true;
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (_) => DownloadProgressDialog(progress: state.progress),
-              );
-            } else {
-              // If dialog already showing, update the state
-              Navigator.pop(context); // pop old dialog
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (_) => DownloadProgressDialog(progress: state.progress),
-              );
-            }
           }
         },
         builder: (context, state) {
           if (state is FileSearchLoading) {
             return Column(
-              mainAxisAlignment: MainAxisAlignment.start,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Padding(
@@ -117,11 +99,28 @@ class _ResultPageState extends State<ResultPage> {
                               fileBloc.add(SelectFile(book.link));
                             },
                             onView: () {
-                              fileBloc.add(ViewFile(book.link));
+                              _handleBookClick(book.link);
                             },
                             onRemove: () {},
-                            onDownload: () {
-                              fileBloc.add(DownloadFile(url: book.link, fileName: 'test.pdf'));
+                            onDownload: () async {
+                              final mirrorLink = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      WebviewPage(url: book.link),
+                                ),
+                              );
+
+                              if (mirrorLink != null && mirrorLink is String) {
+                                fileBloc.add(DownloadFile(
+                                    url: mirrorLink, fileName: book.title));
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content:
+                                      Text('Failed to get download link')),
+                                );
+                              }
                             },
                             title: book.title,
                             isInternetBook: true,
@@ -186,12 +185,6 @@ class _ResultPageState extends State<ResultPage> {
                     '$state',
                   ),
                   const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    child: const Text('Go Back'),
-                  ),
                 ],
               ),
             );
@@ -199,6 +192,68 @@ class _ResultPageState extends State<ResultPage> {
         },
       ),
     );
+  }
+
+  Future<void> _handleBookClick(String url) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      final bookInfo = await annasArchieve.bookInfo(url: url);
+
+      Navigator.of(context).pop();
+
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+            child: BookInfoWidget(
+              genre: AnnasArchieve.getGenreFromInfo(bookInfo.info!),
+              thumbnailUrl: bookInfo.thumbnail,
+              author: bookInfo.author,
+              link: bookInfo.link,
+              description: bookInfo.description,
+              fileSize: AnnasArchieve.getFileSizeFromInfo(bookInfo.info!),
+              title: bookInfo.title,
+              ratings: 4,
+              language: AnnasArchieve.getLanguageFromInfo(bookInfo.info!),
+              onDownload: () async {
+                final mirrorLink = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => WebviewPage(url: bookInfo.link),
+                  ),
+                );
+
+                if (mirrorLink != null && mirrorLink is String) {
+                  BlocProvider.of<FileBloc>(context).add(
+                    DownloadFile(url: mirrorLink, fileName: 'test.pdf'),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Failed to get download link')),
+                  );
+                }
+              },
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading book info: $e')),
+      );
+    }
   }
 }
 

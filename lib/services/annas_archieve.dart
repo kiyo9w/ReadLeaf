@@ -45,7 +45,9 @@ class BookInfoData extends BookData {
 class AnnasArchieve {
   static const String baseUrl = "https://annas-archive.org";
 
-  final Dio dio = Dio();
+  final Dio dio;
+
+  AnnasArchieve({required this.dio});
 
   Map<String, dynamic> defaultDioHeaders = {
     "user-agent":
@@ -83,7 +85,12 @@ class AnnasArchieve {
                 .querySelector(
                     'div[class="line-clamp-[2] leading-[1.2] text-[10px] lg:text-xs text-gray-500"]')
                 ?.text ??
-            ''
+            '',
+        'description': element
+            ?.querySelector('div[class="mb-1"]')
+            ?.text
+            .replaceFirst("description", '')
+            ?? " ",
       };
 
       if ((data['title'] != null && data['title'] != '') &&
@@ -267,6 +274,76 @@ class AnnasArchieve {
     }
     print('$baseUrl/search?index=&q=$searchQuery&content=$content&ext=$fileType&sort=$sort');
     return '$baseUrl/search?index=&q=$searchQuery&content=$content&ext=$fileType&sort=$sort';
+  }
+
+  static String? getLanguageFromInfo(String info) {
+    if (info.isNotEmpty) {
+      if (info.toLowerCase().contains('english')) {
+        return 'English';
+      }
+      if (info.toLowerCase().contains('chinese')) {
+        return 'Chinese';
+      }
+      if (info.toLowerCase().contains('spanish')) {
+        return 'Spanish';
+      }
+      if (info.toLowerCase().contains('french')) {
+        return 'French';
+      }
+      if (info.toLowerCase().contains('vietnamese')) {
+        return 'Vietnamese';
+      }
+      if (info.toLowerCase().contains('korean')) {
+        return 'Korean';
+      }
+      if (info.toLowerCase().contains('german')) {
+        return 'German';
+      }
+      //... there must be a better way to do this
+    }
+    return null;
+  }
+
+
+  static double? getFileSizeFromInfo(String info) {
+    // Reg-ex looking for a pattern like "6.8MB" in the info
+    RegExp sizePattern = RegExp(r'(\d+(\.\d+)?)MB', caseSensitive: false);
+    var match = sizePattern.firstMatch(info);
+    if (match != null) {
+      return double.tryParse(match.group(1)!);
+    }
+    return null;
+  }
+
+  static String? getGenreFromInfo(String info) {
+    if (info.toLowerCase().contains('(non-fiction)')) {
+      return 'Non-fiction';
+    } else if (info.toLowerCase().contains('(fiction)')) {
+      return 'Fiction';
+    }
+    else if (info.toLowerCase().contains('(unknown)')) {
+      return 'Unknown';
+    }
+    else if (info.toLowerCase().contains('(magazine)')) {
+      return 'Magazine';
+    }
+    else if (info.toLowerCase().contains('(comic book)')) {
+      return 'Comic book';
+    }
+    else if (info.toLowerCase().contains('(standard document)')) {
+      return 'Standard document';
+    }
+    else if (info.toLowerCase().contains('(other)')) {
+      return 'Other';
+    }
+    else if (info.toLowerCase().contains('(Musical score)')) {
+      return 'Musical score';
+    }
+    else if (info.toLowerCase().contains('(Audiobook)')) {
+      return 'Audio book';
+    }
+    //... there must be a better way to do this
+    return null;
   }
 
   Future<List<BookData>> searchBooks(

@@ -2,8 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
-import '../blocs/FileBloc/file_bloc.dart';
-import '../blocs/ReaderBloc/reader_bloc.dart';
+import 'package:migrated/blocs/FileBloc/file_bloc.dart';
+import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
 
 class PDFViewerScreen extends StatefulWidget {
   const PDFViewerScreen({Key? key}) : super(key: key);
@@ -160,15 +160,15 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                   duration: const Duration(milliseconds: 300),
                   top: 0,
                   bottom: 0,
-                  right: showSideNav ? 0 : -250,
+                  left: showSideNav ? 0 : -250,
                   child: Container(
                     width: 250,
-                    color: Colors.grey.shade800.withOpacity(0.9),
+                    color: Colors.grey.shade700.withOpacity(0.9),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         AppBar(
-                          title: const Text('Chapters'),
+                          title: const Text('Chapters', style: const TextStyle(color: Colors.white70)),
                           backgroundColor: Colors.grey.shade800,
                           automaticallyImplyLeading: false,
                           actions: [
