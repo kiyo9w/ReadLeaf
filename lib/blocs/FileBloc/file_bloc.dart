@@ -2,12 +2,11 @@ import 'package:bloc/bloc.dart';
 import 'package:dio/dio.dart';
 import 'package:equatable/equatable.dart';
 import 'dart:io';
-
 import 'package:migrated/models/file_info.dart';
 import 'package:migrated/utils/file_utils.dart';
-
 import 'package:migrated/services/annas_archieve.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:migrated/depeninject/injection.dart';
 
 part 'file_event.dart';
 
@@ -15,19 +14,16 @@ part 'file_state.dart';
 
 class FileBloc extends Bloc<FileEvent, FileState> {
   final FileRepository fileRepository;
+  final AnnasArchieve annasArchieve;
   FileLoaded? _lastLoadedState;
 
-  final AnnasArchieve annasArchieve = AnnasArchieve();
-
-  FileBloc({required this.fileRepository}) : super(FileInitial()) {
+  FileBloc({required this.fileRepository, required this.annasArchieve}) : super(FileInitial()) {
     on<InitFiles>(_onInitFiles);
     on<LoadFile>(_onLoadFile);
     on<SelectFile>(_onSelectFile);
     on<ViewFile>(_onViewFile);
     on<RemoveFile>(_onRemoveFile);
     on<CloseViewer>(_onCloseViewer);
-
-    // New event handlers for AnnaArchive integration
     on<SearchBooks>(_onSearchBooks);
     on<LoadBookInfo>(_onLoadBookInfo);
     on<DownloadFile>(_onDownloadFile);

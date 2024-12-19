@@ -3,8 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:migrated/screens/search_screen.dart';
 import 'package:migrated/services/annas_archieve.dart';
 import 'package:migrated/services/webview.dart';
-
-// Project imports:
+import 'package:migrated/depeninject/injection.dart';
 import 'package:migrated/blocs/FileBloc/file_bloc.dart';
 import 'package:migrated/widgets/file_card.dart';
 import 'package:migrated/widgets/page_title_widget.dart';
@@ -21,11 +20,11 @@ class ResultPage extends StatefulWidget {
 
 class _ResultPageState extends State<ResultPage> {
   bool _isShowingDownloadDialog = false;
-  final AnnasArchieve annasArchieve = AnnasArchieve();
-
+  final fileBloc = getIt<FileBloc>();
+  final annasArchieve = getIt<AnnasArchieve>();
   @override
   Widget build(BuildContext context) {
-    final fileBloc = BlocProvider.of<FileBloc>(context);
+    final fileBloc = getIt<FileBloc>();
     return Scaffold(
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(80),

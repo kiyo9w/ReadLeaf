@@ -45,7 +45,9 @@ class BookInfoData extends BookData {
 class AnnasArchieve {
   static const String baseUrl = "https://annas-archive.org";
 
-  final Dio dio = Dio();
+  final Dio dio;
+
+  AnnasArchieve({required this.dio});
 
   Map<String, dynamic> defaultDioHeaders = {
     "user-agent":

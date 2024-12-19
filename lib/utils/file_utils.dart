@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:migrated/models/file_info.dart';
+import 'package:migrated/depeninject/injection.dart';
 
 class FileUtils {
   static Future<String?> picker() async {
@@ -28,20 +29,22 @@ class FileUtils {
 
 class FileRepository {
   static const _filesKey = 'saved_files';
+  late SharedPreferences _prefs;
+  Future<void> init() async {
+    _prefs = await SharedPreferences.getInstance();
+  }
 
   Future<void> saveFiles(List<FileInfo> files) async {
-    final prefs = await SharedPreferences.getInstance();
     final jsonData = files.map((f) => {
       'filePath': f.filePath,
       'fileSize': f.fileSize,
       'isSelected': f.isSelected,
     }).toList();
-    await prefs.setString(_filesKey, jsonEncode(jsonData));
+    await _prefs.setString(_filesKey, jsonEncode(jsonData));
   }
 
   Future<List<FileInfo>> loadFiles() async {
-    final prefs = await SharedPreferences.getInstance();
-    final data = prefs.getString(_filesKey);
+    final data = _prefs.getString(_filesKey);
     if (data != null) {
       final List<dynamic> jsonList = jsonDecode(data);
       return jsonList.map((item) {

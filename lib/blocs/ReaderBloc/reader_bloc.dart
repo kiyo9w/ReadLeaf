@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:migrated/depeninject/injection.dart';
 
 part 'reader_event.dart';
 part 'reader_state.dart';
