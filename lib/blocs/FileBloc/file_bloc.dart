@@ -137,16 +137,28 @@ class FileBloc extends Bloc<FileEvent, FileState> {
   }
 
   void _onCloseViewer(CloseViewer event, Emitter<FileState> emit) {
-    if (_lastLoadedState != null) {
-      emit(_lastLoadedState!);
-    } else {
-      emit(FileInitial());
+    if (state is FileViewing) {
+      if (_lastLoadedState != null) {
+        emit(_lastLoadedState!);
+      } else {
+        emit(FileInitial());
+      }
+    } else if (state is FileSearchResults || state is FileBookInfoLoaded || state is FileBookInfoLoading) {
+      if (_lastLoadedState != null) {
+        emit(_lastLoadedState!);
+      } else {
+        emit(FileInitial());
+      }
     }
   }
 
   Future<void> _onSearchBooks(
       SearchBooks event, Emitter<FileState> emit) async {
     try {
+      // Store current state if it's FileLoaded
+      if (state is FileLoaded) {
+        _lastLoadedState = state as FileLoaded;
+      }
       emit(FileSearchLoading());
       final books = await annasArchieve.searchBooks(
         searchQuery: event.query,

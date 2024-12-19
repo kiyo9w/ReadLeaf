@@ -7,7 +7,7 @@ import 'package:dio/dio.dart';
 
 final GetIt getIt = GetIt.instance;
 
-void configureDependencies() async {
+Future<void> configureDependencies() async {
   final fileRepository = FileRepository();
   await fileRepository.init();
 
@@ -24,5 +24,5 @@ void configureDependencies() async {
   });
   getIt.registerLazySingleton<ReaderBloc>(() => ReaderBloc());
   getIt.registerLazySingleton<AnnasArchieve>(() => AnnasArchieve(dio: getIt<Dio>()));
-  getIt.registerFactory<FileBloc>(() => FileBloc(annasArchieve: getIt<AnnasArchieve>(),fileRepository: getIt<FileRepository>()));
+  getIt.registerLazySingleton<FileBloc>(() => FileBloc(annasArchieve: getIt<AnnasArchieve>(),fileRepository: getIt<FileRepository>()));
 }

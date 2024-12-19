@@ -20,11 +20,18 @@ class ResultPage extends StatefulWidget {
 
 class _ResultPageState extends State<ResultPage> {
   bool _isShowingDownloadDialog = false;
-  final fileBloc = getIt<FileBloc>();
-  final annasArchieve = getIt<AnnasArchieve>();
+  late final FileBloc _fileBloc;
+  late final AnnasArchieve annasArchieve;
+
+  @override
+  void initState() {
+    super.initState();
+    _fileBloc = getIt<FileBloc>();
+    annasArchieve = getIt<AnnasArchieve>();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final fileBloc = getIt<FileBloc>();
     return Scaffold(
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(80),
@@ -34,7 +41,7 @@ class _ResultPageState extends State<ResultPage> {
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
-              fileBloc.add(CloseViewer());
+              _fileBloc.add(CloseViewer());
               Navigator.pop(context);
             },
           ),
@@ -96,7 +103,7 @@ class _ResultPageState extends State<ResultPage> {
                             fileSize: 0,
                             isSelected: false,
                             onSelected: () {
-                              fileBloc.add(SelectFile(book.link));
+                              _fileBloc.add(SelectFile(book.link));
                             },
                             onView: () {
                               _handleBookClick(book.link);
@@ -112,7 +119,7 @@ class _ResultPageState extends State<ResultPage> {
                               );
 
                               if (mirrorLink != null && mirrorLink is String) {
-                                fileBloc.add(DownloadFile(
+                                _fileBloc.add(DownloadFile(
                                     url: mirrorLink, fileName: book.title));
                               } else {
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -168,7 +175,7 @@ class _ResultPageState extends State<ResultPage> {
                   const SizedBox(height: 20),
                   ElevatedButton(
                     onPressed: () {
-                      fileBloc.add(SearchBooks(query: widget.searchQuery));
+                      _fileBloc.add(SearchBooks(query: widget.searchQuery));
                     },
                     child: const Text('Retry'),
                   ),
