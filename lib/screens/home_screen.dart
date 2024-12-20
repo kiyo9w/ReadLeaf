@@ -71,7 +71,7 @@ class HomeScreen extends StatelessWidget {
           } else if (state is FileViewing) {
             return const SizedBox();
           } else {
-            return const Center(child: Text('Unexpected state'));
+            return Center(child: Text('$state'));
           }
         },
       ),

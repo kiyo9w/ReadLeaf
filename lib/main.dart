@@ -12,7 +12,7 @@ void main() async {
   await FlutterDownloader.initialize(
       debug: true
   );
-  configureDependencies();
+  await configureDependencies();
   runApp(const MyApp());
 }
 
