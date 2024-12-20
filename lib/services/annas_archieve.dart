@@ -11,7 +11,6 @@ class BookData {
   final String? author;
   final String? thumbnail;
   final String link;
-  final String md5;
   final String? publisher;
   final String? info;
 
@@ -20,7 +19,6 @@ class BookData {
       this.author,
       this.thumbnail,
       required this.link,
-      required this.md5,
       this.publisher,
       this.info});
 }
@@ -37,7 +35,6 @@ class BookInfoData extends BookData {
       required super.publisher,
       required super.info,
       required super.link,
-      required super.md5,
       required this.format,
       required this.mirror,
       required this.description});
@@ -54,11 +51,6 @@ class AnnasArchieve {
     "user-agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36",
   };
-
-  String getMd5(String url) {
-    String md5 = url.toString().split('/').last;
-    return md5;
-  }
 
   List<BookData> _parser(resData, String fileType) {
     var document =
@@ -116,7 +108,6 @@ class AnnasArchieve {
           author: data['author'],
           thumbnail: data['thumbnail'],
           link: link,
-          md5: getMd5(data['link'].toString()),
           publisher: publisher,
           info: data['info'],
         );
@@ -252,7 +243,6 @@ class AnnasArchieve {
         publisher: publisher,
         info: data['info'],
         link: data['link'],
-        md5: getMd5(data['link'].toString()),
         format: getFormat(data['info']),
         mirror: mirror,
         description: data['description'],
@@ -360,7 +350,7 @@ class AnnasArchieve {
           sort: sort,
           fileType: fileType,
           enableFilters: enableFilters);
-
+      print(encodedURL);
       final response = await dio.get(encodedURL,
           options: Options(headers: defaultDioHeaders));
       if (!enableFilters) {

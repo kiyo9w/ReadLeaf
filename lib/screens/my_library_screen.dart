@@ -52,7 +52,7 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
             return {
               'filePath': f.filePath,
               'title': FileCard.extractFileName(f.filePath),
-              'author': 'Unknown Author',
+              'author': f.author,
               'size': f.fileSize,
               'isLocal': true
             };

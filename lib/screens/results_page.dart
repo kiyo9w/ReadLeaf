@@ -121,14 +121,14 @@ class _ResultPageState extends State<ResultPage> {
                                 },
                                 onRemove: () {},
                                 onDownload: () async {
-                                  // final mirrorLink = await Navigator.push(
-                                  //   context,
-                                  //   MaterialPageRoute(
-                                  //     builder: (context) =>
-                                  //         WebviewPage(url: book.link),
-                                  //   ),
-                                  // );
-                                  final mirrorLink = 'https://prothoughts.co.in/wp-content/uploads/2022/06/a-guide-to-the-project-management-body-of-knowledge-6e.pdf';
+                                  final mirrorLink = await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          WebviewPage(url: book.link),
+                                    ),
+                                  );
+                                  // final mirrorLink = 'https://prothoughts.co.in/wp-content/uploads/2022/06/a-guide-to-the-project-management-body-of-knowledge-6e.pdf';
                                   if (mirrorLink != null && mirrorLink is String) {
                                     _fileBloc.add(DownloadFile(
                                         url: mirrorLink, fileName: book.title + ".pdf"));

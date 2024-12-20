@@ -104,6 +104,150 @@ class _SearchScreenState extends State<SearchScreen> with AutomaticKeepAliveClie
     }
   }
 
+  void _showFilterModal(BuildContext context) {
+    showModalBottomSheet(
+      backgroundColor: Colors.white,
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 20.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Filters",
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  DropdownButtonFormField(
+                    decoration: const InputDecoration(
+                      labelText: 'Type',
+                      labelStyle: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.grey, width: 2),
+                        borderRadius: BorderRadius.all(Radius.circular(50)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.black, width: 2),
+                        borderRadius: BorderRadius.all(Radius.circular(50)),
+                      ),
+                    ),
+                    value: selectedType,
+                    items: typeValues.keys.map<DropdownMenuItem<String>>((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text(
+                          value,
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (String? val) {
+                      setModalState(() {
+                        selectedType = val ?? 'All';
+                      });
+                      setState(() {});
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  DropdownButtonFormField(
+                    decoration: const InputDecoration(
+                      labelText: 'Sort by',
+                      labelStyle: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.grey, width: 2),
+                        borderRadius: BorderRadius.all(Radius.circular(50)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.black, width: 2),
+                        borderRadius: BorderRadius.all(Radius.circular(50)),
+                      ),
+                    ),
+                    value: selectedSort,
+                    items: sortValues.keys.map<DropdownMenuItem<String>>((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text(
+                          value,
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (String? val) {
+                      setModalState(() {
+                        selectedSort = val ?? 'Most Relevant';
+                      });
+                      setState(() {});
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  DropdownButtonFormField(
+                    decoration: const InputDecoration(
+                      labelText: 'File type',
+                      labelStyle: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.grey, width: 2),
+                        borderRadius: BorderRadius.all(Radius.circular(50)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.black, width: 2),
+                        borderRadius: BorderRadius.all(Radius.circular(50)),
+                      ),
+                    ),
+                    value: selectedFileType,
+                    items: fileType.map<DropdownMenuItem<String>>((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text(
+                          value,
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (String? val) {
+                      setModalState(() {
+                        selectedFileType = val ?? 'All';
+                      });
+                      setState(() {});
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  Center(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Apply'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildTopSearches() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -300,6 +444,11 @@ class _SearchScreenState extends State<SearchScreen> with AutomaticKeepAliveClie
                             ),
                             onChanged: (value) => setState(() => searchQuery = value),
                           ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.filter_list),
+                          color: Colors.black54,
+                          onPressed: () => _showFilterModal(context),
                         ),
                       ],
                     ),
