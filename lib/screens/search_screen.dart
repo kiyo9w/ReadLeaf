@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:migrated/widgets/snack_bar_widget.dart';
 import 'package:migrated/blocs/FileBloc/file_bloc.dart';
 import 'results_page.dart';
+import '../depeninject/injection.dart';
+import '../services/annas_archieve.dart';
 
 final Map<String, String> typeValues = {
   'All': '',
@@ -26,6 +28,19 @@ final Map<String, String> sortValues = {
 
 final List<String> fileType = ["All", "PDF", "Epub", "Cbr", "Cbz"];
 
+final List<String> topSearchQueries = [
+  "The 48 Laws of Power",
+  "Atomic Habits",
+  "Control Your Mind and Master Your Feelings"
+];
+
+final List<String> trendingQueries = [
+  "fiction",
+  "novel",
+  "non-fiction",
+  "romance"
+];
+
 class SearchScreen extends StatefulWidget {
   const SearchScreen({Key? key}) : super(key: key);
 
@@ -33,173 +48,63 @@ class SearchScreen extends StatefulWidget {
   State<SearchScreen> createState() => _SearchScreenState();
 }
 
-class _SearchScreenState extends State<SearchScreen> {
+class _SearchScreenState extends State<SearchScreen> with AutomaticKeepAliveClientMixin{
   String searchQuery = "";
   String selectedType = "All";
   String selectedSort = "Most Relevant";
   String selectedFileType = "All";
+  late final FileBloc _fileBloc;
+  late final AnnasArchieve _annasArchieve;
+  bool _isLoading = false;
+  Map<String, List<BookData>>? _trendingBooks;
+  Map<String, List<BookData>>? _topSearches;
+
+  @override
+  void initState() {
+    super.initState();
+    _fileBloc = getIt<FileBloc>();
+    _annasArchieve = getIt<AnnasArchieve>();
+    _fetchInitialData();
+  }
+
+  Future<void> _fetchInitialData() async {
+    setState(() => _isLoading = true);
+    try {
+      final trendingFuture = _annasArchieve.getMassBooks(queries: trendingQueries);
+      final topSearchesFuture = _annasArchieve.getMassBooks(queries: topSearchQueries);
+      final results = await Future.wait([trendingFuture, topSearchesFuture]);
+      setState(() {
+        _trendingBooks = results[0];
+        _topSearches = results[1];
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error fetching initial data: $e');
+      setState(() => _isLoading = false);
+    }
+  }
 
   void onSubmit(BuildContext context) {
     if (searchQuery.isNotEmpty) {
-      final fileBloc = BlocProvider.of<FileBloc>(context);
-      fileBloc.add(SearchBooks(
+      _fileBloc.add(SearchBooks(
         query: searchQuery,
         content: typeValues[selectedType] ?? '',
         sort: sortValues[selectedSort] ?? '',
-        fileType:
-        selectedFileType == "All" ? '' : selectedFileType.toLowerCase(),
+        fileType: selectedFileType == "All" ? '' : selectedFileType.toLowerCase(),
         enableFilters: true,
       ));
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ResultPage(searchQuery: searchQuery),
+        ),
+      );
     } else {
       showSnackBar(context: context, message: 'Search field is empty');
     }
   }
 
-  void _showFilterModal(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 20.0),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Filters",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                DropdownButtonFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Type',
-                    labelStyle: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.grey, width: 2),
-                      borderRadius: BorderRadius.all(Radius.circular(50)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.black, width: 2),
-                      borderRadius: BorderRadius.all(Radius.circular(50)),
-                    ),
-                  ),
-                  icon: const Icon(Icons.arrow_drop_down),
-                  value: selectedType,
-                  items: typeValues.keys
-                      .map<DropdownMenuItem<String>>((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(
-                        value,
-                        style: const TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.bold),
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (String? val) {
-                    setState(() {
-                      selectedType = val ?? 'All';
-                    });
-                  },
-                ),
-                const SizedBox(height: 20),
-                DropdownButtonFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Sort by',
-                    labelStyle: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.grey, width: 2),
-                      borderRadius: BorderRadius.all(Radius.circular(50)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.black, width: 2),
-                      borderRadius: BorderRadius.all(Radius.circular(50)),
-                    ),
-                  ),
-                  value: selectedSort,
-                  items: sortValues.keys
-                      .map<DropdownMenuItem<String>>((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(
-                        value,
-                        style: const TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.bold),
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (String? val) {
-                    setState(() {
-                      selectedSort = val ?? 'Most Relevant';
-                    });
-                  },
-                ),
-                const SizedBox(height: 20),
-                DropdownButtonFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'File type',
-                    labelStyle: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.grey, width: 2),
-                      borderRadius: BorderRadius.all(Radius.circular(50)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.black, width: 2),
-                      borderRadius: BorderRadius.all(Radius.circular(50)),
-                    ),
-                  ),
-                  value: selectedFileType,
-                  items: fileType
-                      .map<DropdownMenuItem<String>>((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(
-                        value,
-                        style: const TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.bold),
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (String? val) {
-                    setState(() {
-                      selectedFileType = val ?? 'All';
-                    });
-                  },
-                ),
-                const SizedBox(height: 20),
-                Center(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    child: Text('Apply'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   Widget _buildTopSearches() {
-    // Hard-coded placeholders for "Top searches"
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -210,30 +115,36 @@ class _SearchScreenState extends State<SearchScreen> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
         ),
-        // Hard-coded search items
-        ListTile(
-          title: Text('Coffee shop'),
-          subtitle: Text('CopyCat - 2023: A book about a coffee shop'),
-          onTap: () {},
-        ),
-        Divider(),
-        ListTile(
-          title: Text('Human nature'),
-          subtitle: Text('Jessie Nor - 2013: Explore the human nature'),
-          onTap: () {},
-        ),
-        Divider(),
-        ListTile(
-          title: Text('In Cold Blood'),
-          subtitle: Text('Truman Capote - 1999: A book a shop'),
-          onTap: () {},
-        ),
+        if (_topSearches != null) ...[
+          ..._topSearches!.entries.map((entry) {
+            final query = entry.key;
+            final books = entry.value;
+            if (books.isEmpty) {
+              return const SizedBox();
+            }
+            return ListTile(
+              title: Text(books.first.title ?? query),
+              subtitle: Text(books.first.author ?? 'Unknown author'),
+              onTap: () {
+                _fileBloc.add(SearchBooks(
+                  query: query,
+                  enableFilters: false,
+                ));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ResultPage(searchQuery: query),
+                  ),
+                );
+              },
+            );
+          }).toList(),
+        ],
       ],
     );
   }
 
   Widget _buildTrending() {
-    // Hard-coded placeholders for "Trending"
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -244,170 +155,170 @@ class _SearchScreenState extends State<SearchScreen> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
         ),
-        // Just a row of placeholder categories
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10.0),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _buildCategoryCard('Fiction', 'A New Dawn'),
-                SizedBox(width: 10),
-                _buildCategoryCard('Novel', 'Some Book'),
-                SizedBox(width: 10),
-                _buildCategoryCard('Non-fiction', 'Great Journey'),
-                SizedBox(width: 10),
-                _buildCategoryCard('Romance', 'All This'),
-              ],
+        if (_trendingBooks != null)
+          SizedBox(
+            height: 180,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              itemCount: _trendingBooks!.length,
+              itemBuilder: (context, index) {
+                final entry = _trendingBooks!.entries.elementAt(index);
+                final books = entry.value;
+                if (books.isEmpty) return const SizedBox();
+                final book = books.first;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: GestureDetector(
+                    onTap: () {
+                      _fileBloc.add(SearchBooks(
+                        query: book.title ?? "",
+                        enableFilters: false,
+                      ));
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ResultPage(searchQuery: book.title ?? ""),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      width: 120,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (book.thumbnail != null)
+                            ClipRRect(
+                              borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                              child: Image.network(
+                                book.thumbnail!,
+                                height: 120,
+                                width: 120,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    height: 120,
+                                    color: Colors.grey[300],
+                                    child: const Icon(Icons.book),
+                                  );
+                                },
+                              ),
+                            )
+                          else
+                            Container(
+                              height: 120,
+                              color: Colors.grey[300],
+                              child: const Icon(Icons.book),
+                            ),
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Text(
+                              book.title ?? "Unknown",
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
-        ),
       ],
-    );
-  }
-
-  Widget _buildCategoryCard(String category, String title) {
-    return Container(
-      width: 160,
-      height: 120,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        color: Colors.grey.shade300,
-        image: DecorationImage(
-          // hard code
-          image: AssetImage('/Users/ngotrung/StudioProjects/migrated/lib/assets/images/56916837.jpg'),
-          fit: BoxFit.cover,
-        ),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            bottom: 5,
-            left: 5,
-            child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              color: Colors.black54,
-              child: Text(
-                category,
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<FileBloc, FileState>(
+      bloc: _fileBloc,
       listener: (context, state) {
-        if (state is FileSearchResults) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (BuildContext context) {
-                return ResultPage(searchQuery: searchQuery);
-              },
-            ),
-          );
-        } else if (state is FileError) {
+        if (state is FileError) {
           showSnackBar(context: context, message: state.message);
         }
       },
       builder: (context, state) {
         return Scaffold(
           backgroundColor: Colors.white,
-          appBar: PreferredSize(
-            preferredSize: const Size.fromHeight(80),
-            child: Padding(
-              padding: const EdgeInsets.only(top: 10, left: 10, right: 10, bottom: 10),
-              child: AppBar(
-                backgroundColor: Colors.white,
-                centerTitle: false,
-                title: const Text(
-                  'Search',
-                  style: TextStyle(
-                    fontSize: 42.0,
-                  ),
-                ),
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            centerTitle: false,
+            title: const Text(
+              'Search',
+              style: TextStyle(
+                fontSize: 42.0,
               ),
             ),
           ),
           body: SingleChildScrollView(
-            scrollDirection: Axis.vertical,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Search bar with filter icon
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 15.0),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.pink.shade50,
-                        borderRadius: BorderRadius.circular(50),
-                      ),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            padding: const EdgeInsets.only(right: 5),
-                            color: Colors.black,
-                            icon: const Icon(Icons.search, size: 23),
-                            onPressed: () => onSubmit(context),
-                          ),
-                          Expanded(
-                            child: TextField(
-                              showCursor: true,
-                              cursorColor: Colors.grey,
-                              decoration: InputDecoration(
-                                contentPadding: const EdgeInsets.symmetric(vertical: 15),
-                                border: InputBorder.none,
-                                hintText: "Find some books...",
-                                hintStyle: const TextStyle(
-                                  color: Colors.grey,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              onSubmitted: (String value) => onSubmit(context),
-                              style: const TextStyle(
-                                color: Colors.black,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(15.0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.pink.shade50,
+                      borderRadius: BorderRadius.circular(50),
+                    ),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          padding: const EdgeInsets.only(right: 5),
+                          color: Colors.black,
+                          icon: const Icon(Icons.search, size: 23),
+                          onPressed: () => onSubmit(context),
+                        ),
+                        Expanded(
+                          child: TextField(
+                            showCursor: true,
+                            cursorColor: Colors.grey,
+                            decoration: const InputDecoration(
+                              contentPadding: EdgeInsets.symmetric(vertical: 15),
+                              border: InputBorder.none,
+                              hintText: "Find some books...",
+                              hintStyle: TextStyle(
+                                color: Colors.grey,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 14,
                               ),
-                              onChanged: (String value) {
-                                setState(() {
-                                  searchQuery = value;
-                                });
-                              },
                             ),
+                            onSubmitted: (_) => onSubmit(context),
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                            onChanged: (value) => setState(() => searchQuery = value),
                           ),
-                          IconButton(
-                            onPressed: () => _showFilterModal(context),
-                            icon: const Icon(Icons.filter_list),
-                            color: Colors.black54,
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
-
+                ),
+                if (_isLoading)
+                  const Center(child: CircularProgressIndicator())
+                else ...[
                   _buildTopSearches(),
-
                   _buildTrending(),
-
-                  if (state is FileSearchLoading)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 20),
-                      child: Center(child: CircularProgressIndicator()),
-                    ),
                 ],
-              ),
+              ],
             ),
           ),
         );
       },
     );
   }
+
+  @override
+  bool get wantKeepAlive => true;
 }

@@ -8,7 +8,6 @@ import 'package:material_design_icons_flutter/material_design_icons_flutter.dart
 import 'package:migrated/screens/search_screen.dart';
 import 'package:path/path.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:migrated/blocs/DownloadBloc/download_bloc.dart';
 
 class FileCard extends StatelessWidget {
   final String filePath;

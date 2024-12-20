@@ -7,6 +7,7 @@ import 'package:migrated/utils/file_utils.dart';
 import 'package:migrated/services/annas_archieve.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:migrated/depeninject/injection.dart';
+import 'package:external_path/external_path.dart';
 
 part 'file_event.dart';
 
@@ -45,9 +46,9 @@ class FileBloc extends Bloc<FileEvent, FileState> {
       final filePath = event.filePath;
       final extension = filePath.split('.').last.toLowerCase();
 
-      if (!['pdf'].contains(extension)) {
-        throw Exception('Unsupported file format');
-      }
+      // if (!['pdf'].contains(extension)) {
+      //   throw Exception('Unsupported file format');
+      // }
 
       final file = File(filePath);
       if (!await file.exists()) {
@@ -155,7 +156,6 @@ class FileBloc extends Bloc<FileEvent, FileState> {
   Future<void> _onSearchBooks(
       SearchBooks event, Emitter<FileState> emit) async {
     try {
-      // Store current state if it's FileLoaded
       if (state is FileLoaded) {
         _lastLoadedState = state as FileLoaded;
       }
@@ -188,9 +188,20 @@ class FileBloc extends Bloc<FileEvent, FileState> {
     try {
       emit(FileDownloading(0.0));
       Directory? directory = await getDownloadsDirectory();
-      directory ??= await getApplicationDocumentsDirectory();
-      final localFilePath = '${directory.path}/${event.fileName}';
+      if (directory == null) {
+        final List<Directory>? externalDirs = await getExternalStorageDirectories();
+        if (externalDirs != null && externalDirs.isNotEmpty) {
+          directory = externalDirs.first;
+        } else {
+          directory = await getApplicationDocumentsDirectory();
+        }
+      }
 
+      final localFilePath = '${directory.path}/${event.fileName}';
+      final file = File(localFilePath);
+      if (!await directory.exists()) {
+        await directory.create(recursive: true);
+      }
       Dio dio = Dio();
       await dio.download(
         event.url,
@@ -202,7 +213,16 @@ class FileBloc extends Bloc<FileEvent, FileState> {
           }
         },
       );
-      add(LoadFile(localFilePath));
+      if (await file.exists()) {
+        final fileSize = await file.length();
+        if (fileSize > 0) {
+          add(LoadFile(localFilePath));
+        } else {
+          throw Exception('Downloaded file is empty');
+        }
+      } else {
+        throw Exception('File was not created after download');
+      }
     } catch (e) {
       emit(FileError(message: 'Download failed: ${e.toString()}'));
     }

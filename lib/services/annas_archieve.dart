@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 // Package imports:
 import 'package:dio/dio.dart';
 import 'package:html/parser.dart' show parse;
+import 'package:migrated/blocs/FileBloc/file_bloc.dart';
 
 class BookData {
   final String title;
@@ -390,5 +391,21 @@ class AnnasArchieve {
       }
       rethrow;
     }
+  }
+
+  Future<Map<String, List<BookData>>> getMassBooks({required List<String> queries}) async {
+    final Map<String, List<BookData>> results = {};
+    for (final query in queries) {
+      try {
+        final books = await searchBooks(
+          searchQuery: query,
+          enableFilters: false,
+        );
+        results[query] = books;
+      } catch (e) {
+          print("Something went wrong");
+      }
+    }
+    return results;
   }
 }
