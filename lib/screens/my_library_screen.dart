@@ -24,8 +24,8 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
         List<dynamic> localFiles = [];
 
         if (state is FileLoaded) {
-          downloadedBooks = state.files.map((f) {
-            return {
+          for (var f in state.files) {
+            final fileInfo = {
               'filePath': f.filePath,
               'title': FileCard.extractFileName(f.filePath),
               'author': f.author,
@@ -33,10 +33,18 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
               'isLocal': true,
               'isStarred': f.isStarred,
             };
-          }).toList();
+            if (f.filePath.contains('/Downloads/')) {
+              print(fileInfo['filePath']);
+              downloadedBooks.add(fileInfo);
+            } else {
+              print(fileInfo['filePath']);
+              localFiles.add(fileInfo);
+            }
 
-          starredBooks = downloadedBooks.where((book) => book['isStarred']).toList();
-          localFiles = downloadedBooks;
+            if (f.isStarred) {
+              starredBooks.add(fileInfo);
+            }
+          }
         }
 
         return Scaffold(
@@ -136,7 +144,13 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: (count > 10) ? Color(0xffC5AA17) : (count > 5) ? Color(0xffEBD766) : (count > 0) ? Color(0xffFCF6D6) : Colors.white,
+              color: (count > 10)
+                  ? Color(0xffC5AA17)
+                  : (count > 5)
+                      ? Color(0xffEBD766)
+                      : (count > 0)
+                          ? Color(0xffFCF6D6)
+                          : Colors.white,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(

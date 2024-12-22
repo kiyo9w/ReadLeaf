@@ -10,6 +10,7 @@ import 'package:migrated/depeninject/injection.dart';
 import 'package:external_path/external_path.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:path/path.dart' as path;
 
 part 'file_event.dart';
 
@@ -202,17 +203,9 @@ class FileBloc extends Bloc<FileEvent, FileState> {
         throw Exception('Storage permission denied');
       }
 
-      // Get download directory based on platform
-      final directory = await _getDownloadDirectory();
-      if (directory == null) {
-        throw Exception('Could not access download directory');
-      }
+      final downloadsPath = await FileUtils.getDownloadsDirectory();
+      final localFilePath = path.join(downloadsPath, event.fileName);
 
-      final localFilePath = '${directory.path}/${event.fileName}';
-      final file = File(localFilePath);
-      if (!await directory.exists()) {
-        await directory.create(recursive: true);
-      }
       Dio dio = Dio();
       await dio.download(
         event.url,
@@ -224,6 +217,8 @@ class FileBloc extends Bloc<FileEvent, FileState> {
           }
         },
       );
+
+      final file = File(localFilePath);
       if (await file.exists()) {
         final fileSize = await file.length();
         if (fileSize > 0) {
