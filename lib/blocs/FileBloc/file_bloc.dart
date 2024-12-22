@@ -8,6 +8,8 @@ import 'package:migrated/services/annas_archieve.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:migrated/depeninject/injection.dart';
 import 'package:external_path/external_path.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 part 'file_event.dart';
 
@@ -18,7 +20,8 @@ class FileBloc extends Bloc<FileEvent, FileState> {
   final AnnasArchieve annasArchieve;
   FileLoaded? _lastLoadedState;
 
-  FileBloc({required this.fileRepository, required this.annasArchieve}) : super(FileInitial()) {
+  FileBloc({required this.fileRepository, required this.annasArchieve})
+      : super(FileInitial()) {
     on<InitFiles>(_onInitFiles);
     on<LoadFile>(_onLoadFile);
     on<SelectFile>(_onSelectFile);
@@ -28,6 +31,7 @@ class FileBloc extends Bloc<FileEvent, FileState> {
     on<SearchBooks>(_onSearchBooks);
     on<LoadBookInfo>(_onLoadBookInfo);
     on<DownloadFile>(_onDownloadFile);
+    on<ToggleStarred>(_onToggleStarred);
   }
 
   Future<void> _onInitFiles(InitFiles event, Emitter<FileState> emit) async {
@@ -59,6 +63,8 @@ class FileBloc extends Bloc<FileEvent, FileState> {
       List<FileInfo> currentFiles = [];
       if (state is FileLoaded) {
         currentFiles = (state as FileLoaded).files;
+      } else if (state is FileDownloading) {
+        currentFiles = (_lastLoadedState!.files);
       }
 
       final isFileAlreadyLoaded =
@@ -144,7 +150,9 @@ class FileBloc extends Bloc<FileEvent, FileState> {
       } else {
         emit(FileInitial());
       }
-    } else if (state is FileSearchResults || state is FileBookInfoLoaded || state is FileBookInfoLoading) {
+    } else if (state is FileSearchResults ||
+        state is FileBookInfoLoaded ||
+        state is FileBookInfoLoading) {
       if (_lastLoadedState != null) {
         emit(_lastLoadedState!);
       } else {
@@ -184,17 +192,20 @@ class FileBloc extends Bloc<FileEvent, FileState> {
     }
   }
 
-  Future<void> _onDownloadFile(DownloadFile event, Emitter<FileState> emit) async {
+  Future<void> _onDownloadFile(
+      DownloadFile event, Emitter<FileState> emit) async {
     try {
       emit(FileDownloading(0.0));
-      Directory? directory = await getDownloadsDirectory();
+
+      // Check and request permissions
+      if (!await _checkAndRequestPermissions()) {
+        throw Exception('Storage permission denied');
+      }
+
+      // Get download directory based on platform
+      final directory = await _getDownloadDirectory();
       if (directory == null) {
-        final List<Directory>? externalDirs = await getExternalStorageDirectories();
-        if (externalDirs != null && externalDirs.isNotEmpty) {
-          directory = externalDirs.first;
-        } else {
-          directory = await getApplicationDocumentsDirectory();
-        }
+        throw Exception('Could not access download directory');
       }
 
       final localFilePath = '${directory.path}/${event.fileName}';
@@ -225,6 +236,60 @@ class FileBloc extends Bloc<FileEvent, FileState> {
       }
     } catch (e) {
       emit(FileError(message: 'Download failed: ${e.toString()}'));
+    }
+  }
+
+  Future<bool> _checkAndRequestPermissions() async {
+    if (Platform.isAndroid) {
+      final androidInfo = await DeviceInfoPlugin().androidInfo;
+
+      if (androidInfo.version.sdkInt <= 32) {
+        // For Android 12 and below
+        final status = await Permission.storage.request();
+        return status.isGranted;
+      } else {
+        // For Android 13 and above
+        final status = await Permission.photos.request();
+        return status.isGranted;
+      }
+    } else if (Platform.isIOS) {
+      // iOS doesn't need explicit permission for downloads folder
+      return true;
+    }
+    return false;
+  }
+
+  Future<Directory?> _getDownloadDirectory() async {
+    if (Platform.isAndroid) {
+      // Get the Downloads directory on Android
+      final downloadsPath =
+          await ExternalPath.getExternalStoragePublicDirectory(
+        ExternalPath.DIRECTORY_DOWNLOADS,
+      );
+      return Directory(downloadsPath);
+    } else if (Platform.isIOS) {
+      // On iOS, we'll use the Documents directory which is accessible to users
+      return await getApplicationDocumentsDirectory();
+    }
+    return null;
+  }
+
+  Future<void> _onToggleStarred(
+      ToggleStarred event, Emitter<FileState> emit) async {
+    if (state is FileLoaded) {
+      final currentState = state as FileLoaded;
+      final updatedFiles = currentState.files.map((file) {
+        if (file.filePath == event.filePath) {
+          return file.copyWith(isStarred: !file.isStarred);
+        }
+        return file;
+      }).toList();
+
+      final newState = FileLoaded(updatedFiles);
+      _lastLoadedState = newState;
+      emit(newState);
+
+      await fileRepository.saveFiles(updatedFiles);
     }
   }
 }

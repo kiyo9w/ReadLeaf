@@ -15,36 +15,12 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
   bool _favouriteExpanded = false;
   bool _localStorageExpanded = false;
 
-  final _favouriteBooks = [
-    // Hard coded
-    {
-      'filePath': 'the_kill_mockingbird.pdf',
-      'title': 'To Kill a Mockingbird',
-      'author': 'Harper Lee',
-      'size': 1876 * 1024,
-      'isLocal': false
-    },
-    {
-      'filePath': 'the_great_gatsby.epub',
-      'title': 'The Great Gatsby',
-      'author': 'F. Scott Fitzgerald',
-      'size': 3564 * 1024,
-      'isLocal': false
-    },
-    {
-      'filePath': '1984.pdf',
-      'title': '1984',
-      'author': 'George Orwell',
-      'size': 564 * 1024,
-      'isLocal': false
-    },
-  ];
-
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<FileBloc, FileState>(
       builder: (context, state) {
         List<dynamic> downloadedBooks = [];
+        List<dynamic> starredBooks = [];
         List<dynamic> localFiles = [];
 
         if (state is FileLoaded) {
@@ -54,9 +30,12 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
               'title': FileCard.extractFileName(f.filePath),
               'author': f.author,
               'size': f.fileSize,
-              'isLocal': true
+              'isLocal': true,
+              'isStarred': f.isStarred,
             };
           }).toList();
+
+          starredBooks = downloadedBooks.where((book) => book['isStarred']).toList();
           localFiles = downloadedBooks;
         }
 
@@ -65,7 +44,8 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
           appBar: PreferredSize(
             preferredSize: const Size.fromHeight(80),
             child: Padding(
-              padding: const EdgeInsets.only(top: 10, left: 10, right: 10, bottom: 10),
+              padding: const EdgeInsets.only(
+                  top: 10, left: 10, right: 10, bottom: 10),
               child: AppBar(
                 backgroundColor: Colors.white,
                 elevation: 0,
@@ -97,11 +77,10 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
                 ),
                 if (_bookDownloadedExpanded && downloadedBooks.isNotEmpty)
                   ..._buildBookCards(downloadedBooks),
-
                 const SizedBox(height: 20),
                 _buildCategoryHeader(
                   title: "Favourite",
-                  count: _favouriteBooks.length,
+                  count: starredBooks.length,
                   isExpanded: _favouriteExpanded,
                   onTap: () {
                     setState(() {
@@ -109,9 +88,8 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
                     });
                   },
                 ),
-                if (_favouriteExpanded && _favouriteBooks.isNotEmpty)
-                  ..._buildBookCards(_favouriteBooks),
-
+                if (_favouriteExpanded && starredBooks.isNotEmpty)
+                  ..._buildBookCards(starredBooks),
                 const SizedBox(height: 20),
                 _buildCategoryHeader(
                   title: "Local Storage",
@@ -125,7 +103,6 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
                 ),
                 if (_localStorageExpanded && localFiles.isNotEmpty)
                   ..._buildBookCards(localFiles),
-
                 const SizedBox(height: 40),
               ],
             ),
@@ -159,7 +136,7 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.yellow.shade100,
+              color: (count > 10) ? Color(0xffC5AA17) : (count > 5) ? Color(0xffEBD766) : (count > 0) ? Color(0xffFCF6D6) : Colors.white,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
@@ -181,7 +158,6 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
   }
 
   List<Widget> _buildBookCards(List<dynamic> books) {
-
     return books.map((book) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -203,10 +179,14 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
               const SnackBar(content: Text("Already downloaded")),
             );
           },
+          onStar: () {
+            context.read<FileBloc>().add(ToggleStarred(book['filePath']));
+          },
           title: book['title'],
           isInternetBook: !book['isLocal'],
           author: book['author'],
           thumbnailUrl: null,
+          isStarred: book['isStarred'] ?? false,
         ),
       );
     }).toList();

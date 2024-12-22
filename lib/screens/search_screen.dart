@@ -48,7 +48,8 @@ class SearchScreen extends StatefulWidget {
   State<SearchScreen> createState() => _SearchScreenState();
 }
 
-class _SearchScreenState extends State<SearchScreen> with AutomaticKeepAliveClientMixin{
+class _SearchScreenState extends State<SearchScreen>
+    with AutomaticKeepAliveClientMixin {
   String searchQuery = "";
   String selectedType = "All";
   String selectedSort = "Most Relevant";
@@ -70,8 +71,10 @@ class _SearchScreenState extends State<SearchScreen> with AutomaticKeepAliveClie
   Future<void> _fetchInitialData() async {
     setState(() => _isLoading = true);
     try {
-      final trendingFuture = _annasArchieve.getMassBooks(queries: trendingQueries);
-      final topSearchesFuture = _annasArchieve.getMassBooks(queries: topSearchQueries);
+      final trendingFuture =
+          _annasArchieve.getMassBooks(queries: trendingQueries);
+      final topSearchesFuture =
+          _annasArchieve.getMassBooks(queries: topSearchQueries);
       final results = await Future.wait([trendingFuture, topSearchesFuture]);
       setState(() {
         _trendingBooks = results[0];
@@ -90,7 +93,8 @@ class _SearchScreenState extends State<SearchScreen> with AutomaticKeepAliveClie
         query: searchQuery,
         content: typeValues[selectedType] ?? '',
         sort: sortValues[selectedSort] ?? '',
-        fileType: selectedFileType == "All" ? '' : selectedFileType.toLowerCase(),
+        fileType:
+            selectedFileType == "All" ? '' : selectedFileType.toLowerCase(),
         enableFilters: true,
       ));
       Navigator.push(
@@ -115,7 +119,8 @@ class _SearchScreenState extends State<SearchScreen> with AutomaticKeepAliveClie
         return StatefulBuilder(
           builder: (context, setModalState) {
             return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 20.0),
+              padding:
+                  const EdgeInsets.symmetric(vertical: 20.0, horizontal: 20.0),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -146,12 +151,14 @@ class _SearchScreenState extends State<SearchScreen> with AutomaticKeepAliveClie
                       ),
                     ),
                     value: selectedType,
-                    items: typeValues.keys.map<DropdownMenuItem<String>>((String value) {
+                    items: typeValues.keys
+                        .map<DropdownMenuItem<String>>((String value) {
                       return DropdownMenuItem<String>(
                         value: value,
                         child: Text(
                           value,
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.bold),
                         ),
                       );
                     }).toList(),
@@ -181,12 +188,14 @@ class _SearchScreenState extends State<SearchScreen> with AutomaticKeepAliveClie
                       ),
                     ),
                     value: selectedSort,
-                    items: sortValues.keys.map<DropdownMenuItem<String>>((String value) {
+                    items: sortValues.keys
+                        .map<DropdownMenuItem<String>>((String value) {
                       return DropdownMenuItem<String>(
                         value: value,
                         child: Text(
                           value,
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.bold),
                         ),
                       );
                     }).toList(),
@@ -216,12 +225,14 @@ class _SearchScreenState extends State<SearchScreen> with AutomaticKeepAliveClie
                       ),
                     ),
                     value: selectedFileType,
-                    items: fileType.map<DropdownMenuItem<String>>((String value) {
+                    items:
+                        fileType.map<DropdownMenuItem<String>>((String value) {
                       return DropdownMenuItem<String>(
                         value: value,
                         child: Text(
                           value,
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.bold),
                         ),
                       );
                     }).toList(),
@@ -322,7 +333,8 @@ class _SearchScreenState extends State<SearchScreen> with AutomaticKeepAliveClie
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => ResultPage(searchQuery: book.title ?? ""),
+                          builder: (context) =>
+                              ResultPage(searchQuery: book.title ?? ""),
                         ),
                       );
                     },
@@ -337,7 +349,8 @@ class _SearchScreenState extends State<SearchScreen> with AutomaticKeepAliveClie
                         children: [
                           if (book.thumbnail != null)
                             ClipRRect(
-                              borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                              borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(8)),
                               child: Image.network(
                                 book.thumbnail!,
                                 height: 120,
@@ -428,7 +441,8 @@ class _SearchScreenState extends State<SearchScreen> with AutomaticKeepAliveClie
                             showCursor: true,
                             cursorColor: Colors.grey,
                             decoration: const InputDecoration(
-                              contentPadding: EdgeInsets.symmetric(vertical: 15),
+                              contentPadding:
+                                  EdgeInsets.symmetric(vertical: 15),
                               border: InputBorder.none,
                               hintText: "Find some books...",
                               hintStyle: TextStyle(
@@ -442,7 +456,8 @@ class _SearchScreenState extends State<SearchScreen> with AutomaticKeepAliveClie
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
                             ),
-                            onChanged: (value) => setState(() => searchQuery = value),
+                            onChanged: (value) =>
+                                setState(() => searchQuery = value),
                           ),
                         ),
                         IconButton(

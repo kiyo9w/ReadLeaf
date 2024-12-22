@@ -7,15 +7,19 @@ class FileInfo extends Equatable {
   final bool isInternetBook;
   final String? author;
   final String? thumbnailUrl;
+  final bool isStarred;
+  final bool wasRead;
 
   const FileInfo(
-      this.filePath,
-      this.fileSize, {
-        this.isSelected = false,
-        this.isInternetBook = false,
-        this.author,
-        this.thumbnailUrl,
-      });
+    this.filePath,
+    this.fileSize, {
+    this.isSelected = false,
+    this.isInternetBook = false,
+    this.author,
+    this.thumbnailUrl,
+    this.isStarred = false,
+    this.wasRead = false,
+  });
 
   FileInfo copyWith({
     String? filePath,
@@ -24,6 +28,8 @@ class FileInfo extends Equatable {
     bool? isInternetBook,
     String? author,
     String? thumbnailUrl,
+    bool? isStarred,
+    bool? wasRead,
   }) {
     return FileInfo(
       filePath ?? this.filePath,
@@ -32,9 +38,20 @@ class FileInfo extends Equatable {
       isInternetBook: isInternetBook ?? this.isInternetBook,
       author: author ?? this.author,
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      isStarred: isStarred ?? this.isStarred,
+      wasRead: wasRead ?? this.wasRead,
     );
   }
 
   @override
-  List<Object?> get props => [filePath, fileSize, isSelected, isInternetBook, author, thumbnailUrl];
+  List<Object?> get props => [
+        filePath,
+        fileSize,
+        isSelected,
+        isInternetBook,
+        author,
+        thumbnailUrl,
+        isStarred,
+        wasRead
+      ];
 }

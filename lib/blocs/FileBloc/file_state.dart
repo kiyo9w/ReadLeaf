@@ -57,6 +57,7 @@ class FileBookInfoLoaded extends FileState {
   @override
   List<Object> get props => [bookInfo];
 }
+
 class FileLoading extends FileState {}
 
 class FileDownloading extends FileState {

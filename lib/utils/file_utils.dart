@@ -35,11 +35,15 @@ class FileRepository {
   }
 
   Future<void> saveFiles(List<FileInfo> files) async {
-    final jsonData = files.map((f) => {
-      'filePath': f.filePath,
-      'fileSize': f.fileSize,
-      'isSelected': f.isSelected,
-    }).toList();
+    final jsonData = files
+        .map((f) => {
+              'filePath': f.filePath,
+              'fileSize': f.fileSize,
+              'isSelected': f.isSelected,
+              'isStarred': f.isStarred,
+              'wasRead': f.wasRead,
+            })
+        .toList();
     await _prefs.setString(_filesKey, jsonEncode(jsonData));
   }
 
@@ -52,6 +56,8 @@ class FileRepository {
           item['filePath'],
           item['fileSize'],
           isSelected: item['isSelected'] ?? false,
+          isStarred: item['isStarred'] ?? false,
+          wasRead: item['wasRead'] ?? false,
         );
       }).toList();
     } else {

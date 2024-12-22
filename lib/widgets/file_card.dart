@@ -17,11 +17,13 @@ class FileCard extends StatelessWidget {
   final VoidCallback onView;
   final VoidCallback onRemove;
   final VoidCallback onDownload;
+  final VoidCallback onStar;
   final String title;
 
   final bool isInternetBook;
   final String? author;
   final String? thumbnailUrl;
+  final bool isStarred;
 
   const FileCard({
     required this.filePath,
@@ -32,9 +34,11 @@ class FileCard extends StatelessWidget {
     required this.onRemove,
     required this.title,
     required this.onDownload,
+    required this.onStar,
     this.isInternetBook = false,
     this.author,
     this.thumbnailUrl,
+    this.isStarred = false,
     Key? key,
   }) : super(key: key);
 
@@ -172,17 +176,26 @@ class FileCard extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            Icon(
-              Icons.star_border_outlined,
-              color: Colors.black87,
-              size: 24.0,
-              semanticLabel: 'Star',
+            IconButton(
+              icon: Icon(
+                isStarred ? Icons.star : Icons.star_border_outlined,
+                color: isStarred ? Colors.amber : Colors.black87,
+                size: 24.0,
+              ),
+              onPressed: () {
+                onStar();
+              },
             ),
             const SizedBox(width: 36.0),
-            Icon(
-              FontAwesome5.check,
-              color: Colors.black87,
-              size: 20.0,
+            IconButton(
+              icon: Icon(
+                FontAwesome5.check,
+                color: Colors.black87,
+                size: 20.0,
+              ),
+              onPressed: () {
+                onRemove();
+              },
             ),
             const SizedBox(width: 22.0),
             Icon(
@@ -281,15 +294,14 @@ class FileCard extends StatelessWidget {
             ),
             const SizedBox(width: 22.0),
             IconButton(
-              onPressed: () {
-                onDownload();
-              },
-              icon : Icon(
-                Icons.download,
-                color: Colors.black87,
-                size: 30.0,
-              )
-            ),
+                onPressed: () {
+                  onDownload();
+                },
+                icon: Icon(
+                  Icons.download,
+                  color: Colors.black87,
+                  size: 30.0,
+                )),
           ],
         ),
       ],

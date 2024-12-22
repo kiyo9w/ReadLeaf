@@ -84,3 +84,21 @@ class DownloadFile extends FileEvent {
   @override
   List<Object> get props => [url, fileName];
 }
+
+class ToggleStarred extends FileEvent {
+  final String filePath;
+
+  const ToggleStarred(this.filePath);
+
+  @override
+  List<Object> get props => [filePath];
+}
+
+class MarkAsRead extends FileEvent {
+  final String filePath;
+
+  const MarkAsRead(this.filePath);
+
+  @override
+  List<Object> get props => [filePath];
+}

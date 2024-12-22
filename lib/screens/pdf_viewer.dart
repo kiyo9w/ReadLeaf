@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:migrated/blocs/FileBloc/file_bloc.dart';
 import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
+import 'package:migrated/screens/nav_screen.dart';
 
 class PDFViewerScreen extends StatefulWidget {
   const PDFViewerScreen({Key? key}) : super(key: key);
@@ -17,10 +18,25 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
   final PdfViewerController _pdfViewerController = PdfViewerController();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NavScreen.globalKey.currentState?.setNavBarVisibility(true);
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+    });
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return BlocConsumer<ReaderBloc, ReaderState>(
-      listener: (context, state) {
-      },
+      listener: (context, state) {},
       builder: (context, state) {
         if (state is ReaderLoading) {
           return const Scaffold(
@@ -45,11 +61,12 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
             file,
             key: _pdfViewerKey,
             controller: _pdfViewerController,
-            onDocumentLoaded: (details) {
-            },
+            onDocumentLoaded: (details) {},
             onPageChanged: (details) {
               if (details.newPageNumber != currentPage) {
-                context.read<ReaderBloc>().add(JumpToPage(details.newPageNumber));
+                context
+                    .read<ReaderBloc>()
+                    .add(JumpToPage(details.newPageNumber));
               }
             },
           );
@@ -58,7 +75,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
             body: Stack(
               children: [
                 GestureDetector(
-                  onTap: () => context.read<ReaderBloc>().add(ToggleUIVisibility()),
+                  onTap: () =>
+                      context.read<ReaderBloc>().add(ToggleUIVisibility()),
                   child: pdfViewer,
                 ),
 
@@ -80,7 +98,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                       ),
                       title: Text(
                         'Reading',
-                        style: const TextStyle(fontSize: 20, color: Colors.black),
+                        style:
+                            const TextStyle(fontSize: 20, color: Colors.black),
                       ),
                       actions: [
                         IconButton(
@@ -95,7 +114,9 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                           icon: const Icon(Icons.more_vert),
                           onSelected: (val) {
                             if (val == 'dark_mode') {
-                              context.read<ReaderBloc>().add(ToggleReadingMode());
+                              context
+                                  .read<ReaderBloc>()
+                                  .add(ToggleReadingMode());
                             }
                           },
                           itemBuilder: (context) => [
@@ -141,7 +162,9 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                               activeColor: Colors.pinkAccent,
                               inactiveColor: Colors.white54,
                               onChanged: (value) {
-                                context.read<ReaderBloc>().add(JumpToPage(value.toInt()));
+                                context
+                                    .read<ReaderBloc>()
+                                    .add(JumpToPage(value.toInt()));
                                 _pdfViewerController.jumpToPage(value.toInt());
                               },
                             ),
@@ -168,7 +191,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         AppBar(
-                          title: const Text('Chapters', style: const TextStyle(color: Colors.white70)),
+                          title: const Text('Chapters',
+                              style: const TextStyle(color: Colors.white70)),
                           backgroundColor: Colors.grey.shade800,
                           automaticallyImplyLeading: false,
                           actions: [
@@ -187,7 +211,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                               _buildChapterItem('Layout widgets', 55),
                               _buildChapterItem('Navigation widgets', 55),
                               _buildChapterItem('Other widgets', 56),
-                              _buildChapterItem('How to create your own stateless...', 65),
+                              _buildChapterItem(
+                                  'How to create your own stateless...', 65),
                               _buildChapterItem('Conclusion', 69),
                               _buildChapterItem('Chapter 7: Index', 85),
                             ],

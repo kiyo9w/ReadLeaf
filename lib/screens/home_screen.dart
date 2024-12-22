@@ -36,7 +36,9 @@ class HomeScreen extends StatelessWidget {
         listener: (context, state) {
           if (state is FileViewing) {
             final file = File(state.filePath);
-            context.read<ReaderBloc>().add(OpenReader('', file: file, filePath: state.filePath));
+            context
+                .read<ReaderBloc>()
+                .add(OpenReader('', file: file, filePath: state.filePath));
             Navigator.pushNamed(context, '/viewer');
           }
         },
@@ -63,6 +65,9 @@ class HomeScreen extends StatelessWidget {
                     fileBloc.add(RemoveFile(file.filePath));
                   },
                   onDownload: () {},
+                  onStar: () {
+                    fileBloc.add(ToggleStarred(file.filePath));
+                  },
                 );
               },
             );

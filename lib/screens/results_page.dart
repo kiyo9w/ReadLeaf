@@ -8,6 +8,7 @@ import 'package:migrated/blocs/FileBloc/file_bloc.dart';
 import 'package:migrated/widgets/file_card.dart';
 import 'package:migrated/widgets/page_title_widget.dart';
 import 'package:migrated/widgets/book_info_widget.dart';
+import 'package:migrated/screens/nav_screen.dart';
 
 class ResultPage extends StatefulWidget {
   final String searchQuery;
@@ -28,6 +29,17 @@ class _ResultPageState extends State<ResultPage> {
     super.initState();
     _fileBloc = getIt<FileBloc>();
     annasArchieve = getIt<AnnasArchieve>();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NavScreen.globalKey.currentState?.setNavBarVisibility(true);
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+    });
+    super.dispose();
   }
 
   @override
@@ -83,7 +95,8 @@ class _ResultPageState extends State<ResultPage> {
                   children: [
                     Padding(
                       padding: EdgeInsets.only(left: 5, right: 5, top: 10),
-                      child: TitleText("Results for \"" + widget.searchQuery +"\""),
+                      child: TitleText(
+                          "Results for \"" + widget.searchQuery + "\""),
                     ),
                     const Expanded(
                       child: Center(
@@ -104,7 +117,8 @@ class _ResultPageState extends State<ResultPage> {
                     child: CustomScrollView(
                       slivers: <Widget>[
                         SliverToBoxAdapter(
-                          child: TitleText("Results for \"" + widget.searchQuery +"\""),
+                          child: TitleText(
+                              "Results for \"" + widget.searchQuery + "\""),
                         ),
                         SliverList(
                           delegate: SliverChildListDelegate(
@@ -121,25 +135,30 @@ class _ResultPageState extends State<ResultPage> {
                                 },
                                 onRemove: () {},
                                 onDownload: () async {
-                                  final mirrorLink = await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          WebviewPage(url: book.link),
-                                    ),
-                                  );
+                                  // final mirrorLink = await Navigator.push(
+                                  //   context,
+                                  //   MaterialPageRoute(
+                                  //     builder: (context) =>
+                                  //         WebviewPage(url: book.link),
+                                  //   ),
+                                  // );
                                   // final mirrorLink = 'https://prothoughts.co.in/wp-content/uploads/2022/06/a-guide-to-the-project-management-body-of-knowledge-6e.pdf';
-                                  if (mirrorLink != null && mirrorLink is String) {
+                                  final mirrorLink =
+                                      'https://irp-cdn.multiscreensite.com/cb9165b2/files/uploaded/The+48+Laws+Of+Power.pdf';
+                                  if (mirrorLink != null &&
+                                      mirrorLink is String) {
                                     _fileBloc.add(DownloadFile(
-                                        url: mirrorLink, fileName: book.title + ".pdf"));
+                                        url: mirrorLink,
+                                        fileName: book.title + ".pdf"));
                                   } else {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                          content:
-                                          Text('Failed to get download link')),
+                                          content: Text(
+                                              'Failed to get download link')),
                                     );
                                   }
                                 },
+                                onStar: () {},
                                 title: book.title,
                                 isInternetBook: true,
                                 author: book.author,
@@ -227,7 +246,9 @@ class _ResultPageState extends State<ResultPage> {
     try {
       final bookInfo = await annasArchieve.bookInfo(url: url);
 
-      Navigator.of(context).pop();
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
 
       showModalBottomSheet(
         context: context,
@@ -243,6 +264,7 @@ class _ResultPageState extends State<ResultPage> {
               link: bookInfo.link,
               description: bookInfo.description,
               fileSize: AnnasArchieve.getFileSizeFromInfo(bookInfo.info!),
+              fileType: AnnasArchieve.getFileTypeFromInfo(bookInfo.info!),
               title: bookInfo.title,
               ratings: 4,
               language: AnnasArchieve.getLanguageFromInfo(bookInfo.info!),

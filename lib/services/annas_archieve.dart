@@ -295,6 +295,29 @@ class AnnasArchieve {
     return null;
   }
 
+  static String? getFileTypeFromInfo(String info) {
+    info = info.toLowerCase(); // Normalize to lowercase for easier matching
+
+    if (info.contains('pdf')) return 'PDF';
+    if (info.contains('epub')) return 'EPUB';
+    if (info.contains('cbr')) return 'CBR';
+    if (info.contains('cbz')) return 'CBZ';
+    if (info.contains('djvu')) return 'DJVU';
+    if (info.contains('mobi')) return 'MOBI';
+    if (info.contains('azw3')) return 'AZW3';
+    if (info.contains('fb2')) return 'FB2';
+    if (info.contains('txt')) return 'TXT';
+    if (info.contains('rtf')) return 'RTF';
+    if (info.contains('docx')) return 'DOCX';
+    if (info.contains('doc')) return 'DOC';
+    if (info.contains('html')) return 'HTML';
+    if (info.contains('chm')) return 'CHM';
+    if (info.contains('lit')) return 'LIT';
+    if (info.contains('lrf')) return 'LRF';
+    if (info.contains('pdb')) return 'PDB';
+
+    return null; // Return null if no matching file type is found
+  }
 
   static double? getFileSizeFromInfo(String info) {
     // Reg-ex looking for a pattern like "6.8MB" in the info
