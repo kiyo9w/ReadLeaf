@@ -6,11 +6,13 @@ import 'blocs/ReaderBloc/reader_bloc.dart';
 import 'depeninject/injection.dart';
 import 'screens/nav_screen.dart';
 import 'package:flutter_downloader/flutter_downloader.dart';
+import 'package:migrated/services/gemini_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await FlutterDownloader.initialize(debug: true);
   await configureDependencies();
+  await GeminiService.initialize();
   runApp(const MyApp());
 }
 

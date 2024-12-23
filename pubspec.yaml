@@ -30,7 +30,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
+  flutter_dotenv: ^5.1.0
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -72,7 +72,10 @@ dependencies:
   flutter_inappwebview: ^6.1.5
 
   get_it: ^8.0.3
-  persistent_bottom_nav_bar: 6.0.0
+  persistent_bottom_nav_bar_v2: ^5.3.1
+  pdfrx: ^1.0.94
+
+  flutter_gemini: ^2.0.5
 
 dependency_overrides:
   file_picker:
