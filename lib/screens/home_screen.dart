@@ -59,7 +59,7 @@ class HomeScreen extends StatelessWidget {
                     fileBloc.add(SelectFile(file.filePath));
                   },
                   onView: () {
-                    fileBloc.add(ViewFile(file.filePath));
+                    fileBloc.add(ViewFile((file.filePath)));
                   },
                   onRemove: () {
                     fileBloc.add(RemoveFile(file.filePath));

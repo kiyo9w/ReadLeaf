@@ -5,6 +5,7 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:migrated/blocs/FileBloc/file_bloc.dart';
 import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
 import 'package:migrated/screens/nav_screen.dart';
+import 'package:migrated/widgets/text_search_view.dart';
 
 class PDFViewerScreen extends StatefulWidget {
   const PDFViewerScreen({Key? key}) : super(key: key);
@@ -16,8 +17,9 @@ class PDFViewerScreen extends StatefulWidget {
 class _PDFViewerScreenState extends State<PDFViewerScreen> {
   final _controller = PdfViewerController();
   late final _textSearcher = PdfTextSearcher(_controller)..addListener(_update);
-  final _searchController = TextEditingController();
-  bool _showSearchBar = false;
+  bool _showSearchPanel = false;
+  double _scaleFactor = 1.0;
+  double _baseScaleFactor = 1.0;
 
   void _update() {
     if (mounted) {
@@ -37,19 +39,34 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
   void dispose() {
     _textSearcher.removeListener(_update);
     _textSearcher.dispose();
-    _searchController.dispose();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NavScreen.globalKey.currentState?.setNavBarVisibility(false);
     });
     super.dispose();
   }
 
-  void _handleSearch(String query) {
-    if (query.isEmpty) {
+  void _closeSearchPanel() {
+    setState(() {
+      _showSearchPanel = false;
       _textSearcher.resetTextSearch();
-      return;
+    });
+  }
+
+  void _toggleSearchPanel() {
+    setState(() {
+      _showSearchPanel = !_showSearchPanel;
+      if (!_showSearchPanel) {
+        _textSearcher.resetTextSearch();
+      }
+    });
+  }
+
+  void _closeSideNav(BuildContext context) {
+    final readerBloc = context.read<ReaderBloc>();
+    final state = readerBloc.state;
+    if (state is ReaderLoaded && state.showSideNav) {
+      readerBloc.add(ToggleSideNav());
     }
-    _textSearcher.startTextSearch(query, caseInsensitive: true);
   }
 
   @override
@@ -92,6 +109,16 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                   onTapUp: (details) {
                     handleLinkTap(details.localPosition);
                   },
+                  // onScaleStart: (details) {
+                  //   _baseScaleFactor = _scaleFactor;
+                  // },
+                  // onScaleUpdate: (details) {
+                  //   setState(() {
+                  //     _scaleFactor = _baseScaleFactor * details.scale;
+                  //     _controller.setZoom(
+                  //         details.localFocalPoint, _scaleFactor);
+                  //   });
+                  // },
                   child: IgnorePointer(
                     child: SizedBox(width: size.width, height: size.height),
                   ),
@@ -104,66 +131,16 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
             body: Stack(
               children: [
                 GestureDetector(
-                  onTap: () =>
-                      context.read<ReaderBloc>().add(ToggleUIVisibility()),
+                  onTap: () {
+                    context.read<ReaderBloc>().add(ToggleUIVisibility());
+                    if (_showSearchPanel) _closeSearchPanel();
+                    if (showSideNav) _closeSideNav(context);
+                  },
                   child: pdfViewer,
                 ),
 
-                // Search bar
-                if (_showSearchBar)
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    child: AppBar(
-                      backgroundColor: const Color(0xffDDDDDD),
-                      leading: IconButton(
-                        icon: const Icon(Icons.arrow_back),
-                        onPressed: () {
-                          setState(() {
-                            _showSearchBar = false;
-                            _textSearcher.resetTextSearch();
-                          });
-                        },
-                      ),
-                      title: TextField(
-                        controller: _searchController,
-                        decoration: InputDecoration(
-                          hintText: 'Search in document',
-                          border: InputBorder.none,
-                          suffixIcon: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (_textSearcher.matches.isNotEmpty) ...[
-                                IconButton(
-                                  icon: const Icon(Icons.arrow_upward),
-                                  onPressed: () =>
-                                      _textSearcher.goToPrevMatch(),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.arrow_downward),
-                                  onPressed: () =>
-                                      _textSearcher.goToNextMatch(),
-                                ),
-                              ],
-                              if (_searchController.text.isNotEmpty)
-                                IconButton(
-                                  icon: const Icon(Icons.clear),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    _textSearcher.resetTextSearch();
-                                  },
-                                ),
-                            ],
-                          ),
-                        ),
-                        onChanged: _handleSearch,
-                      ),
-                    ),
-                  ),
-
                 // Top app bar nav
-                if (showUI && !_showSearchBar)
+                if (showUI)
                   Positioned(
                     top: 0,
                     left: 0,
@@ -185,11 +162,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                       actions: [
                         IconButton(
                           icon: const Icon(Icons.search),
-                          onPressed: () {
-                            setState(() {
-                              _showSearchBar = true;
-                            });
-                          },
+                          onPressed: _toggleSearchPanel,
                         ),
                         IconButton(
                           icon: const Icon(Icons.menu),
@@ -235,7 +208,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                     right: 0,
                     child: Container(
                       color: const Color(0xffDDDDDD),
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 5),
                       child: Row(
                         children: [
                           Text(
@@ -313,12 +287,29 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                     ),
                   ),
                 ),
+
+                // Search panel
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  top: 0,
+                  bottom: 0,
+                  left: _showSearchPanel ? 0 : -300,
+                  child: SizedBox(
+                    width: 300,
+                    child: TextSearchView(
+                      textSearcher: _textSearcher,
+                      onClose: _closeSearchPanel,
+                    ),
+                  ),
+                ),
               ],
             ),
           );
         }
 
-        return const Scaffold();
+        return const Scaffold(
+          body: Center(child: Text('No content')),
+        );
       },
     );
   }

@@ -8,6 +8,7 @@ import 'package:material_design_icons_flutter/material_design_icons_flutter.dart
 import 'package:migrated/screens/search_screen.dart';
 import 'package:path/path.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:pdfrx/pdfrx.dart';
 
 class FileCard extends StatelessWidget {
   final String filePath;
@@ -42,12 +43,39 @@ class FileCard extends StatelessWidget {
     Key? key,
   }) : super(key: key);
 
+  Widget _buildThumbnail() {
+    if (isInternetBook && thumbnailUrl != null) {
+      return Image.network(
+        thumbnailUrl!,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => const Center(
+          child: Icon(Icons.error),
+        ),
+      );
+    }
+
+    return PdfDocumentViewBuilder.file(
+      filePath,
+      builder: (context, document) {
+        if (document == null) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        return PdfPageView(
+          document: document,
+          pageNumber: 1,
+          alignment: Alignment.center,
+          maximumDpi: 150, // Lower DPI for thumbnails to improve performance
+          decorationBuilder: (context, pageSize, page, pageImage) {
+            return pageImage ??
+                const Center(child: CircularProgressIndicator());
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final displayImageUrl = isInternetBook && thumbnailUrl != null
-        ? thumbnailUrl!
-        : 'https://picsum.photos/200/300?random=${DateTime.now().millisecondsSinceEpoch}';
-
     return Dismissible(
       key: Key(filePath),
       direction: DismissDirection.horizontal,
@@ -75,14 +103,11 @@ class FileCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   border: Border.all(
                     color: Colors.black,
-                    width: 0.5, // Thin border width
+                    width: 0.5,
                   ),
                 ),
-                child: Image.network(
-                  displayImageUrl,
-                  width: 135,
-                  height: 190,
-                ),
+                clipBehavior: Clip.antiAlias,
+                child: _buildThumbnail(),
               ),
               const SizedBox(width: 12),
               Expanded(

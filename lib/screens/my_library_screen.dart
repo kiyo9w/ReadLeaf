@@ -183,7 +183,9 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
             context.read<FileBloc>().add(SelectFile(book['filePath']));
           },
           onView: () {
+            print(book['filePath']);
             context.read<FileBloc>().add(ViewFile(book['filePath']));
+            Navigator.pushNamed(context, '/viewer');
           },
           onRemove: () {
             context.read<FileBloc>().add(RemoveFile(book['filePath']));
