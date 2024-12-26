@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:migrated/widgets/snack_bar_widget.dart';
-import 'package:migrated/blocs/FileBloc/file_bloc.dart';
+import 'package:migrated/blocs/SearchBloc/search_bloc.dart';
 import 'results_page.dart';
 import '../depeninject/injection.dart';
 import '../services/annas_archieve.dart';
@@ -54,7 +54,7 @@ class _SearchScreenState extends State<SearchScreen>
   String selectedType = "All";
   String selectedSort = "Most Relevant";
   String selectedFileType = "All";
-  late final FileBloc _fileBloc;
+  late final SearchBloc _searchBloc;
   late final AnnasArchieve _annasArchieve;
   bool _isLoading = false;
   Map<String, List<BookData>>? _trendingBooks;
@@ -63,7 +63,7 @@ class _SearchScreenState extends State<SearchScreen>
   @override
   void initState() {
     super.initState();
-    _fileBloc = getIt<FileBloc>();
+    _searchBloc = getIt<SearchBloc>();
     _annasArchieve = getIt<AnnasArchieve>();
     _fetchInitialData();
   }
@@ -89,7 +89,7 @@ class _SearchScreenState extends State<SearchScreen>
 
   void onSubmit(BuildContext context) {
     if (searchQuery.isNotEmpty) {
-      _fileBloc.add(SearchBooks(
+      _searchBloc.add(SearchBooks(
         query: searchQuery,
         content: typeValues[selectedType] ?? '',
         sort: sortValues[selectedSort] ?? '',
@@ -281,7 +281,7 @@ class _SearchScreenState extends State<SearchScreen>
               title: Text(books.first.title ?? query),
               subtitle: Text(books.first.author ?? 'Unknown author'),
               onTap: () {
-                _fileBloc.add(SearchBooks(
+                _searchBloc.add(SearchBooks(
                   query: query,
                   enableFilters: false,
                 ));
@@ -326,7 +326,7 @@ class _SearchScreenState extends State<SearchScreen>
                   padding: const EdgeInsets.only(right: 10),
                   child: GestureDetector(
                     onTap: () {
-                      _fileBloc.add(SearchBooks(
+                      _searchBloc.add(SearchBooks(
                         query: book.title ?? "",
                         enableFilters: false,
                       ));
@@ -397,10 +397,10 @@ class _SearchScreenState extends State<SearchScreen>
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<FileBloc, FileState>(
-      bloc: _fileBloc,
+    return BlocConsumer<SearchBloc, SearchState>(
+      bloc: _searchBloc,
       listener: (context, state) {
-        if (state is FileError) {
+        if (state is SearchError) {
           showSnackBar(context: context, message: state.message);
         }
       },

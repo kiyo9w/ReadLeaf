@@ -25,38 +25,57 @@ Here is the text to analyze: "{TEXT}"
 Respond based on the above criteria.
 """;
 
-  late final Gemini gemini;
+  Gemini? _gemini;
 
-  GeminiService._internal() {
-    gemini = Gemini.instance;
-  }
+  GeminiService._internal();
 
   static Future<void> initialize() async {
-    Gemini.init(
-        apiKey: '',
-        enableDebugging: true);
+    try {
+      const apiKey = String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
+      if (apiKey.isEmpty) {
+        log('Warning: GEMINI_API_KEY not set. Please set it using --dart-define=GEMINI_API_KEY=your_api_key');
+        return;
+      }
+
+      await Gemini.init(
+        apiKey: apiKey,
+        enableDebugging: true,
+      );
+    } catch (e) {
+      log('Error initializing Gemini: $e');
+    }
   }
 
-  
-  Future<String?> askAboutText(String selectedText) async {
+  Future<String> askAboutText(String selectedText) async {
     try {
-      // Determine the text input for the prompt
-      final inputText = selectedText.isEmpty ? "No text was given." : selectedText;
+      // If no text is provided, return a default message
+      if (selectedText.isEmpty) {
+        return _getDefaultMessage();
+      }
+
+      _gemini ??= Gemini.instance;
+      if (_gemini == null) {
+        return 'Gemini service is not initialized. Please check your API key configuration.';
+      }
 
       // Form the complete prompt using the template
-      final prompt = promptTemplate.replaceAll("{TEXT}", inputText);
+      final prompt = promptTemplate.replaceAll("{TEXT}", selectedText);
 
       // Send the prompt to the Gemini service
-      final response = await gemini.text(prompt);
+      final response = await _gemini!.text(prompt);
 
       // Return the AI's first response part, if available
       if (response?.content?.parts?.isNotEmpty == true) {
-        return response?.content?.parts?.first.text;
+        return response?.content?.parts?.first.text ?? _getDefaultMessage();
       }
-      return null;
+      return _getDefaultMessage();
     } catch (e) {
       log('Gemini chat error', error: e);
-      return null;
+      return _getDefaultMessage();
     }
+  }
+
+  String _getDefaultMessage() {
+    return "You told me you would read this book at 20:00 today, chop chop get to work. Come one, adventures await you :)";
   }
 }
