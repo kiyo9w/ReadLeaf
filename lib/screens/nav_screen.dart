@@ -1,102 +1,97 @@
 import 'package:flutter/material.dart';
-import 'package:google_nav_bar/google_nav_bar.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:persistent_bottom_nav_bar_v2/persistent_bottom_nav_bar_v2.dart';
 import 'package:migrated/screens/home_screen.dart';
 import 'package:migrated/screens/search_screen.dart';
 import 'package:migrated/screens/my_library_screen.dart';
 import 'package:migrated/screens/settings_screen.dart';
-import 'package:fluttericon/font_awesome5_icons.dart';
-import 'package:fluttericon/octicons_icons.dart';
+import 'package:migrated/utils/file_utils.dart';
+import 'package:migrated/depeninject/injection.dart';
+import 'package:migrated/blocs/FileBloc/file_bloc.dart';
 
 class NavScreen extends StatefulWidget {
   const NavScreen({super.key});
+  final double iconsize = 28;
+  static final GlobalKey<_NavScreenState> globalKey =
+      GlobalKey<_NavScreenState>();
 
   @override
   State<NavScreen> createState() => _NavScreenState();
 }
 
 class _NavScreenState extends State<NavScreen> {
-  int _selectedIndex = 0;
+  final ValueNotifier<bool> _hideNavBarNotifier = ValueNotifier<bool>(false);
 
-  static const List<Widget> _screens = <Widget>[
-    HomeScreen(),
-    SearchScreen(),
-    MyLibraryScreen(),
-    SettingsScreen(),
-  ];
+  void setNavBarVisibility(bool hide) {
+    _hideNavBarNotifier.value = hide;
+  }
+
+  @override
+  void dispose() {
+    _hideNavBarNotifier.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final backgroundColor = Colors.white;
-    final iconColor = Colors.black;
-    final activeColor = Colors.blue;
-    final tabBackgroundColor = Colors.white;
-
+    final fileBloc = BlocProvider.of<FileBloc>(context);
     return Scaffold(
-      body: SafeArea(
-        child: _screens[_selectedIndex],
-      ),
-      bottomNavigationBar: SafeArea(
-        child: Container(
-          decoration: BoxDecoration(
-            color: backgroundColor,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            child: GNav(
-              haptic: true,
-              tabBorderRadius: 50,
-              curve: Curves.easeInOut,
-              duration: const Duration(milliseconds: 400),
-              gap: 8,
-              backgroundColor: backgroundColor,
-              color: iconColor,
-              activeColor: activeColor,
-              iconSize: 26,
-              tabBackgroundColor: tabBackgroundColor,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              tabs: [
-                GButton(
-                  icon: Icons.home_filled,
-                  textStyle: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: _selectedIndex == 0 ? activeColor : Colors.grey,
-                    fontSize: 12,
-                  ),
+      body: ValueListenableBuilder<bool>(
+        valueListenable: _hideNavBarNotifier,
+        builder: (context, hideNavBar, child) {
+          return PersistentTabView(
+            hideNavigationBar: hideNavBar,
+            tabs: [
+              PersistentTabConfig(
+                screen: const HomeScreen(),
+                item: ItemConfig(
+                  icon: const Icon(Icons.home_filled),
+                  inactiveIcon: const Icon(Icons.home_filled),
+                  iconSize: widget.iconsize,
+                  title: "Home",
+                  activeForegroundColor: Colors.blue,
+                  inactiveForegroundColor: Colors.black,
                 ),
-                GButton(
-                  icon: Icons.search,
-                  textStyle: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: _selectedIndex == 1 ? activeColor : Colors.grey,
-                    fontSize: 12,
-                  ),
+              ),
+              PersistentTabConfig(
+                screen: const SearchScreen(),
+                item: ItemConfig(
+                  icon: const Icon(Icons.search),
+                  inactiveIcon: const Icon(Icons.search),
+                  iconSize: widget.iconsize,
+                  title: "Search",
+                  activeForegroundColor: Colors.blue,
+                  inactiveForegroundColor: Colors.black,
                 ),
-                GButton(
-                  icon: Icons.collections_bookmark,
-                  textStyle: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: _selectedIndex == 2 ? activeColor : Colors.grey,
-                    fontSize: 12,
-                  ),
+              ),
+              PersistentTabConfig(
+                screen: const MyLibraryScreen(),
+                item: ItemConfig(
+                  icon: const Icon(Icons.collections_bookmark),
+                  inactiveIcon: const Icon(Icons.collections_bookmark),
+                  iconSize: widget.iconsize,
+                  title: "Bookmark",
+                  activeForegroundColor: Colors.blue,
+                  inactiveForegroundColor: Colors.black,
                 ),
-                GButton(
-                  icon: Icons.settings,
-                  textStyle: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: _selectedIndex == 3 ? activeColor : Colors.grey,
-                    fontSize: 12,
-                  ),
+              ),
+              PersistentTabConfig(
+                screen: const SettingsScreen(),
+                item: ItemConfig(
+                  icon: const Icon(Icons.settings),
+                  inactiveIcon: const Icon(Icons.settings),
+                  iconSize: widget.iconsize,
+                  title: "Settings",
+                  activeForegroundColor: Colors.blue,
+                  inactiveForegroundColor: Colors.black,
                 ),
-              ],
-              selectedIndex: _selectedIndex,
-              onTabChange: (index) {
-                setState(() {
-                  _selectedIndex = index;
-                });
-              },
+              ),
+            ],
+            navBarBuilder: (navBarConfig) => Style1BottomNavBar(
+              navBarConfig: navBarConfig,
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }

@@ -4,13 +4,13 @@ import 'package:flutter/material.dart';
 // Package imports:
 import 'package:dio/dio.dart';
 import 'package:html/parser.dart' show parse;
+import 'package:migrated/blocs/FileBloc/file_bloc.dart';
 
 class BookData {
   final String title;
   final String? author;
   final String? thumbnail;
   final String link;
-  final String md5;
   final String? publisher;
   final String? info;
 
@@ -19,7 +19,6 @@ class BookData {
       this.author,
       this.thumbnail,
       required this.link,
-      required this.md5,
       this.publisher,
       this.info});
 }
@@ -36,7 +35,6 @@ class BookInfoData extends BookData {
       required super.publisher,
       required super.info,
       required super.link,
-      required super.md5,
       required this.format,
       required this.mirror,
       required this.description});
@@ -53,11 +51,6 @@ class AnnasArchieve {
     "user-agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36",
   };
-
-  String getMd5(String url) {
-    String md5 = url.toString().split('/').last;
-    return md5;
-  }
 
   List<BookData> _parser(resData, String fileType) {
     var document =
@@ -115,7 +108,6 @@ class AnnasArchieve {
           author: data['author'],
           thumbnail: data['thumbnail'],
           link: link,
-          md5: getMd5(data['link'].toString()),
           publisher: publisher,
           info: data['info'],
         );
@@ -251,7 +243,6 @@ class AnnasArchieve {
         publisher: publisher,
         info: data['info'],
         link: data['link'],
-        md5: getMd5(data['link'].toString()),
         format: getFormat(data['info']),
         mirror: mirror,
         description: data['description'],
@@ -304,6 +295,29 @@ class AnnasArchieve {
     return null;
   }
 
+  static String? getFileTypeFromInfo(String info) {
+    info = info.toLowerCase(); // Normalize to lowercase for easier matching
+
+    if (info.contains('pdf')) return 'PDF';
+    if (info.contains('epub')) return 'EPUB';
+    if (info.contains('cbr')) return 'CBR';
+    if (info.contains('cbz')) return 'CBZ';
+    if (info.contains('djvu')) return 'DJVU';
+    if (info.contains('mobi')) return 'MOBI';
+    if (info.contains('azw3')) return 'AZW3';
+    if (info.contains('fb2')) return 'FB2';
+    if (info.contains('txt')) return 'TXT';
+    if (info.contains('rtf')) return 'RTF';
+    if (info.contains('docx')) return 'DOCX';
+    if (info.contains('doc')) return 'DOC';
+    if (info.contains('html')) return 'HTML';
+    if (info.contains('chm')) return 'CHM';
+    if (info.contains('lit')) return 'LIT';
+    if (info.contains('lrf')) return 'LRF';
+    if (info.contains('pdb')) return 'PDB';
+
+    return null; // Return null if no matching file type is found
+  }
 
   static double? getFileSizeFromInfo(String info) {
     // Reg-ex looking for a pattern like "6.8MB" in the info
@@ -359,7 +373,7 @@ class AnnasArchieve {
           sort: sort,
           fileType: fileType,
           enableFilters: enableFilters);
-
+      print(encodedURL);
       final response = await dio.get(encodedURL,
           options: Options(headers: defaultDioHeaders));
       if (!enableFilters) {
@@ -390,5 +404,21 @@ class AnnasArchieve {
       }
       rethrow;
     }
+  }
+
+  Future<Map<String, List<BookData>>> getMassBooks({required List<String> queries}) async {
+    final Map<String, List<BookData>> results = {};
+    for (final query in queries) {
+      try {
+        final books = await searchBooks(
+          searchQuery: query,
+          enableFilters: false,
+        );
+        results[query] = books;
+      } catch (e) {
+          print("Something went wrong");
+      }
+    }
+    return results;
   }
 }

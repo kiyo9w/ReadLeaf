@@ -1,9 +1,16 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import 'package:pdfrx/pdfrx.dart';
 import 'package:migrated/blocs/FileBloc/file_bloc.dart';
 import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
+import 'package:migrated/screens/nav_screen.dart';
+import 'package:migrated/widgets/text_search_view.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_gemini/flutter_gemini.dart';
+import 'package:migrated/services/gemini_service.dart';
 
 class PDFViewerScreen extends StatefulWidget {
   const PDFViewerScreen({Key? key}) : super(key: key);
@@ -13,14 +20,226 @@ class PDFViewerScreen extends StatefulWidget {
 }
 
 class _PDFViewerScreenState extends State<PDFViewerScreen> {
-  final GlobalKey<SfPdfViewerState> _pdfViewerKey = GlobalKey();
-  final PdfViewerController _pdfViewerController = PdfViewerController();
+  final _controller = PdfViewerController();
+  late final _textSearcher = PdfTextSearcher(_controller)..addListener(_update);
+  final _geminiService = GeminiService();
+  bool _showSearchPanel = false;
+  bool _isZoomedIn = false;
+  double _scaleFactor = 1.0;
+  double _baseScaleFactor = 1.0;
+  String? _selectedText;
+  bool _showAskAiButton = false;
+  bool _isLoadingAiResponse = false;
+
+  void _update() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NavScreen.globalKey.currentState?.setNavBarVisibility(true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _textSearcher.removeListener(_update);
+    _textSearcher.dispose();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+    });
+    super.dispose();
+  }
+
+  Future<bool> _shouldOpenUrl(BuildContext context, Uri url) async {
+    final result = await showDialog<bool?>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Navigate to URL?'),
+          content: SelectionArea(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  const TextSpan(
+                    text:
+                        'Do you want to navigate to the following location?\n',
+                  ),
+                  TextSpan(
+                    text: url.toString(),
+                    style: const TextStyle(color: Colors.blue),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Go'),
+            ),
+          ],
+        );
+      },
+    );
+    return result ?? false;
+  }
+
+  void _handleLink(PdfLink link) async {
+    if (link.url != null) {
+      final shouldOpen = await _shouldOpenUrl(context, link.url!);
+      if (shouldOpen && mounted) {
+        launchUrl(link.url!);
+      }
+    } else if (link.dest != null) {
+      _controller.goToPage(pageNumber: link.dest!.pageNumber);
+    }
+  }
+
+  void _closeSearchPanel() {
+    setState(() {
+      _showSearchPanel = false;
+      _textSearcher.resetTextSearch();
+    });
+  }
+
+  void _toggleSearchPanel() {
+    setState(() {
+      _showSearchPanel = !_showSearchPanel;
+      if (!_showSearchPanel) {
+        _textSearcher.resetTextSearch();
+      }
+    });
+  }
+
+  void _closeSideNav(BuildContext context) {
+    final readerBloc = context.read<ReaderBloc>();
+    final state = readerBloc.state;
+    if (state is ReaderLoaded && state.showSideNav) {
+      readerBloc.add(ToggleSideNav());
+    }
+  }
+
+  void _handleDoubleTap(TapDownDetails details) {
+    final zoomCenter = details.localPosition;
+    setState(() {
+      if (_isZoomedIn) {
+        _controller.zoomDown(loop: false);
+        _isZoomedIn = false;
+      } else {
+        _controller.zoomUp(loop: false);
+        _isZoomedIn = true;
+      }
+    });
+  }
+
+  void _handleTap() {
+    context.read<ReaderBloc>().add(ToggleUIVisibility());
+    if (_showSearchPanel) _closeSearchPanel();
+    if (context.read<ReaderBloc>().state is ReaderLoaded) {
+      final state = context.read<ReaderBloc>().state as ReaderLoaded;
+      if (state.showSideNav) _closeSideNav(context);
+    }
+  }
+
+  void _handleTextSelectionChange(List<PdfTextRanges> selections) {
+    if (selections.isNotEmpty &&
+        selections.any((range) => range.text.trim().isNotEmpty)) {
+      setState(() {
+        _selectedText = selections
+            .map((range) => range.text.trim())
+            .where((text) => text.isNotEmpty)
+            .join(' ');
+        _showAskAiButton = _selectedText?.isNotEmpty == true;
+      });
+    } else {
+      setState(() {
+        _selectedText = null;
+        _showAskAiButton = false;
+      });
+    }
+  }
+
+  void _handleAskAi() async {
+    if ((_selectedText?.isNotEmpty ?? false)) {
+      print('selected text: $_selectedText');
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Ask AI about selected text'),
+          content: StatefulBuilder(
+            builder: (context, setState) {
+              if (_isLoadingAiResponse) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              return SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Selected text:',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    SelectableText(_selectedText!),
+                  ],
+                ),
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+            onPressed: () async {
+              setState(() => _isLoadingAiResponse = true);
+              print('selected text: $_selectedText');
+              final response = await _geminiService.askAboutText(_selectedText!);
+              setState(() => _isLoadingAiResponse = false);
+                if (mounted) {
+                  Navigator.pop(context);
+                  if (response != null) {
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('AI Analysis'),
+                        content: SingleChildScrollView(
+                          child: SelectableText(response),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Close'),
+                          ),
+                        ],
+                      ),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Failed to get AI response')),
+                    );
+                  }
+                }
+              },
+              child: const Text('Ask'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<ReaderBloc, ReaderState>(
-      listener: (context, state) {
-      },
+      listener: (context, state) {},
       builder: (context, state) {
         if (state is ReaderLoading) {
           return const Scaffold(
@@ -41,24 +260,73 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
           final showSideNav = state.showSideNav;
           final file = state.file;
 
-          Widget pdfViewer = SfPdfViewer.file(
-            file,
-            key: _pdfViewerKey,
-            controller: _pdfViewerController,
-            onDocumentLoaded: (details) {
-            },
-            onPageChanged: (details) {
-              if (details.newPageNumber != currentPage) {
-                context.read<ReaderBloc>().add(JumpToPage(details.newPageNumber));
-              }
-            },
+          Widget pdfViewer = PdfViewer.file(
+            file.path,
+            controller: _controller,
+            params: PdfViewerParams(
+              enableTextSelection: true,
+              onTextSelectionChange: _handleTextSelectionChange,
+              selectableRegionInjector: (context, child) {
+                return SelectionArea(
+                  onSelectionChanged: (selection) {
+                    setState(() {
+                      _showAskAiButton =
+                          selection?.plainText?.isNotEmpty == true;
+                      _selectedText = selection?.plainText;
+                    });
+                  },
+                  child: child,
+                );
+              },
+              pagePaintCallbacks: [
+                _textSearcher.pageTextMatchPaintCallback,
+              ],
+              linkHandlerParams: PdfLinkHandlerParams(
+                onLinkTap: _handleLink,
+                linkColor: Colors.blue.withOpacity(0.15),
+                customPainter: (canvas, pageRect, page, links) {
+                  final paint = Paint()
+                    ..color = Colors.blue.withOpacity(0.1)
+                    ..style = PaintingStyle.fill;
+                  for (final link in links) {
+                    for (final rect in link.rects) {
+                      canvas.drawRRect(
+                        RRect.fromRectAndRadius(
+                          rect.toRectInPageRect(
+                            page: page,
+                            pageRect: pageRect,
+                          ),
+                          const Radius.circular(4),
+                        ),
+                        paint,
+                      );
+                    }
+                  }
+                },
+              ),
+              viewerOverlayBuilder: (context, size, handleLinkTap) => [
+                GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onDoubleTapDown: _handleDoubleTap,
+                  onTapUp: (details) {
+                    handleLinkTap(details.localPosition);
+                  },
+                  child: IgnorePointer(
+                    child: SizedBox(width: size.width, height: size.height),
+                  ),
+                ),
+              ],
+            ),
           );
 
           return Scaffold(
             body: Stack(
               children: [
                 GestureDetector(
-                  onTap: () => context.read<ReaderBloc>().add(ToggleUIVisibility()),
+                  behavior: HitTestBehavior.translucent,
+                  onTapDown: (details) {
+                    _handleTap();
+                  },
                   child: pdfViewer,
                 ),
 
@@ -78,11 +346,15 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                           Navigator.pop(context);
                         },
                       ),
-                      title: Text(
+                      title: const Text(
                         'Reading',
-                        style: const TextStyle(fontSize: 20, color: Colors.black),
+                        style: TextStyle(fontSize: 20, color: Colors.black),
                       ),
                       actions: [
+                        IconButton(
+                          icon: const Icon(Icons.search),
+                          onPressed: _toggleSearchPanel,
+                        ),
                         IconButton(
                           icon: const Icon(Icons.menu),
                           onPressed: () {
@@ -91,11 +363,13 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                         ),
                         PopupMenuButton<String>(
                           elevation: 0,
-                          color: Color(0xffDDDDDD),
+                          color: const Color(0xffDDDDDD),
                           icon: const Icon(Icons.more_vert),
                           onSelected: (val) {
                             if (val == 'dark_mode') {
-                              context.read<ReaderBloc>().add(ToggleReadingMode());
+                              context
+                                  .read<ReaderBloc>()
+                                  .add(ToggleReadingMode());
                             }
                           },
                           itemBuilder: (context) => [
@@ -124,8 +398,9 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                     left: 0,
                     right: 0,
                     child: Container(
-                      color: Color(0xffDDDDDD),
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      color: const Color(0xffDDDDDD),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 5),
                       child: Row(
                         children: [
                           Text(
@@ -141,8 +416,11 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                               activeColor: Colors.pinkAccent,
                               inactiveColor: Colors.white54,
                               onChanged: (value) {
-                                context.read<ReaderBloc>().add(JumpToPage(value.toInt()));
-                                _pdfViewerController.jumpToPage(value.toInt());
+                                final page = value.toInt();
+                                context
+                                    .read<ReaderBloc>()
+                                    .add(JumpToPage(page));
+                                _controller.goToPage(pageNumber: page);
                               },
                             ),
                           ),
@@ -156,6 +434,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                     ),
                   ),
 
+                // Side navigation
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 300),
                   top: 0,
@@ -168,7 +447,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         AppBar(
-                          title: const Text('Chapters', style: const TextStyle(color: Colors.white70)),
+                          title: const Text('Chapters',
+                              style: TextStyle(color: Colors.white70)),
                           backgroundColor: Colors.grey.shade800,
                           automaticallyImplyLeading: false,
                           actions: [
@@ -187,7 +467,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                               _buildChapterItem('Layout widgets', 55),
                               _buildChapterItem('Navigation widgets', 55),
                               _buildChapterItem('Other widgets', 56),
-                              _buildChapterItem('How to create your own stateless...', 65),
+                              _buildChapterItem(
+                                  'How to create your own stateless...', 65),
                               _buildChapterItem('Conclusion', 69),
                               _buildChapterItem('Chapter 7: Index', 85),
                             ],
@@ -197,12 +478,44 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                     ),
                   ),
                 ),
+
+                // Search panel
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  top: 0,
+                  bottom: 0,
+                  left: _showSearchPanel ? 0 : -300,
+                  child: SizedBox(
+                    width: 300,
+                    child: TextSearchView(
+                      textSearcher: _textSearcher,
+                      onClose: _closeSearchPanel,
+                    ),
+                  ),
+                ),
+
+                if (_showAskAiButton && _selectedText?.isNotEmpty == true)
+                  Positioned(
+                    bottom: state.showUI
+                        ? 80
+                        : 16, // Position above the bottom nav when it's shown
+                    right: 16,
+                    child: FloatingActionButton.extended(
+                      onPressed: _handleAskAi,
+                      icon: const Icon(Icons.chat, color: Colors.white),
+                      label: const Text('Ask AI',
+                          style: TextStyle(color: Colors.white)),
+                      backgroundColor: Theme.of(context).primaryColor,
+                    ),
+                  ),
               ],
             ),
           );
         }
 
-        return const Scaffold();
+        return const Scaffold(
+          body: Center(child: Text('No content')),
+        );
       },
     );
   }
@@ -221,7 +534,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
           ),
           onTap: () {
             context.read<ReaderBloc>().add(JumpToPage(page));
-            _pdfViewerController.jumpToPage(page);
+            _controller.goToPage(pageNumber: page);
             context.read<ReaderBloc>().add(ToggleSideNav());
           },
         );

@@ -27,6 +27,8 @@ class FileViewing extends FileState {
   List<Object> get props => [filePath];
 }
 
+class FileScanning extends FileState {}
+
 class FileError extends FileState {
   final String message;
 
@@ -34,35 +36,4 @@ class FileError extends FileState {
 
   @override
   List<Object> get props => [message];
-}
-
-class FileSearchLoading extends FileState {}
-
-class FileSearchResults extends FileState {
-  final List<BookData> books;
-
-  const FileSearchResults(this.books);
-
-  @override
-  List<Object> get props => [books];
-}
-
-class FileBookInfoLoading extends FileState {}
-
-class FileBookInfoLoaded extends FileState {
-  final BookInfoData bookInfo;
-
-  const FileBookInfoLoaded(this.bookInfo);
-
-  @override
-  List<Object> get props => [bookInfo];
-}
-class FileLoading extends FileState {}
-
-class FileDownloading extends FileState {
-  final double progress;
-  const FileDownloading(this.progress);
-
-  @override
-  List<Object> get props => [progress];
 }

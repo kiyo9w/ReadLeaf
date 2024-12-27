@@ -4,11 +4,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:migrated/models/file_info.dart';
 import 'package:migrated/services/webview.dart';
 
-
 class BookInfoWidget extends StatelessWidget {
   final String link;
   final String? description;
   final double? fileSize;
+  final String? fileType;
   final String? title;
   final double ratings;
   final String? language;
@@ -31,6 +31,7 @@ class BookInfoWidget extends StatelessWidget {
     this.isInternetBook = false,
     this.author,
     this.thumbnailUrl,
+    this.fileType,
     Key? key,
   }) : super(key: key);
 
@@ -41,7 +42,7 @@ class BookInfoWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20.0),
       decoration: BoxDecoration(
-        color: Color(0xffEBE6E0),
+        color: const Color(0xffEBE6E0),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -50,7 +51,33 @@ class BookInfoWidget extends StatelessWidget {
           if (thumbnailUrl != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
-              child:Image.network(thumbnailUrl!, height: 200, fit: BoxFit.cover),
+              child: Image.network(
+                thumbnailUrl!,
+                height: 200,
+                fit: BoxFit.cover,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return SizedBox(
+                    height: 200,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded /
+                                loadingProgress.expectedTotalBytes!
+                            : null,
+                      ),
+                    ),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return const SizedBox(
+                    height: 200,
+                    child: Center(
+                      child: Icon(Icons.error_outline, size: 40),
+                    ),
+                  );
+                },
+              ),
             ),
           const SizedBox(height: 10),
           Text(
@@ -79,22 +106,24 @@ class BookInfoWidget extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           const SizedBox(height: 10),
-            // if (hasRatings)
-            // Row(
-            //   mainAxisAlignment: MainAxisAlignment.center,
-            //   children: [
-            //     Text('${ratings} ★', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-            //     const SizedBox(width: 10),
-            //   ],
-            // )
-            Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                _buildChip(language ?? 'Unknown Language', Icons.language),
-                const SizedBox(width: 8),
-                _buildChip(_formatFileSize(fileSize), Icons.file_present),
-              ],
-            ),
+          // if (hasRatings)
+          // Row(
+          //   mainAxisAlignment: MainAxisAlignment.center,
+          //   children: [
+          //     Text('${ratings} ★', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+          //     const SizedBox(width: 10),
+          //   ],
+          // )
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildChip(language ?? 'Unknown Language', Icons.language),
+              const SizedBox(width: 8),
+              _buildChip(_formatFileSize(fileSize), Icons.file_present),
+              const SizedBox(width: 8),
+              _buildChip(fileType ?? 'Unknown Language', Icons.language),
+            ],
+          ),
           const SizedBox(height: 20),
           TextButton.icon(
             onPressed: () {
@@ -104,10 +133,12 @@ class BookInfoWidget extends StatelessWidget {
               padding: MaterialStateProperty.all(
                 const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
               ),
-              backgroundColor: MaterialStateProperty.all(const Color(0xFFF4F1EE)),
+              backgroundColor:
+                  MaterialStateProperty.all(const Color(0xFFF4F1EE)),
               shape: MaterialStateProperty.all(
                 RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20), // Adjust for rounded edges
+                  borderRadius:
+                      BorderRadius.circular(20), // Adjust for rounded edges
                 ),
               ),
               overlayColor: MaterialStateProperty.all(
@@ -137,6 +168,7 @@ class BookInfoWidget extends StatelessWidget {
     if (sizeInMB == null) return '';
     return '${sizeInMB.toStringAsFixed(1)} MB';
   }
+
   Widget _buildChip(String label, IconData icon) {
     return Chip(
       avatar: Icon(icon, size: 16, color: Colors.white),
@@ -144,6 +176,5 @@ class BookInfoWidget extends StatelessWidget {
       backgroundColor: Colors.black87,
       labelStyle: const TextStyle(color: Colors.white),
     );
-
   }
 }

@@ -18,8 +18,6 @@ class LoadFile extends FileEvent {
   List<Object> get props => [filePath];
 }
 
-class CloseViewer extends FileEvent {}
-
 class SelectFile extends FileEvent {
   final String filePath;
 
@@ -47,40 +45,20 @@ class RemoveFile extends FileEvent {
   List<Object> get props => [filePath];
 }
 
-class SearchBooks extends FileEvent {
-  final String query;
-  final String content;
-  final String sort;
-  final String fileType;
-  final bool enableFilters;
+class CloseViewer extends FileEvent {}
 
-  const SearchBooks({
-    required this.query,
-    this.content = "",
-    this.sort = "",
-    this.fileType = "",
-    this.enableFilters = true,
-  });
+class ToggleStarred extends FileEvent {
+  final String filePath;
+
+  const ToggleStarred(this.filePath);
 
   @override
-  List<Object> get props => [query, content, sort, fileType, enableFilters];
+  List<Object> get props => [filePath];
 }
 
-class LoadBookInfo extends FileEvent {
-  final String url;
-
-  const LoadBookInfo(this.url);
+class ScanStorage extends FileEvent {
+  const ScanStorage();
 
   @override
-  List<Object> get props => [url];
-}
-
-class DownloadFile extends FileEvent {
-  final String url;
-  final String fileName;
-
-  const DownloadFile({required this.url, required this.fileName});
-
-  @override
-  List<Object> get props => [url, fileName];
+  List<Object> get props => [];
 }

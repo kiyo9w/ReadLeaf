@@ -29,7 +29,6 @@ class _WebviewPageState extends State<WebviewPage> {
             webViewController = controller;
           },
           onLoadStop: (controller, url) async {
-            // Run JS to find the mirror link
             String query = """
               var paragraphTag = document.querySelector('p[class="mb-4 text-xl font-bold"]');
               if (paragraphTag && paragraphTag.querySelector('a')) {
@@ -41,8 +40,6 @@ class _WebviewPageState extends State<WebviewPage> {
             """;
 
             String? mirrorLink = await webViewController?.evaluateJavascript(source: query);
-
-            // If we got a mirror link, return it and pop the webview
             if (mirrorLink != null && mirrorLink.isNotEmpty && mirrorLink != "null") {
               Future.delayed(const Duration(milliseconds: 100), () {
                 Navigator.pop(context, mirrorLink);
