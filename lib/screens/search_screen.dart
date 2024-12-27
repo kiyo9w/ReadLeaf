@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:migrated/widgets/snack_bar_widget.dart';
 import 'package:migrated/blocs/SearchBloc/search_bloc.dart';
+import 'package:migrated/screens/nav_screen.dart';
 import 'results_page.dart';
 import '../depeninject/injection.dart';
 import '../services/annas_archieve.dart';
@@ -59,6 +61,8 @@ class _SearchScreenState extends State<SearchScreen>
   bool _isLoading = false;
   Map<String, List<BookData>>? _trendingBooks;
   Map<String, List<BookData>>? _topSearches;
+  final ScrollController _scrollController = ScrollController();
+  bool _isScrollingDown = false;
 
   @override
   void initState() {
@@ -66,6 +70,31 @@ class _SearchScreenState extends State<SearchScreen>
     _searchBloc = getIt<SearchBloc>();
     _annasArchieve = getIt<AnnasArchieve>();
     _fetchInitialData();
+    _scrollController.addListener(_scrollListener);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_scrollListener);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollListener() {
+    if (_scrollController.position.userScrollDirection ==
+        ScrollDirection.reverse) {
+      if (!_isScrollingDown) {
+        _isScrollingDown = true;
+        NavScreen.globalKey.currentState?.setNavBarVisibility(true);
+      }
+    }
+    if (_scrollController.position.userScrollDirection ==
+        ScrollDirection.forward) {
+      if (_isScrollingDown) {
+        _isScrollingDown = false;
+        NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+      }
+    }
   }
 
   Future<void> _fetchInitialData() async {
@@ -418,6 +447,7 @@ class _SearchScreenState extends State<SearchScreen>
             ),
           ),
           body: SingleChildScrollView(
+            controller: _scrollController,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

@@ -33,6 +33,7 @@ class _ResultPageState extends State<ResultPage> {
     _fileBloc = getIt<FileBloc>();
     annasArchieve = getIt<AnnasArchieve>();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      print("aaaaa");
       NavScreen.globalKey.currentState?.setNavBarVisibility(true);
     });
   }

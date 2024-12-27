@@ -1,123 +1,52 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:migrated/blocs/FileBloc/file_bloc.dart';
 import 'package:migrated/widgets/file_card.dart';
+import 'package:migrated/screens/nav_screen.dart';
+import 'package:migrated/models/file_info.dart';
 
 class MyLibraryScreen extends StatefulWidget {
-  const MyLibraryScreen({Key? key}) : super(key: key);
+  const MyLibraryScreen({super.key});
 
   @override
   State<MyLibraryScreen> createState() => _MyLibraryScreenState();
 }
 
 class _MyLibraryScreenState extends State<MyLibraryScreen> {
-  bool _bookDownloadedExpanded = true;
-  bool _favouriteExpanded = false;
-  bool _localStorageExpanded = false;
+  bool _favouriteExpanded = true;
+  bool _localStorageExpanded = true;
+  final ScrollController _scrollController = ScrollController();
+  bool _isScrollingDown = false;
 
   @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<FileBloc, FileState>(
-      builder: (context, state) {
-        List<dynamic> downloadedBooks = [];
-        List<dynamic> starredBooks = [];
-        List<dynamic> localFiles = [];
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_scrollListener);
+  }
 
-        if (state is FileLoaded) {
-          for (var f in state.files) {
-            final fileInfo = {
-              'filePath': f.filePath,
-              'title': FileCard.extractFileName(f.filePath),
-              'author': f.author,
-              'size': f.fileSize,
-              'isLocal': true,
-              'isStarred': f.isStarred,
-            };
-            if (f.filePath.contains('/Downloads/')) {
-              print(fileInfo['filePath']);
-              downloadedBooks.add(fileInfo);
-            } else {
-              print(fileInfo['filePath']);
-              localFiles.add(fileInfo);
-            }
+  @override
+  void dispose() {
+    _scrollController.removeListener(_scrollListener);
+    _scrollController.dispose();
+    super.dispose();
+  }
 
-            if (f.isStarred) {
-              starredBooks.add(fileInfo);
-            }
-          }
-        }
-
-        return Scaffold(
-          backgroundColor: Colors.white,
-          appBar: PreferredSize(
-            preferredSize: const Size.fromHeight(80),
-            child: Padding(
-              padding: const EdgeInsets.only(
-                  top: 10, left: 10, right: 10, bottom: 10),
-              child: AppBar(
-                backgroundColor: Colors.white,
-                elevation: 0,
-                centerTitle: false,
-                title: const Text(
-                  'My library',
-                  style: TextStyle(
-                    fontSize: 42.0,
-                    color: Colors.black,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 10.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildCategoryHeader(
-                  title: "Book Downloaded",
-                  count: downloadedBooks.length,
-                  isExpanded: _bookDownloadedExpanded,
-                  onTap: () {
-                    setState(() {
-                      _bookDownloadedExpanded = !_bookDownloadedExpanded;
-                    });
-                  },
-                ),
-                if (_bookDownloadedExpanded && downloadedBooks.isNotEmpty)
-                  ..._buildBookCards(downloadedBooks),
-                const SizedBox(height: 20),
-                _buildCategoryHeader(
-                  title: "Favourite",
-                  count: starredBooks.length,
-                  isExpanded: _favouriteExpanded,
-                  onTap: () {
-                    setState(() {
-                      _favouriteExpanded = !_favouriteExpanded;
-                    });
-                  },
-                ),
-                if (_favouriteExpanded && starredBooks.isNotEmpty)
-                  ..._buildBookCards(starredBooks),
-                const SizedBox(height: 20),
-                _buildCategoryHeader(
-                  title: "Local Storage",
-                  count: localFiles.length,
-                  isExpanded: _localStorageExpanded,
-                  onTap: () {
-                    setState(() {
-                      _localStorageExpanded = !_localStorageExpanded;
-                    });
-                  },
-                ),
-                if (_localStorageExpanded && localFiles.isNotEmpty)
-                  ..._buildBookCards(localFiles),
-                const SizedBox(height: 40),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+  void _scrollListener() {
+    if (_scrollController.position.userScrollDirection ==
+        ScrollDirection.reverse) {
+      if (!_isScrollingDown) {
+        _isScrollingDown = true;
+        NavScreen.globalKey.currentState?.setNavBarVisibility(true);
+      }
+    }
+    if (_scrollController.position.userScrollDirection ==
+        ScrollDirection.forward) {
+      if (_isScrollingDown) {
+        _isScrollingDown = false;
+        NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+      }
+    }
   }
 
   Widget _buildCategoryHeader({
@@ -126,9 +55,11 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
     required bool isExpanded,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Row(
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Row(
         children: [
           Expanded(
             child: Text(
@@ -168,43 +99,107 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 
-  List<Widget> _buildBookCards(List<dynamic> books) {
+  List<Widget> _buildBookCards(List<FileInfo> books) {
     return books.map((book) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        padding: const EdgeInsets.only(bottom: 10),
         child: FileCard(
-          filePath: book['filePath'],
-          fileSize: book['size'],
-          isSelected: false,
+          filePath: book.filePath,
+          fileSize: book.fileSize,
+          isSelected: book.isSelected,
           onSelected: () {
-            context.read<FileBloc>().add(SelectFile(book['filePath']));
+            context.read<FileBloc>().add(SelectFile(book.filePath));
           },
           onView: () {
-            print(book['filePath']);
-            context.read<FileBloc>().add(ViewFile(book['filePath']));
-            Navigator.pushNamed(context, '/viewer');
+            context.read<FileBloc>().add(ViewFile(book.filePath));
           },
           onRemove: () {
-            context.read<FileBloc>().add(RemoveFile(book['filePath']));
+            context.read<FileBloc>().add(RemoveFile(book.filePath));
           },
-          onDownload: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Already downloaded")),
-            );
-          },
+          onDownload: () {},
           onStar: () {
-            context.read<FileBloc>().add(ToggleStarred(book['filePath']));
+            context.read<FileBloc>().add(ToggleStarred(book.filePath));
           },
-          title: book['title'],
-          isInternetBook: !book['isLocal'],
-          author: book['author'],
-          thumbnailUrl: null,
-          isStarred: book['isStarred'] ?? false,
+          title: FileCard.extractFileName(book.filePath),
+          isInternetBook: book.isInternetBook,
+          author: book.author ?? 'Unknown',
+          thumbnailUrl: book.thumbnailUrl,
+          isStarred: book.isStarred,
         ),
       );
     }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<FileBloc, FileState>(
+      builder: (context, state) {
+        if (state is FileLoaded) {
+          final starredBooks =
+              state.files.where((file) => file.isStarred).toList();
+          final localFiles =
+              state.files.where((file) => !file.isStarred).toList();
+
+          return Scaffold(
+            appBar: AppBar(
+              backgroundColor: Colors.white,
+              centerTitle: false,
+              title: const Text(
+                'My Library',
+                style: TextStyle(
+                  fontSize: 42.0,
+                ),
+              ),
+            ),
+            body: SingleChildScrollView(
+              controller: _scrollController,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildCategoryHeader(
+                      title: "Starred Books",
+                      count: starredBooks.length,
+                      isExpanded: _favouriteExpanded,
+                      onTap: () {
+                        setState(() {
+                          _favouriteExpanded = !_favouriteExpanded;
+                        });
+                      },
+                    ),
+                    if (_favouriteExpanded && starredBooks.isNotEmpty)
+                      ..._buildBookCards(starredBooks),
+                    const SizedBox(height: 20),
+                    _buildCategoryHeader(
+                      title: "Local Storage",
+                      count: localFiles.length,
+                      isExpanded: _localStorageExpanded,
+                      onTap: () {
+                        setState(() {
+                          _localStorageExpanded = !_localStorageExpanded;
+                        });
+                      },
+                    ),
+                    if (_localStorageExpanded && localFiles.isNotEmpty)
+                      ..._buildBookCards(localFiles),
+                    const SizedBox(height: 40),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+        return const Scaffold(
+          body: Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+      },
+    );
   }
 }

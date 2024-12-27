@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:migrated/blocs/FileBloc/file_bloc.dart';
 import 'package:migrated/widgets/file_card.dart';
@@ -11,6 +12,7 @@ import 'package:migrated/services/gemini_service.dart';
 import 'package:migrated/services/annas_archieve.dart';
 import 'package:migrated/depeninject/injection.dart';
 import 'package:migrated/models/file_info.dart';
+import 'package:migrated/screens/nav_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -24,6 +26,8 @@ class _HomeScreenState extends State<HomeScreen> {
   late final AnnasArchieve _annasArchieve;
   String? _aiMessage;
   BookData? _bookOfTheDay;
+  final ScrollController _scrollController = ScrollController();
+  bool _isScrollingDown = false;
 
   @override
   void initState() {
@@ -32,6 +36,31 @@ class _HomeScreenState extends State<HomeScreen> {
     _annasArchieve = getIt<AnnasArchieve>();
     _loadBookOfTheDay();
     _generateAIMessage();
+    _scrollController.addListener(_scrollListener);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_scrollListener);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollListener() {
+    if (_scrollController.position.userScrollDirection ==
+        ScrollDirection.reverse) {
+      if (!_isScrollingDown) {
+        _isScrollingDown = true;
+        NavScreen.globalKey.currentState?.setNavBarVisibility(true);
+      }
+    }
+    if (_scrollController.position.userScrollDirection ==
+        ScrollDirection.forward) {
+      if (_isScrollingDown) {
+        _isScrollingDown = false;
+        NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+      }
+    }
   }
 
   Future<void> _loadBookOfTheDay() async {
@@ -53,7 +82,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _generateAIMessage() async {
     try {
       // final message = await _geminiService.askAboutText("tell me about the book");
-      final message = "You told me you would read this book at 20:00 today, chop chop get to work. Come one, You’re halfway through Harry Potter—let’s see what happens next! :)";
+      final message =
+          "You told me you would read this book at 20:00 today, chop chop get to work. Come one, You’re halfway through Harry Potter—let’s see what happens next! :)";
       if (mounted) {
         setState(() {
           _aiMessage = message;
@@ -87,6 +117,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
         return Scaffold(
           body: CustomScrollView(
+            controller: _scrollController,
             slivers: [
               SliverAppBar(
                 floating: true,

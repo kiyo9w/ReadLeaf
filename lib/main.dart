@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:migrated/blocs/FileBloc/file_bloc.dart';
 import 'package:migrated/blocs/SearchBloc/search_bloc.dart';
+import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
 import 'package:migrated/screens/nav_screen.dart';
 import 'package:migrated/screens/pdf_viewer.dart';
 import 'package:migrated/depeninject/injection.dart';
@@ -25,18 +26,27 @@ class MyApp extends StatelessWidget {
         BlocProvider<SearchBloc>(
           create: (context) => getIt<SearchBloc>(),
         ),
+        BlocProvider<ReaderBloc>(
+          create: (context) => getIt<ReaderBloc>(),
+        ),
       ],
       child: MaterialApp(
-        title: 'Leafy Reader',
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-          useMaterial3: true,
-        ),
-        initialRoute: '/',
+        debugShowCheckedModeBanner: false,
         routes: {
-          '/': (context) => const NavScreen(),
           '/viewer': (context) => const PDFViewerScreen(),
         },
+        theme: ThemeData(
+          scaffoldBackgroundColor: Colors.white,
+          fontFamily: 'Lato',
+          textTheme: const TextTheme(
+            bodyLarge: TextStyle(fontSize: 16.0),
+            bodyMedium: TextStyle(fontSize: 14.0),
+            headlineLarge:
+                TextStyle(fontSize: 24.0, fontWeight: FontWeight.bold),
+            titleLarge: TextStyle(fontSize: 20.0, fontWeight: FontWeight.w600),
+          ),
+        ),
+        home: NavScreen(key: NavScreen.globalKey),
       ),
     );
   }
