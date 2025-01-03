@@ -69,11 +69,9 @@ class StorageScannerService {
       final androidInfo = await DeviceInfoPlugin().androidInfo;
 
       if (androidInfo.version.sdkInt <= 32) {
-        // For Android 12 and below
         final status = await Permission.storage.request();
         return status.isGranted;
       } else {
-        // For Android 13 and above
         final photos = await Permission.photos.request();
         final videos = await Permission.videos.request();
         return photos.isGranted && videos.isGranted;
@@ -86,14 +84,12 @@ class StorageScannerService {
     List<String> paths = [];
 
     if (Platform.isAndroid) {
-      // Get all external storage paths on Android
       try {
         String documentsPath =
             await ExternalPath.getExternalStoragePublicDirectory(
                 ExternalPath.DIRECTORY_DOCUMENTS);
         paths.add(documentsPath);
 
-        // Also add Downloads directory
         String? downloadsPath =
             await ExternalPath.getExternalStoragePublicDirectory(
                 ExternalPath.DIRECTORY_DOWNLOADS);
@@ -104,11 +100,10 @@ class StorageScannerService {
         print('Error getting storage paths: $e');
       }
     } else {
-      // Get documents directory on iOS
       final directory = await getApplicationDocumentsDirectory();
       paths.add(directory.path);
     }
 
-    return paths.toSet().toList(); // Remove duplicates
+    return paths.toSet().toList();
   }
 }

@@ -5,23 +5,27 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class GeminiService {
   static final GeminiService _instance = GeminiService._internal();
   factory GeminiService() => _instance;
-  final String promptTemplate = """
-You are an intelligent eBook assistant designed to help users understand, analyze, and explore the content of their reading. 
+  final String defaultPromptTemplate = """
+You are an intelligent eBook assistant with a friendly and quirky personality, like a fun teen buddy who is always ready to help with a splash of humor!
 
-### Objective:
-1. If text is provided, your task is to:
-   - **Explain the given text**: Summarize or analyze the content.
-   - **Provide context**: Try to derive meaning from surrounding ideas or implicit messages within the provided text.
-   - **Clarify questions**: If possible, deduce answers related to the text, including its meaning, themes, or nuances.
+Book Context:
+- Book Title: {BOOK_TITLE}
+- Current Page: {PAGE_NUMBER} of {TOTAL_PAGES}
 
-2. If no text is provided, simply respond with a funny joke / pun or a random fact.
+Objective:
+	1.	If text is provided, your task is to:
+	•	Explain the given text: Summarize or analyze the content in a fun and casual way.
+	•	Provide context: Pull meaning from surrounding ideas or hidden messages, making it easy to understand.
+	•	Clarify questions: Answer questions about the text, like its meaning, themes, or cool takeaways, but keep it short and sweet (max 40 words).
+	2.	If no text is provided, just share a funny joke, a pun, or a random fun fact to keep the vibes alive.
 
-### Guidance:
-- Be concise but detailed in your explanation.
-- If the input text is unclear or incomplete, mention the limitation but provide the best possible analysis.
-- Never attempt to fabricate context unrelated to the provided text.
+Guidance:
+	•	Be concise but packed with personality—think helpful and cute without overdoing it.
+	•	If the input text is unclear or incomplete, say so in a fun way, but still try to help.
+	•	Never go off-topic or make stuff up—be like that super smart and adorable friend who is always got your back!
 
-Here is the text to analyze: "{TEXT}"
+Selected Text (from page {PAGE_NUMBER}):
+{TEXT}
 
 Respond based on the above criteria.
 """;
@@ -47,9 +51,14 @@ Respond based on the above criteria.
     }
   }
 
-  Future<String> askAboutText(String selectedText) async {
+  Future<String> askAboutText(
+    String selectedText, {
+    String? customPrompt,
+    required String bookTitle,
+    required int currentPage,
+    required int totalPages,
+  }) async {
     try {
-      // If no text is provided, return a default message
       if (selectedText.isEmpty) {
         return _getDefaultMessage();
       }
@@ -59,13 +68,15 @@ Respond based on the above criteria.
         return 'Gemini service is not initialized. Please check your API key configuration.';
       }
 
-      // Form the complete prompt using the template
-      final prompt = promptTemplate.replaceAll("{TEXT}", selectedText);
+      // Replace placeholders in the template
+      String prompt = (customPrompt ?? defaultPromptTemplate)
+          .replaceAll('{TEXT}', selectedText)
+          .replaceAll('{BOOK_TITLE}', bookTitle)
+          .replaceAll('{PAGE_NUMBER}', currentPage.toString())
+          .replaceAll('{TOTAL_PAGES}', totalPages.toString());
 
-      // Send the prompt to the Gemini service
       final response = await _gemini!.text(prompt);
 
-      // Return the AI's first response part, if available
       if (response?.content?.parts?.isNotEmpty == true) {
         return response?.content?.parts?.first.text ?? _getDefaultMessage();
       }
