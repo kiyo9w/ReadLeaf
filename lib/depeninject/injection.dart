@@ -7,15 +7,27 @@ import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
 import 'package:dio/dio.dart';
 import 'package:migrated/services/storage_scanner_service.dart';
 import 'package:migrated/services/gemini_service.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:migrated/services/book_metadata_repository.dart';
 
 final GetIt getIt = GetIt.instance;
 
 Future<void> configureDependencies() async {
+  // Load environment variables
+  await dotenv.load(fileName: '.env');
+
   final fileRepository = FileRepository();
   await fileRepository.init();
 
-  // Initialize Gemini first
+  // Initialize Gemini service
+  final geminiService = GeminiService();
   await GeminiService.initialize();
+  getIt.registerSingleton<GeminiService>(geminiService);
+
+  // Initialize BookMetadataRepository
+  final bookMetadataRepository = BookMetadataRepository();
+  await bookMetadataRepository.init();
+  getIt.registerSingleton<BookMetadataRepository>(bookMetadataRepository);
 
   getIt.registerSingleton<FileRepository>(fileRepository);
   getIt.registerLazySingleton<Dio>(() {
@@ -33,7 +45,6 @@ Future<void> configureDependencies() async {
       () => AnnasArchieve(dio: getIt<Dio>()));
   getIt.registerLazySingleton<StorageScannerService>(
       () => StorageScannerService());
-  getIt.registerLazySingleton<GeminiService>(() => GeminiService());
   getIt.registerLazySingleton<FileBloc>(() => FileBloc(
         fileRepository: getIt<FileRepository>(),
         storageScannerService: getIt<StorageScannerService>(),

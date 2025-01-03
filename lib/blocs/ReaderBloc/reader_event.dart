@@ -53,3 +53,26 @@ class ToggleReadingMode extends ReaderEvent {}
 class ToggleUIVisibility extends ReaderEvent {}
 
 class ToggleSideNav extends ReaderEvent {}
+
+class AddHighlight extends ReaderEvent {
+  final String text;
+  final String? note;
+
+  const AddHighlight({required this.text, this.note});
+
+  @override
+  List<Object?> get props => [text, note];
+}
+
+class AddAiConversation extends ReaderEvent {
+  final String selectedText;
+  final String aiResponse;
+
+  const AddAiConversation({
+    required this.selectedText,
+    required this.aiResponse,
+  });
+
+  @override
+  List<Object> get props => [selectedText, aiResponse];
+}

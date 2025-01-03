@@ -1,5 +1,6 @@
 import 'dart:developer';
 import 'package:flutter_gemini/flutter_gemini.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class GeminiService {
   static final GeminiService _instance = GeminiService._internal();
@@ -31,7 +32,7 @@ Respond based on the above criteria.
 
   static Future<void> initialize() async {
     try {
-      const apiKey = String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
+      final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
       if (apiKey.isEmpty) {
         log('Warning: GEMINI_API_KEY not set. Please set it using --dart-define=GEMINI_API_KEY=your_api_key');
         return;

@@ -263,6 +263,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
           Widget pdfViewer = PdfViewer.file(
             file.path,
             controller: _controller,
+            initialPageNumber: currentPage,
             params: PdfViewerParams(
               enableTextSelection: true,
               onTextSelectionChange: _handleTextSelectionChange,
