@@ -29,6 +29,7 @@ class FileBloc extends Bloc<FileEvent, FileState> {
 
   Future<void> _onInitFiles(InitFiles event, Emitter<FileState> emit) async {
     final savedFiles = await fileRepository.loadFiles();
+    print(savedFiles.toString());
     if (savedFiles.isNotEmpty) {
       final loadedState = FileLoaded(savedFiles);
       _lastLoadedState = loadedState;

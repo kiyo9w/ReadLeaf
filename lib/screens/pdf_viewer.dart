@@ -170,70 +170,292 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
   }
 
   void _handleAskAi() async {
-    if ((_selectedText?.isNotEmpty ?? false)) {
-      print('selected text: $_selectedText');
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Ask AI about selected text'),
-          content: StatefulBuilder(
-            builder: (context, setState) {
-              if (_isLoadingAiResponse) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              return SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Selected text:',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    SelectableText(_selectedText!),
-                  ],
-                ),
-              );
-            },
+    if (_selectedText == null || _selectedText!.isEmpty) return;
+
+    final selectedTextCopy = _selectedText;
+    bool isLoading = false;
+    String? customPrompt;
+    final promptController = TextEditingController();
+
+    // Get the current state for book context
+    final state = context.read<ReaderBloc>().state;
+    if (state is! ReaderLoaded) return;
+
+    final bookTitle =
+        state.file.path.split('/').last; // Get filename as book title
+    final currentPage = state.currentPage;
+    final totalPages = state.totalPages;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
           ),
-          actions: [
-            TextButton(
-            onPressed: () async {
-              setState(() => _isLoadingAiResponse = true);
-              print('selected text: $_selectedText');
-              final response = await _geminiService.askAboutText(_selectedText!);
-              setState(() => _isLoadingAiResponse = false);
-                if (mounted) {
-                  Navigator.pop(context);
-                  if (response != null) {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('AI Analysis'),
-                        content: SingleChildScrollView(
-                          child: SelectableText(response),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Close'),
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.8,
+            padding: const EdgeInsets.all(24),
+            child: isLoading
+                ? const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text('Asking AI...'),
+                      ],
+                    ),
+                  )
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Ask AI Assistant',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.pop(dialogContext),
                           ),
                         ],
                       ),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Failed to get AI response')),
-                    );
-                  }
-                }
-              },
-              child: const Text('Ask'),
-            ),
-          ],
+                      const SizedBox(height: 16),
+                      // Book context info
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color:
+                              Theme.of(context).primaryColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              bookTitle.length > 40
+                                  ? '${bookTitle.substring(0, 37)}...'
+                                  : bookTitle,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              'Page $currentPage of $totalPages',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey[300]!),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Selected Text',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            SelectableText(
+                              selectedTextCopy != null &&
+                                      selectedTextCopy.length > 200
+                                  ? '${selectedTextCopy.substring(0, 197)}...'
+                                  : selectedTextCopy ?? '',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                height: 1.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      const Text(
+                        'Custom Instructions (Optional)',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: promptController,
+                        maxLines: 3,
+                        decoration: InputDecoration(
+                          hintText:
+                              'Example: Explain this in simple terms\nOr: Translate this to French\nOr: Create a summary',
+                          hintStyle: TextStyle(color: Colors.grey[400]),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: Theme.of(context).primaryColor,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                        onChanged: (value) {
+                          customPrompt = value.isNotEmpty ? value : null;
+                        },
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(dialogContext),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 12,
+                              ),
+                            ),
+                            child: const Text('Cancel'),
+                          ),
+                          const SizedBox(width: 12),
+                          ElevatedButton(
+                            onPressed: () async {
+                              if (selectedTextCopy == null) return;
+
+                              setDialogState(() => isLoading = true);
+
+                              try {
+                                final response =
+                                    await _geminiService.askAboutText(
+                                  selectedTextCopy,
+                                  customPrompt: customPrompt,
+                                  bookTitle: bookTitle,
+                                  currentPage: currentPage,
+                                  totalPages: totalPages,
+                                );
+
+                                if (!mounted) return;
+                                Navigator.pop(dialogContext);
+
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => Dialog(
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Container(
+                                      width: MediaQuery.of(context).size.width *
+                                          0.8,
+                                      padding: const EdgeInsets.all(24),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              const Text(
+                                                'AI Analysis',
+                                                style: TextStyle(
+                                                  fontSize: 24,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              IconButton(
+                                                icon: const Icon(Icons.close),
+                                                onPressed: () =>
+                                                    Navigator.pop(context),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 16),
+                                          Container(
+                                            constraints: BoxConstraints(
+                                              maxHeight: MediaQuery.of(context)
+                                                      .size
+                                                      .height *
+                                                  0.5,
+                                            ),
+                                            child: SingleChildScrollView(
+                                              child: SelectableText(
+                                                response,
+                                                style: const TextStyle(
+                                                  fontSize: 16,
+                                                  height: 1.5,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              } catch (e) {
+                                if (!mounted) return;
+                                Navigator.pop(dialogContext);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Failed to get AI response'),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 12,
+                              ),
+                              backgroundColor: Theme.of(context).primaryColor,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text('Ask AI'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+          ),
         ),
-      );
-    }
+      ),
+    );
   }
 
   @override
@@ -263,6 +485,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
           Widget pdfViewer = PdfViewer.file(
             file.path,
             controller: _controller,
+            initialPageNumber: currentPage,
             params: PdfViewerParams(
               enableTextSelection: true,
               onTextSelectionChange: _handleTextSelectionChange,

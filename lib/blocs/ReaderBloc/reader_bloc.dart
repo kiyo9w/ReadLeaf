@@ -2,11 +2,17 @@ import 'dart:io';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:migrated/depeninject/injection.dart';
+import 'package:migrated/models/book_metadata.dart';
+import 'package:migrated/services/book_metadata_repository.dart';
+import 'package:path/path.dart' as path;
 
 part 'reader_event.dart';
 part 'reader_state.dart';
 
 class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
+  final BookMetadataRepository _metadataRepository =
+      getIt<BookMetadataRepository>();
+
   ReaderBloc() : super(ReaderInitial()) {
     on<OpenReader>(_onOpenReader);
     on<NextPage>(_onNextPage);
@@ -17,6 +23,8 @@ class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
     on<CloseReader>(_onCloseReader);
     on<ToggleUIVisibility>(_onToggleUIVisibility);
     on<ToggleSideNav>(_onToggleSideNav);
+    on<AddHighlight>(_onAddHighlight);
+    on<AddAiConversation>(_onAddAiConversation);
   }
 
   void _onOpenReader(OpenReader event, Emitter<ReaderState> emit) async {
@@ -27,45 +35,63 @@ class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
         emit(ReaderError("Unsupported file format"));
         return;
       }
-      // Logic for total page and current page (last read) later
-      final totalPages = 100;
+
+      // Get or create metadata
+      BookMetadata? metadata = _metadataRepository.getMetadata(event.filePath);
+      if (metadata == null) {
+        metadata = BookMetadata(
+          filePath: event.filePath,
+          title: path.basename(event.filePath),
+          totalPages: 100, // This should be determined from the actual PDF
+          lastReadTime: DateTime.now(),
+        );
+        await _metadataRepository.saveMetadata(metadata);
+      }
+
       emit(ReaderLoaded(
-        totalPages: totalPages,
-        currentPage: 1, //
+        totalPages: metadata.totalPages,
+        currentPage: metadata.lastOpenedPage,
         zoomLevel: 1.0,
         isNightMode: false,
         file: event.file,
         contentParsed: event.contentParsed,
         showUI: true,
         showSideNav: false,
+        metadata: metadata,
       ));
     } catch (e) {
       emit(ReaderError(e.toString()));
     }
   }
 
-  void _onNextPage(NextPage event, Emitter<ReaderState> emit) {
+  void _onNextPage(NextPage event, Emitter<ReaderState> emit) async {
     if (state is ReaderLoaded) {
       final s = state as ReaderLoaded;
       if (s.currentPage < s.totalPages) {
-        emit(s.copyWith(currentPage: s.currentPage + 1));
+        final newPage = s.currentPage + 1;
+        await _metadataRepository.updateLastOpenedPage(s.file.path, newPage);
+        emit(s.copyWith(currentPage: newPage));
       }
     }
   }
 
-  void _onPreviousPage(PreviousPage event, Emitter<ReaderState> emit) {
+  void _onPreviousPage(PreviousPage event, Emitter<ReaderState> emit) async {
     if (state is ReaderLoaded) {
       final s = state as ReaderLoaded;
       if (s.currentPage > 1) {
-        emit(s.copyWith(currentPage: s.currentPage - 1));
+        final newPage = s.currentPage - 1;
+        await _metadataRepository.updateLastOpenedPage(s.file.path, newPage);
+        emit(s.copyWith(currentPage: newPage));
       }
     }
   }
 
-  void _onJumpToPage(JumpToPage event, Emitter<ReaderState> emit) {
+  void _onJumpToPage(JumpToPage event, Emitter<ReaderState> emit) async {
     if (state is ReaderLoaded) {
       final s = state as ReaderLoaded;
       if (event.pageIndex > 0 && event.pageIndex <= s.totalPages) {
+        await _metadataRepository.updateLastOpenedPage(
+            s.file.path, event.pageIndex);
         emit(s.copyWith(currentPage: event.pageIndex));
       }
     }
@@ -78,7 +104,8 @@ class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
     }
   }
 
-  void _onToggleReadingMode(ToggleReadingMode event, Emitter<ReaderState> emit) {
+  void _onToggleReadingMode(
+      ToggleReadingMode event, Emitter<ReaderState> emit) {
     if (state is ReaderLoaded) {
       final s = state as ReaderLoaded;
       emit(s.copyWith(isNightMode: !s.isNightMode));
@@ -89,7 +116,8 @@ class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
     emit(ReaderInitial());
   }
 
-  void _onToggleUIVisibility(ToggleUIVisibility event, Emitter<ReaderState> emit) {
+  void _onToggleUIVisibility(
+      ToggleUIVisibility event, Emitter<ReaderState> emit) {
     if (state is ReaderLoaded) {
       final s = state as ReaderLoaded;
       emit(s.copyWith(showUI: !s.showUI));
@@ -100,6 +128,43 @@ class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
     if (state is ReaderLoaded) {
       final s = state as ReaderLoaded;
       emit(s.copyWith(showSideNav: !s.showSideNav));
+    }
+  }
+
+  void _onAddHighlight(AddHighlight event, Emitter<ReaderState> emit) async {
+    if (state is ReaderLoaded) {
+      final s = state as ReaderLoaded;
+      final highlight = TextHighlight(
+        text: event.text,
+        pageNumber: s.currentPage,
+        createdAt: DateTime.now(),
+        note: event.note,
+      );
+      await _metadataRepository.addHighlight(s.file.path, highlight);
+
+      final updatedMetadata = _metadataRepository.getMetadata(s.file.path);
+      if (updatedMetadata != null) {
+        emit(s.copyWith(metadata: updatedMetadata));
+      }
+    }
+  }
+
+  void _onAddAiConversation(
+      AddAiConversation event, Emitter<ReaderState> emit) async {
+    if (state is ReaderLoaded) {
+      final s = state as ReaderLoaded;
+      final conversation = AiConversation(
+        selectedText: event.selectedText,
+        aiResponse: event.aiResponse,
+        timestamp: DateTime.now(),
+        pageNumber: s.currentPage,
+      );
+      await _metadataRepository.addAiConversation(s.file.path, conversation);
+
+      final updatedMetadata = _metadataRepository.getMetadata(s.file.path);
+      if (updatedMetadata != null) {
+        emit(s.copyWith(metadata: updatedMetadata));
+      }
     }
   }
 }

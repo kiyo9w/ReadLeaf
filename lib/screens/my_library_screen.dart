@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -5,6 +6,7 @@ import 'package:migrated/blocs/FileBloc/file_bloc.dart';
 import 'package:migrated/widgets/file_card.dart';
 import 'package:migrated/screens/nav_screen.dart';
 import 'package:migrated/models/file_info.dart';
+import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
 
 class MyLibraryScreen extends StatefulWidget {
   const MyLibraryScreen({super.key});
@@ -136,7 +138,16 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<FileBloc, FileState>(
+    return BlocConsumer<FileBloc, FileState>(
+      listener: (context, state) {
+        if (state is FileViewing) {
+          final file = File(state.filePath);
+          context.read<ReaderBloc>().add(
+                OpenReader('', file: file, filePath: state.filePath),
+              );
+          Navigator.pushNamed(context, '/viewer');
+        }
+      },
       builder: (context, state) {
         if (state is FileLoaded) {
           final starredBooks =

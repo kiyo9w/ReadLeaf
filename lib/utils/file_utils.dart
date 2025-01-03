@@ -32,7 +32,7 @@ class FileUtils {
             await downloadsDir.create(recursive: true);
           }
 
-          // Copy the file to our app's Downloads directory
+          // Copy the file to app's Downloads directory
           final fileName = path.basename(filePath);
           final destinationPath = path.join(downloadsDir.path, fileName);
 
@@ -40,9 +40,10 @@ class FileUtils {
           await File(filePath).copy(destinationPath);
 
           return destinationPath;
-          await File(filePath).copy(destinationPath);
+          // Lmao I'm stupid af
+          // await File(filePath).copy(destinationPath);
 
-          return destinationPath;
+          // return destinationPath;
         }
       }
       return null;

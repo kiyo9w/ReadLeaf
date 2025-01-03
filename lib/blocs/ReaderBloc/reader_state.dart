@@ -20,6 +20,7 @@ class ReaderLoaded extends ReaderState {
   final dynamic contentParsed;
   final bool showUI;
   final bool showSideNav;
+  final BookMetadata metadata;
 
   const ReaderLoaded({
     required this.totalPages,
@@ -30,19 +31,21 @@ class ReaderLoaded extends ReaderState {
     this.contentParsed,
     required this.showUI,
     required this.showSideNav,
+    required this.metadata,
   });
 
   @override
   List<Object?> get props => [
-    totalPages,
-    currentPage,
-    zoomLevel,
-    isNightMode,
-    file,
-    contentParsed,
-    showUI,
-    showSideNav,
-  ];
+        totalPages,
+        currentPage,
+        zoomLevel,
+        isNightMode,
+        file,
+        contentParsed,
+        showUI,
+        showSideNav,
+        metadata,
+      ];
 
   ReaderLoaded copyWith({
     int? totalPages,
@@ -53,6 +56,7 @@ class ReaderLoaded extends ReaderState {
     dynamic contentParsed,
     bool? showUI,
     bool? showSideNav,
+    BookMetadata? metadata,
   }) {
     return ReaderLoaded(
       totalPages: totalPages ?? this.totalPages,
@@ -63,6 +67,7 @@ class ReaderLoaded extends ReaderState {
       contentParsed: contentParsed ?? this.contentParsed,
       showUI: showUI ?? this.showUI,
       showSideNav: showSideNav ?? this.showSideNav,
+      metadata: metadata ?? this.metadata,
     );
   }
 }
