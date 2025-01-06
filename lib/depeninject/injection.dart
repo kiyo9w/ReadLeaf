@@ -21,7 +21,7 @@ Future<void> configureDependencies() async {
 
   // Initialize Gemini service
   final geminiService = GeminiService();
-  await GeminiService.initialize();
+  await geminiService.initialize();
   getIt.registerSingleton<GeminiService>(geminiService);
 
   // Initialize BookMetadataRepository
