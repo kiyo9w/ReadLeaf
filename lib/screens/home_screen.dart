@@ -6,6 +6,7 @@ import 'package:migrated/blocs/FileBloc/file_bloc.dart';
 import 'package:migrated/widgets/file_card.dart';
 import 'package:migrated/widgets/minimal_file_card_widget.dart';
 import 'package:migrated/widgets/ai_message_card.dart';
+import 'package:migrated/widgets/ai_character_slider.dart';
 import 'package:migrated/utils/file_utils.dart';
 import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
 import 'package:migrated/services/gemini_service.dart';
@@ -173,6 +174,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     onPressed: () {},
                   ),
                 ],
+              ),
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.only(top: 16, bottom: 8),
+                  child: AiCharacterSlider(),
+                ),
               ),
               if (lastReadBook != null)
                 SliverToBoxAdapter(

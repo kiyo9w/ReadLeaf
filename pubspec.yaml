@@ -69,8 +69,8 @@ dependencies:
   persistent_bottom_nav_bar_v2: ^5.3.1
   pdfrx: ^1.0.94
 
-  flutter_gemini: ^2.0.5
-
+  # AI Integration
+  google_generative_ai: ^0.2.0
 
   # Added for metadata storage
   hive: ^2.2.3
@@ -94,6 +94,11 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/leafy_icon.png
+    - assets/images/ai_characters/professor.png
+    - assets/images/ai_characters/student.png
+    - assets/images/ai_characters/librarian.png
+    - assets/images/ai_characters/artist.png
+    - assets/images/ai_characters/scientist.png
     - .env
 
   # To add custom fonts to your application, add a fonts section here,
