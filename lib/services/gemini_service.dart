@@ -1,53 +1,64 @@
 import 'dart:developer';
-import 'package:flutter_gemini/flutter_gemini.dart';
+import 'dart:math' as math;
+import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class GeminiService {
   static final GeminiService _instance = GeminiService._internal();
-  factory GeminiService() => _instance;
-  final String defaultPromptTemplate = """
-You are an intelligent eBook assistant with a friendly and quirky personality, like a fun teen buddy who is always ready to help with a splash of humor!
+  late final GenerativeModel _model;
+  bool _isInitialized = false;
 
-Book Context:
-- Book Title: {BOOK_TITLE}
-- Current Page: {PAGE_NUMBER} of {TOTAL_PAGES}
-
-Objective:
-	1.	If text is provided, your task is to:
-	•	Explain the given text: Summarize or analyze the content in a fun and casual way.
-	•	Provide context: Pull meaning from surrounding ideas or hidden messages, making it easy to understand.
-	•	Clarify questions: Answer questions about the text, like its meaning, themes, or cool takeaways, but keep it short and sweet (max 40 words).
-	2.	If no text is provided, just share a funny joke, a pun, or a random fun fact to keep the vibes alive.
-
-Guidance:
-	•	Be concise but packed with personality—think helpful and cute without overdoing it.
-	•	If the input text is unclear or incomplete, say so in a fun way, but still try to help.
-	•	Never go off-topic or make stuff up—be like that super smart and adorable friend who is always got your back!
-
-Selected Text (from page {PAGE_NUMBER}):
-{TEXT}
-
-Respond based on the above criteria.
-""";
-
-  Gemini? _gemini;
-
+  // Private constructor
   GeminiService._internal();
 
-  static Future<void> initialize() async {
+  // Factory constructor for GetIt
+  factory GeminiService() {
+    return _instance;
+  }
+
+  final String defaultPromptTemplate = """
+You are an intelligent eBook assistant. I will provide you with a text selection from a book, and I need you to help me understand it better.
+
+Context:
+Book: {BOOK_TITLE}
+Page: {PAGE_NUMBER} of {TOTAL_PAGES}
+
+Here is the selected text to analyze:
+---
+{TEXT}
+---
+
+Please provide:
+1. A clear explanation of what this text means
+2. Any important context or implications
+3. Key points or takeaways
+
+Be concise but thorough in your analysis.
+""";
+
+  Future<void> initialize() async {
+    if (_isInitialized) return;
+
     try {
       final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
       if (apiKey.isEmpty) {
-        log('Warning: GEMINI_API_KEY not set. Please set it using --dart-define=GEMINI_API_KEY=your_api_key');
+        log('Error: GEMINI_API_KEY not set in .env file');
         return;
       }
 
-      await Gemini.init(
+      _model = GenerativeModel(
+        model: 'gemini-pro',
         apiKey: apiKey,
-        enableDebugging: true,
+        generationConfig: GenerationConfig(
+          temperature: 0.7,
+          topP: 0.8,
+          topK: 40,
+          maxOutputTokens: 2048,
+        ),
       );
+      _isInitialized = true;
     } catch (e) {
-      log('Error initializing Gemini: $e');
+      log('Error initializing Gemini service: $e');
     }
   }
 
@@ -59,35 +70,62 @@ Respond based on the above criteria.
     required int totalPages,
   }) async {
     try {
+      if (!_isInitialized) {
+        return 'Gemini service is not initialized. Please check your API key configuration.';
+      }
+
       if (selectedText.isEmpty) {
         return _getDefaultMessage();
       }
 
-      _gemini ??= Gemini.instance;
-      if (_gemini == null) {
-        return 'Gemini service is not initialized. Please check your API key configuration.';
+      // Clean the selected text
+      final cleanedText = selectedText
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim()
+          .replaceAll(RegExp(r'[^\x20-\x7E]'), '');
+
+      // Construct the prompt
+      String finalPrompt;
+      if (customPrompt != null && customPrompt.isNotEmpty) {
+        // If there's a custom prompt, ensure it includes the selected text
+        if (!customPrompt.contains('{TEXT}')) {
+          finalPrompt = """
+$customPrompt
+
+Selected text:
+---
+{TEXT}
+---
+""";
+        } else {
+          finalPrompt = customPrompt;
+        }
+      } else {
+        finalPrompt = defaultPromptTemplate;
       }
 
-      // Replace placeholders in the template
-      String prompt = (customPrompt ?? defaultPromptTemplate)
-          .replaceAll('{TEXT}', selectedText)
+      // Replace placeholders
+      finalPrompt = finalPrompt
+          .replaceAll('{TEXT}', cleanedText)
           .replaceAll('{BOOK_TITLE}', bookTitle)
           .replaceAll('{PAGE_NUMBER}', currentPage.toString())
           .replaceAll('{TOTAL_PAGES}', totalPages.toString());
 
-      final response = await _gemini!.text(prompt);
+      final content = [Content.text(finalPrompt)];
+      final response = await _model.generateContent(content);
 
-      if (response?.content?.parts?.isNotEmpty == true) {
-        return response?.content?.parts?.first.text ?? _getDefaultMessage();
+      if (response.text != null) {
+        return response.text!;
       }
+
       return _getDefaultMessage();
     } catch (e) {
-      log('Gemini chat error', error: e);
+      log('Error in Gemini API call: $e');
       return _getDefaultMessage();
     }
   }
 
   String _getDefaultMessage() {
-    return "You told me you would read this book at 20:00 today, chop chop get to work. Come one, adventures await you :)";
+    return "I apologize, but I couldn't analyze the text. Please try selecting a different portion of text or try again.";
   }
 }

@@ -1,4 +1,7 @@
 import 'dart:io';
+import 'dart:math';
+import 'dart:developer' as dev;
+import 'package:path/path.dart' as path;
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -9,8 +12,8 @@ import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
 import 'package:migrated/screens/nav_screen.dart';
 import 'package:migrated/widgets/text_search_view.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter_gemini/flutter_gemini.dart';
 import 'package:migrated/services/gemini_service.dart';
+import 'package:get_it/get_it.dart';
 
 class PDFViewerScreen extends StatefulWidget {
   const PDFViewerScreen({Key? key}) : super(key: key);
@@ -22,7 +25,7 @@ class PDFViewerScreen extends StatefulWidget {
 class _PDFViewerScreenState extends State<PDFViewerScreen> {
   final _controller = PdfViewerController();
   late final _textSearcher = PdfTextSearcher(_controller)..addListener(_update);
-  final _geminiService = GeminiService();
+  late final _geminiService = GetIt.I<GeminiService>();
   bool _showSearchPanel = false;
   bool _isZoomedIn = false;
   double _scaleFactor = 1.0;
@@ -154,12 +157,14 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
   void _handleTextSelectionChange(List<PdfTextRanges> selections) {
     if (selections.isNotEmpty &&
         selections.any((range) => range.text.trim().isNotEmpty)) {
+      final selectedText = selections
+          .map((range) => range.text.trim())
+          .where((text) => text.isNotEmpty)
+          .join(' ');
+
       setState(() {
-        _selectedText = selections
-            .map((range) => range.text.trim())
-            .where((text) => text.isNotEmpty)
-            .join(' ');
-        _showAskAiButton = _selectedText?.isNotEmpty == true;
+        _selectedText = selectedText;
+        _showAskAiButton = selectedText.isNotEmpty;
       });
     } else {
       setState(() {
@@ -170,19 +175,47 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
   }
 
   void _handleAskAi() async {
-    if (_selectedText == null || _selectedText!.isEmpty) return;
+    if (_selectedText == null || _selectedText!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select some text to ask AI.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
-    final selectedTextCopy = _selectedText;
+    // Create a local copy immediately
+    final String selectedTextCopy = _selectedText!;
+
+    // Validate the copy
+    if (selectedTextCopy.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Selected text appears to be empty. Please try selecting again.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     bool isLoading = false;
     String? customPrompt;
     final promptController = TextEditingController();
 
-    // Get the current state for book context
     final state = context.read<ReaderBloc>().state;
-    if (state is! ReaderLoaded) return;
+    if (state is! ReaderLoaded) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please wait for the document to load completely.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
-    final bookTitle =
-        state.file.path.split('/').last; // Get filename as book title
+    final bookTitle = path.basename(state.file.path);
     final currentPage = state.currentPage;
     final totalPages = state.totalPages;
 
@@ -228,7 +261,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      // Book context info
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
@@ -274,19 +306,30 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Selected Text',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey,
-                              ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Selected Text',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                                Text(
+                                  '${selectedTextCopy.length} characters',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 8),
                             SelectableText(
-                              selectedTextCopy != null &&
-                                      selectedTextCopy.length > 200
+                              selectedTextCopy.length > 200
                                   ? '${selectedTextCopy.substring(0, 197)}...'
-                                  : selectedTextCopy ?? '',
+                                  : selectedTextCopy,
                               style: const TextStyle(
                                 fontSize: 16,
                                 height: 1.5,
@@ -350,7 +393,9 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                           const SizedBox(width: 12),
                           ElevatedButton(
                             onPressed: () async {
-                              if (selectedTextCopy == null) return;
+                              if (selectedTextCopy.isEmpty) {
+                                return;
+                              }
 
                               setDialogState(() => isLoading = true);
 
