@@ -67,8 +67,14 @@ class ChatScreenState extends State<ChatScreen> {
 
   // Public method to add a message
   Future<void> addMessage(ChatMessage message) async {
+    // Add message to UI immediately
+    setState(() {
+      _messages.add(message);
+    });
+    _scrollToBottom();
+
+    // Save to storage asynchronously
     await _chatService.addMessage(widget.bookId, message);
-    await _loadMessages();
   }
 
   void _handleSubmitted(String text) async {
@@ -76,15 +82,22 @@ class ChatScreenState extends State<ChatScreen> {
 
     _textController.clear();
 
-    // Add user message
+    // Create and show the user message immediately
     final message = ChatMessage(
       text: text,
       isUser: true,
       timestamp: DateTime.now(),
     );
-    await addMessage(message);
 
-    // Call the onSendMessage callback
+    setState(() {
+      _messages.add(message);
+    });
+    _scrollToBottom();
+
+    // Save the message asynchronously
+    await _chatService.addMessage(widget.bookId, message);
+
+    // Call the callback to get AI response
     widget.onSendMessage(text);
   }
 

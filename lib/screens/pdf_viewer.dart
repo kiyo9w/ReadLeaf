@@ -192,6 +192,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
       String userMessage;
       if (selectedText != null) {
         userMessage = 'Imported text: "$selectedText"\n\n$message';
+        // Only add user message for selected text case
+        _floatingChatKey.currentState?.addUserMessage(userMessage);
       } else {
         userMessage = message;
       }
@@ -205,9 +207,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
 
       if (!mounted) return;
 
-      // Add the message to chat
+      // Only add the AI response
       if (_floatingChatKey.currentState != null) {
-        _floatingChatKey.currentState!.addUserMessage(userMessage);
         _floatingChatKey.currentState!.addAiResponse(response);
       }
     } catch (e) {

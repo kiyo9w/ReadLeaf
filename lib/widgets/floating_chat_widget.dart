@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:migrated/widgets/floating_chat_head.dart';
 import 'package:migrated/widgets/chat_screen.dart';
 import 'package:migrated/models/chat_message.dart';
 
@@ -26,6 +25,10 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
   bool _showChat = false;
   final GlobalKey<ChatScreenState> _chatScreenKey =
       GlobalKey<ChatScreenState>();
+
+  double _xPosition = 0;
+  double _yPosition = 100;
+  bool _isDragging = false;
 
   void _toggleChat() {
     setState(() {
@@ -89,6 +92,44 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
     }
   }
 
+  void _handleDragUpdate(DragUpdateDetails details) {
+    setState(() {
+      _xPosition += details.delta.dx;
+      _yPosition += details.delta.dy;
+
+      // Keep the chat head within screen bounds
+      _xPosition = _xPosition.clamp(0, MediaQuery.of(context).size.width - 60);
+      _yPosition = _yPosition.clamp(0, MediaQuery.of(context).size.height - 60);
+    });
+  }
+
+  void _handleDragEnd(DragEndDetails details) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    setState(() {
+      _isDragging = false;
+
+      // Snap to the nearest edge (left or right)
+      if (_xPosition < screenWidth / 2) {
+        // Snap to left edge
+        _xPosition = 0;
+      } else {
+        // Snap to right edge
+        _xPosition = screenWidth - 60;
+      }
+
+      // Ensure it stays within vertical bounds
+      _yPosition = _yPosition.clamp(0, screenHeight - 60);
+    });
+  }
+
+  void _handleDragStart(DragStartDetails details) {
+    setState(() {
+      _isDragging = true;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(
@@ -105,27 +146,55 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
             ),
           ),
 
-        // The floating chat head
-        if (!_showChat)
-          FloatingChatHead(
-            avatarImagePath: widget.avatarImagePath,
-            onTap: _toggleChat,
-          ),
-
         // The chat screen
         if (_showChat)
           Positioned(
-            right: 20,
-            bottom: 100,
+            right: 16,
+            bottom: 80,
             child: ChatScreen(
-              key: _chatScreenKey,
               avatarImagePath: widget.avatarImagePath,
-              onClose: _toggleChat,
+              onClose: () => setState(() => _showChat = false),
               onSendMessage: widget.onSendMessage,
               bookId: widget.bookId,
               bookTitle: widget.bookTitle,
+              key: _chatScreenKey,
             ),
           ),
+
+        // The floating chat head
+        AnimatedPositioned(
+          duration: Duration(milliseconds: _isDragging ? 0 : 300),
+          curve: Curves.easeOutQuad,
+          left: _xPosition,
+          top: _yPosition,
+          child: GestureDetector(
+            onPanStart: _handleDragStart,
+            onPanUpdate: _handleDragUpdate,
+            onPanEnd: _handleDragEnd,
+            onTap: () => setState(() => _showChat = !_showChat),
+            child: Container(
+              width: 65,
+              height: 65,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipOval(
+                child: Image.asset(
+                  widget.avatarImagePath,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
