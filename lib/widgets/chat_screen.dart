@@ -104,8 +104,6 @@ class ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 320,
-      height: 480,
       decoration: BoxDecoration(
         color: const Color(0xFFF4F4F4),
         borderRadius: BorderRadius.circular(20),
@@ -156,6 +154,8 @@ class ChatScreenState extends State<ChatScreen> {
                     IconButton(
                       icon: const Icon(Icons.close),
                       onPressed: widget.onClose,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
                     ),
                   ],
                 ),
@@ -195,6 +195,10 @@ class ChatScreenState extends State<ChatScreen> {
               border: Border(
                 top: BorderSide(color: Colors.grey[200]!),
               ),
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(20),
+              ),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
             child: Row(
@@ -215,6 +219,8 @@ class ChatScreenState extends State<ChatScreen> {
                 IconButton(
                   icon: Icon(Icons.send, color: Theme.of(context).primaryColor),
                   onPressed: () => _handleSubmitted(_textController.text),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
                 ),
               ],
             ),

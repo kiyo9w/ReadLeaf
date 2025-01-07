@@ -30,6 +30,11 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
   double _yPosition = 100;
   bool _isDragging = false;
 
+  // Chat window size state
+  double _chatWidth = 320;
+  double _chatHeight = 480;
+  bool _isResizing = false;
+
   void _toggleChat() {
     setState(() {
       _showChat = !_showChat;
@@ -132,6 +137,16 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+
+    // Calculate chat position based on floating head position
+    double chatY = _yPosition + 70; // 70 = chat head size + small gap
+
+    // Ensure chat stays within screen bounds
+    if (chatY + _chatHeight > screenSize.height - 20) {
+      chatY = screenSize.height - _chatHeight - 20;
+    }
+
     return Stack(
       children: [
         // Tap outside handler
@@ -140,9 +155,7 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
               onTapDown: (details) => _handleTapOutside(context, details),
-              child: Container(
-                color: Colors.transparent,
-              ),
+              child: Container(color: Colors.transparent),
             ),
           ),
 
@@ -150,14 +163,49 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
         if (_showChat)
           Positioned(
             right: 16,
-            bottom: 80,
-            child: ChatScreen(
-              avatarImagePath: widget.avatarImagePath,
-              onClose: () => setState(() => _showChat = false),
-              onSendMessage: widget.onSendMessage,
-              bookId: widget.bookId,
-              bookTitle: widget.bookTitle,
-              key: _chatScreenKey,
+            top: chatY,
+            child: Stack(
+              children: [
+                Container(
+                  width: _chatWidth,
+                  height: _chatHeight,
+                  child: ChatScreen(
+                    avatarImagePath: widget.avatarImagePath,
+                    onClose: () => setState(() => _showChat = false),
+                    onSendMessage: widget.onSendMessage,
+                    bookId: widget.bookId,
+                    bookTitle: widget.bookTitle,
+                    key: _chatScreenKey,
+                  ),
+                ),
+                // Resize handle
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: GestureDetector(
+                    onPanStart: (_) => setState(() => _isResizing = true),
+                    onPanUpdate: (details) {
+                      setState(() {
+                        _chatWidth = (_chatWidth + details.delta.dx)
+                            .clamp(280.0, screenSize.width - 32);
+                        _chatHeight = (_chatHeight + details.delta.dy)
+                            .clamp(400.0, screenSize.height - 40);
+                      });
+                    },
+                    onPanEnd: (_) => setState(() => _isResizing = false),
+                    child: Container(
+                      width: 20,
+                      height: 20,
+                      alignment: Alignment.bottomRight,
+                      child: Icon(
+                        Icons.drag_handle,
+                        size: 16,
+                        color: Colors.grey[400],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
 
