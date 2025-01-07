@@ -14,6 +14,7 @@ import 'package:migrated/widgets/text_search_view.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:migrated/services/gemini_service.dart';
 import 'package:get_it/get_it.dart';
+import 'package:migrated/widgets/floating_chat_widget.dart';
 
 class PDFViewerScreen extends StatefulWidget {
   const PDFViewerScreen({Key? key}) : super(key: key);
@@ -503,6 +504,12 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
     );
   }
 
+  void _handleChatMessage(String message) {
+    // TODO: Implement chat message handling with AI
+    // For now, just print the message
+    print('Chat message: $message');
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<ReaderBloc, ReaderState>(
@@ -776,6 +783,12 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                       backgroundColor: Theme.of(context).primaryColor,
                     ),
                   ),
+
+                // Add the floating chat widget
+                FloatingChatWidget(
+                  avatarImagePath: 'assets/images/ai_characters/librarian.png',
+                  onSendMessage: _handleChatMessage,
+                ),
               ],
             ),
           );
