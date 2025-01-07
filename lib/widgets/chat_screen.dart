@@ -1,39 +1,41 @@
 import 'package:flutter/material.dart';
-
-class ChatMessage {
-  final String text;
-  final bool isUser;
-  final DateTime timestamp;
-  final String? avatarImagePath;
-
-  ChatMessage({
-    required this.text,
-    required this.isUser,
-    required this.timestamp,
-    this.avatarImagePath,
-  });
-}
+import 'package:migrated/models/chat_message.dart';
+import 'package:migrated/services/chat_service.dart';
+import 'package:get_it/get_it.dart';
 
 class ChatScreen extends StatefulWidget {
   final String avatarImagePath;
   final VoidCallback onClose;
   final Function(String) onSendMessage;
+  final String bookId;
+  final String bookTitle;
 
   const ChatScreen({
     Key? key,
     required this.avatarImagePath,
     required this.onClose,
     required this.onSendMessage,
+    required this.bookId,
+    required this.bookTitle,
   }) : super(key: key);
 
   @override
-  State<ChatScreen> createState() => _ChatScreenState();
+  State<ChatScreen> createState() => ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class ChatScreenState extends State<ChatScreen> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final List<ChatMessage> _messages = [];
+  final ChatService _chatService = GetIt.I<ChatService>();
+  List<ChatMessage> _messages = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMessages();
+    // Add post-frame callback to scroll to bottom after initial render
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+  }
 
   @override
   void dispose() {
@@ -42,39 +44,48 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  void _handleSubmitted(String text) {
-    if (text.isEmpty) return;
-
-    _textController.clear();
+  Future<void> _loadMessages() async {
+    final messages = await _chatService.getMessages(widget.bookId);
     setState(() {
-      // Add user message
-      _messages.add(ChatMessage(
-        text: text,
-        isUser: true,
-        timestamp: DateTime.now(),
-      ));
-
-      // Add AI response (hardcoded for now)
-      _messages.add(ChatMessage(
-        text: "Hi! 👋",
-        isUser: false,
-        timestamp: DateTime.now(),
-        avatarImagePath: widget.avatarImagePath,
-      ));
+      _messages = messages;
     });
+    // Add post-frame callback to scroll to bottom after messages are loaded
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+  }
 
-    widget.onSendMessage(text);
-
-    // Scroll to bottom after message is sent
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (_scrollController.hasClients) {
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      Future.delayed(const Duration(milliseconds: 100), () {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
-      }
-    });
+      });
+    }
+  }
+
+  // Public method to add a message
+  Future<void> addMessage(ChatMessage message) async {
+    await _chatService.addMessage(widget.bookId, message);
+    await _loadMessages();
+  }
+
+  void _handleSubmitted(String text) async {
+    if (text.isEmpty) return;
+
+    _textController.clear();
+
+    // Add user message
+    final message = ChatMessage(
+      text: text,
+      isUser: true,
+      timestamp: DateTime.now(),
+    );
+    await addMessage(message);
+
+    // Call the onSendMessage callback
+    widget.onSendMessage(text);
   }
 
   @override
@@ -96,6 +107,61 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       child: Column(
         children: [
+          // Chat header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).primaryColor.withOpacity(0.1),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    ClipOval(
+                      child: Image.asset(
+                        widget.avatarImagePath,
+                        width: 32,
+                        height: 32,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'AI Assistant',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: widget.onClose,
+                    ),
+                  ],
+                ),
+                if (widget.bookTitle.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.bookTitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[700],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
+            ),
+          ),
+
           // Chat messages
           Expanded(
             child: ListView.builder(
@@ -146,6 +212,18 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildMessageBubble(ChatMessage message) {
+    // Split message into imported text and question if it contains "Imported text:"
+    String? importedText;
+    String displayText = message.text;
+
+    if (message.text.startsWith('Imported text:')) {
+      final parts = message.text.split('\n\n');
+      if (parts.length > 1) {
+        importedText = parts[0];
+        displayText = parts.sublist(1).join('\n\n');
+      }
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
@@ -183,12 +261,35 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ],
               ),
-              child: Text(
-                message.text,
-                style: TextStyle(
-                  color: Colors.black87,
-                  fontSize: 15,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (importedText != null) ...[
+                    Text(
+                      importedText,
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 14,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      height: 1,
+                      color: Colors.grey[200],
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  Text(
+                    displayText,
+                    style: TextStyle(
+                      color: Colors.black87,
+                      fontSize: 15,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

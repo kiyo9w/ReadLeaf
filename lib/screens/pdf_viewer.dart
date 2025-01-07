@@ -34,6 +34,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
   String? _selectedText;
   bool _showAskAiButton = false;
   bool _isLoadingAiResponse = false;
+  final GlobalKey<FloatingChatWidgetState> _floatingChatKey =
+      GlobalKey<FloatingChatWidgetState>();
 
   void _update() {
     if (mounted) {
@@ -172,6 +174,50 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
         _selectedText = null;
         _showAskAiButton = false;
       });
+    }
+  }
+
+  void _handleChatMessage(String message, {String? selectedText}) async {
+    final state = context.read<ReaderBloc>().state;
+    if (state is! ReaderLoaded) {
+      return;
+    }
+
+    final bookTitle = path.basename(state.file.path);
+    final currentPage = state.currentPage;
+    final totalPages = state.totalPages;
+
+    try {
+      // If there's selected text, create a formatted message
+      String userMessage;
+      if (selectedText != null) {
+        userMessage = 'Imported text: "$selectedText"\n\n$message';
+      } else {
+        userMessage = message;
+      }
+
+      final response = await _geminiService.askAboutText(
+        userMessage,
+        bookTitle: bookTitle,
+        currentPage: currentPage,
+        totalPages: totalPages,
+      );
+
+      if (!mounted) return;
+
+      // Add the message to chat
+      if (_floatingChatKey.currentState != null) {
+        _floatingChatKey.currentState!.addUserMessage(userMessage);
+        _floatingChatKey.currentState!.addAiResponse(response);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to get AI response'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -394,91 +440,21 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                           const SizedBox(width: 12),
                           ElevatedButton(
                             onPressed: () async {
-                              if (selectedTextCopy.isEmpty) {
-                                return;
-                              }
+                              if (selectedTextCopy.isEmpty) return;
 
                               setDialogState(() => isLoading = true);
 
-                              try {
-                                final response =
-                                    await _geminiService.askAboutText(
-                                  selectedTextCopy,
-                                  customPrompt: customPrompt,
-                                  bookTitle: bookTitle,
-                                  currentPage: currentPage,
-                                  totalPages: totalPages,
-                                );
+                              // Close the dialog
+                              Navigator.pop(dialogContext);
 
-                                if (!mounted) return;
-                                Navigator.pop(dialogContext);
+                              // Show the chat if it's not already visible
+                              _floatingChatKey.currentState?.showChat();
 
-                                showDialog(
-                                  context: context,
-                                  builder: (context) => Dialog(
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: Container(
-                                      width: MediaQuery.of(context).size.width *
-                                          0.8,
-                                      padding: const EdgeInsets.all(24),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              const Text(
-                                                'AI Analysis',
-                                                style: TextStyle(
-                                                  fontSize: 24,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                              IconButton(
-                                                icon: const Icon(Icons.close),
-                                                onPressed: () =>
-                                                    Navigator.pop(context),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 16),
-                                          Container(
-                                            constraints: BoxConstraints(
-                                              maxHeight: MediaQuery.of(context)
-                                                      .size
-                                                      .height *
-                                                  0.5,
-                                            ),
-                                            child: SingleChildScrollView(
-                                              child: SelectableText(
-                                                response,
-                                                style: const TextStyle(
-                                                  fontSize: 16,
-                                                  height: 1.5,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              } catch (e) {
-                                if (!mounted) return;
-                                Navigator.pop(dialogContext);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Failed to get AI response'),
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
-                              }
+                              // Use handleChatMessage with the selected text
+                              _handleChatMessage(
+                                customPrompt ?? "Can you explain this text?",
+                                selectedText: selectedTextCopy,
+                              );
                             },
                             style: ElevatedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(
@@ -502,12 +478,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
         ),
       ),
     );
-  }
-
-  void _handleChatMessage(String message) {
-    // TODO: Implement chat message handling with AI
-    // For now, just print the message
-    print('Chat message: $message');
   }
 
   @override
@@ -786,8 +756,11 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
 
                 // Add the floating chat widget
                 FloatingChatWidget(
+                  key: _floatingChatKey,
                   avatarImagePath: 'assets/images/ai_characters/librarian.png',
                   onSendMessage: _handleChatMessage,
+                  bookId: file.path, // Use file path as unique identifier
+                  bookTitle: path.basename(file.path),
                 ),
               ],
             ),

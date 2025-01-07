@@ -9,7 +9,10 @@ import 'package:migrated/depeninject/injection.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Setup dependencies
   await configureDependencies();
+
   runApp(const MyApp());
 }
 
