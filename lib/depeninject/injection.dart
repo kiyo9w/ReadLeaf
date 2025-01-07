@@ -9,6 +9,7 @@ import 'package:migrated/services/storage_scanner_service.dart';
 import 'package:migrated/services/gemini_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:migrated/services/book_metadata_repository.dart';
+import 'package:migrated/services/ai_character_service.dart';
 
 final GetIt getIt = GetIt.instance;
 
@@ -19,7 +20,11 @@ Future<void> configureDependencies() async {
   final fileRepository = FileRepository();
   await fileRepository.init();
 
-  // Initialize Gemini service
+  // Initialize AiCharacterService first
+  final aiCharacterService = AiCharacterService();
+  getIt.registerSingleton<AiCharacterService>(aiCharacterService);
+
+  // Initialize Gemini service after AiCharacterService
   final geminiService = GeminiService();
   await geminiService.initialize();
   getIt.registerSingleton<GeminiService>(geminiService);
