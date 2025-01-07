@@ -87,12 +87,13 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^2.0.0
   injectable_generator: ^2.4.1
-  build_runner: ^2.4.7
+  build_runner: ^2.4.13
   hive_generator: ^2.0.1
 
 flutter:
   uses-material-design: true
   assets:
+    - assets/images/
     - assets/images/leafy_icon.png
     - assets/images/ai_characters/professor.png
     - assets/images/ai_characters/student.png

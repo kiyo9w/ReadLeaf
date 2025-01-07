@@ -9,17 +9,33 @@ import 'package:migrated/services/storage_scanner_service.dart';
 import 'package:migrated/services/gemini_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:migrated/services/book_metadata_repository.dart';
+import 'package:migrated/services/ai_character_service.dart';
+import 'package:migrated/services/chat_service.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:migrated/models/chat_message.dart';
 
 final GetIt getIt = GetIt.instance;
 
 Future<void> configureDependencies() async {
+  // Initialize Hive
+  await Hive.initFlutter();
+
+  // Register Hive adapters
+  if (!Hive.isAdapterRegistered(3)) {
+    Hive.registerAdapter(ChatMessageAdapter());
+  }
+
   // Load environment variables
   await dotenv.load(fileName: '.env');
 
   final fileRepository = FileRepository();
   await fileRepository.init();
 
-  // Initialize Gemini service
+  // Initialize AiCharacterService first
+  final aiCharacterService = AiCharacterService();
+  getIt.registerSingleton<AiCharacterService>(aiCharacterService);
+
+  // Initialize Gemini service after AiCharacterService
   final geminiService = GeminiService();
   await geminiService.initialize();
   getIt.registerSingleton<GeminiService>(geminiService);
@@ -53,4 +69,9 @@ Future<void> configureDependencies() async {
         annasArchieve: getIt<AnnasArchieve>(),
         fileRepository: getIt<FileRepository>(),
       ));
+
+  // Register ChatService as a singleton
+  final chatService = ChatService();
+  await chatService.init();
+  getIt.registerSingleton<ChatService>(chatService);
 }
