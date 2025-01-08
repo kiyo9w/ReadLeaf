@@ -109,7 +109,8 @@ Text from {BOOK_TITLE} (page {PAGE_NUMBER}):
           .replaceAll('{PAGE_NUMBER}', currentPage.toString())
           .replaceAll('{TOTAL_PAGES}', totalPages.toString())
           .replaceAll('{CHARACTER_NAME}',
-              characterService.getSelectedCharacter()?.name ?? 'AI Assistant');
+              characterService.getSelectedCharacter()?.name ?? 'AI Assistant')
+          .replaceAll('{USER_PROMPT}', customPrompt ?? '');
 
       log('Final prompt after replacement: $finalPrompt');
 

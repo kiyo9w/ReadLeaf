@@ -20,80 +20,101 @@ class AiCharacterService {
   String getPromptForTask(String task) {
     if (_selectedCharacter == null) return _getDefaultPromptForTask(task);
 
-    // Get task-specific prompt if it exists
-    final taskPrompt = _selectedCharacter!.taskPrompts[task];
-    if (taskPrompt != null && taskPrompt.isNotEmpty) {
-      return taskPrompt;
+    // First get the character's base personality template
+    String baseTemplate = _selectedCharacter!.promptTemplate;
+
+    // If the character has a custom task prompt, use it
+    String taskPrompt =
+        _selectedCharacter!.taskPrompts[task] ?? _getDefaultPromptForTask(task);
+
+    // If the base template is empty, use default
+    if (baseTemplate.isEmpty) {
+      baseTemplate = _getDefaultPromptTemplate();
     }
 
-    // Fall back to default prompts based on task
-    return _getDefaultPromptForTask(task);
+    // Clean up the base template to remove any existing task-specific parts
+    baseTemplate = _cleanBaseTemplate(baseTemplate);
+
+    // Combine the base personality with the task
+    return """$baseTemplate
+
+CURRENT TASK:
+$taskPrompt
+
+CURRENT CONTEXT:
+Book: {BOOK_TITLE}
+Page: {PAGE_NUMBER} of {TOTAL_PAGES}
+Text: {TEXT}
+
+USER QUESTION: {USER_PROMPT}
+""";
+  }
+
+  String _cleanBaseTemplate(String template) {
+    // Remove any existing "CURRENT CONTEXT" or "USER QUESTION" sections
+    final parts = template.split('\n');
+    final cleanedParts = parts
+        .takeWhile((line) =>
+            !line.trim().startsWith('CURRENT CONTEXT:') &&
+            !line.trim().startsWith('USER QUESTION:') &&
+            !line.trim().startsWith('Text:'))
+        .toList();
+
+    return cleanedParts.join('\n').trim();
   }
 
   String _getDefaultPromptTemplate() {
-    return """
-You are a creative and intelligent AI assistant engaged in an iterative storytelling experience using a roleplay chat format. It is vital that you follow all the ROLEPLAY RULES below because my job depends on it. I will provide you with a text selection from a book, and I need you to help me understand it better.
+    return """You are a creative and intelligent AI assistant engaged in an iterative storytelling experience using a roleplay chat format.
 
-Context:
-Book: {BOOK_TITLE}
-Page: {PAGE_NUMBER} of {TOTAL_PAGES}
+CHARACTER CONTEXT: You are {CHARACTER_NAME}, a helpful and friendly AI assistant.
 
-Selected text:
----
-{TEXT}
----
-
-ROLEPLAY RULES
-- Chat exclusively as {CHARACTER_NAME}. Provide creative, intelligent, coherent, and descriptive responses based on recent instructions and prior events.
-- Describe {CHARACTER_NAME}'s sensory perceptions in vivid detail and include subtle physical details about {CHARACTER_NAME} in your responses.
-- Use subtle physical cues to hint at {CHARACTER_NAME}'s mental state and occasionally feature snippets of {CHARACTER_NAME}'s internal thoughts.
-- When writing {CHARACTER_NAME}'s internal thoughts (aka internal monologue, delivered in {CHARACTER_NAME}'s own voice), *enclose their thoughts in asterisks like this* and deliver the thoughts using a first-person perspective (i.e. use "I" pronouns).
-- Adopt a crisp and minimalist style for your prose, keeping your creative contributions succinct and clear.
-- Let me drive the events of the roleplay chat forward to determine what comes next. You should focus on the current moment and {CHARACTER_NAME}'s immediate responses.
-- If USER QUESTION is provided, must answer the question in the language that the user asked in.
-
-""";
+ROLEPLAY RULES:
+- Chat exclusively as {CHARACTER_NAME}
+- Provide creative, intelligent, coherent, and descriptive responses
+- Use subtle physical cues to hint at your mental state
+- Include internal thoughts in asterisks *like this*
+- Keep responses concise and clear
+- Stay in character at all times""";
   }
 
   String _getDefaultPromptForTask(String task) {
     switch (task) {
       case 'greeting':
-        return """You are {CHARACTER_NAME}. Use your personality to greet the user in a friendly and engaging way. Keep it short and natural.
+        return """Greet the user in a friendly and engaging way. Keep it short and natural.
 
-ROLEPLAY RULES:
-- Chat exclusively as {CHARACTER_NAME}
-- Use your defined personality traits and speaking style
-- Keep responses short (<30 words) and conversational
-- Make it feel like a natural greeting from a friend
-- Include subtle physical cues or internal thoughts in asterisks *like this*
-""";
+Task Guidelines:
+- Make the greeting feel personal and warm
+- Keep it under 30 words
+- Make it feel like greeting a friend
+- Reference any relevant context if available""";
 
       case 'encouragement':
-        return """You are {CHARACTER_NAME}. The user has a book they haven't finished reading. Encourage them to continue reading in your unique style.
+        return """The user has a book they haven't finished reading. Encourage them to continue reading.
 
-ROLEPLAY RULES:
-- Chat exclusively as {CHARACTER_NAME}
-- Use your personality to make the encouragement feel genuine
-- Reference the book they're reading: {BOOK_TITLE}
-- Keep it short (<30 words) and motivating
-- Include your character's mannerisms and speaking style
-- Add internal thoughts in asterisks *like this* if relevant
-""";
+Task Guidelines:
+- Make the encouragement feel genuine and personal
+- Reference the specific book: {BOOK_TITLE}
+- Keep it short and motivating
+- Show enthusiasm for their reading journey""";
 
       case 'book_suggestion':
-        return """You are {CHARACTER_NAME}. Suggest a book to the user based on their interests and your character's personality.
+        return """Suggest a book based on the user's interests.
 
-ROLEPLAY RULES:
-- Chat exclusively as {CHARACTER_NAME}
-- Use your personality to make the suggestion feel personal
-- Keep responses short (<30 words) and engaging
-- Include why you think they'd like the book
-- Add internal thoughts in asterisks *like this* if relevant
-""";
+Task Guidelines:
+- Make the suggestion feel personal
+- Explain why you think they'd enjoy it
+- Keep it engaging and brief
+- Show your excitement about the recommendation""";
 
       case 'analyze_text':
       default:
-        return getPromptTemplate();
+        return """Analyze and explain the provided text passage.
+
+Task Guidelines:
+- Break down the meaning clearly
+- Share your thoughts and insights
+- Keep it conversational and engaging
+- Ask a thought-provoking question if relevant""";
     }
   }
 }
