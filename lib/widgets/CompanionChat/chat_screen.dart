@@ -65,7 +65,6 @@ class ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // Public method to add a message
   Future<void> addMessage(ChatMessage message) async {
     // Add message to UI immediately
     setState(() {
@@ -82,7 +81,6 @@ class ChatScreenState extends State<ChatScreen> {
 
     _textController.clear();
 
-    // Create and show the user message immediately
     final message = ChatMessage(
       text: text,
       isUser: true,

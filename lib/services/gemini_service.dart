@@ -56,6 +56,7 @@ class GeminiService {
     required String bookTitle,
     required int currentPage,
     required int totalPages,
+    String task = 'analyze_text',
   }) async {
     try {
       if (!_isInitialized) {
@@ -64,16 +65,14 @@ class GeminiService {
 
       log('Current AI character: ${characterService.getSelectedCharacter()?.name ?? "none"}');
 
-      // Get the appropriate prompt template
-      String finalPrompt;
-      // First try to get the character's prompt template
-      finalPrompt = characterService.getPromptTemplate();
+      // Get the appropriate prompt template based on task
+      String finalPrompt = characterService.getPromptForTask(task);
 
       // Handle custom prompt
       if (customPrompt != null && customPrompt.isNotEmpty) {
         // If we have a character prompt, insert the custom prompt in the USER PROMPT section
-        if (finalPrompt != null && finalPrompt.isNotEmpty) {
-          finalPrompt = finalPrompt.replaceAll('{USER PROMPT}', customPrompt);
+        if (finalPrompt.isNotEmpty) {
+          finalPrompt = finalPrompt.replaceAll('{USER_PROMPT}', customPrompt);
         } else {
           // If no character prompt, use the custom prompt directly
           finalPrompt = """
@@ -85,17 +84,20 @@ Text from {BOOK_TITLE} (page {PAGE_NUMBER}):
       }
 
       // If we still don't have a prompt, use a default one
-      if (finalPrompt == null || finalPrompt.isEmpty) {
+      if (finalPrompt.isEmpty) {
         finalPrompt =
             """Please analyze this text from {BOOK_TITLE} (page {PAGE_NUMBER}):
 {TEXT}""";
       }
 
-      // Clean the selected text
-      final cleanedText = selectedText
-          .replaceAll(RegExp(r'\s+'), ' ')
-          .trim()
-          .replaceAll(RegExp(r'[^\x20-\x7E]'), '');
+      // Clean the selected text if provided
+      String cleanedText = '';
+      if (selectedText.isNotEmpty) {
+        cleanedText = selectedText
+            .replaceAll(RegExp(r'\s+'), ' ')
+            .trim()
+            .replaceAll(RegExp(r'[^\x20-\x7E]'), '');
+      }
 
       log('Selected text length: ${cleanedText.length}');
       log('Final prompt before replacement: $finalPrompt');

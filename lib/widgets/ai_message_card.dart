@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:migrated/services/ai_character_service.dart';
+import 'package:migrated/depeninject/injection.dart';
 
 class AIMessageCard extends StatelessWidget {
   final String message;
@@ -12,6 +14,11 @@ class AIMessageCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final character = getIt<AiCharacterService>().getSelectedCharacter();
+    final characterName = character?.name ?? 'Leafy AI';
+    final characterImage =
+        character?.imagePath ?? 'assets/images/leafy_icon.png';
+
     return Container(
       margin: const EdgeInsets.only(top: 12),
       child: Stack(
@@ -27,14 +34,14 @@ class AIMessageCard extends StatelessWidget {
                   Row(
                     children: [
                       Image.asset(
-                        'assets/images/leafy_icon.png',
+                        characterImage,
                         width: 24,
                         height: 24,
                       ),
                       const SizedBox(width: 8),
-                      const Text(
-                        'Leafy AI has been waiting:',
-                        style: TextStyle(
+                      Text(
+                        '$characterName has been waiting:',
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
                         ),

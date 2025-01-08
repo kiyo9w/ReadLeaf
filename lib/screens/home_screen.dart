@@ -82,9 +82,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _generateAIMessage() async {
     try {
-      // final message = await _geminiService.askAboutText("tell me about the book");
-      final message =
-          "You told me you would read this book at 20:00 today, chop chop get to work. Come one, You’re halfway through Harry Potter—let’s see what happens next! :)";
+      final state = context.read<FileBloc>().state;
+      String bookTitle = '';
+
+      if (state is FileLoaded && state.files.isNotEmpty) {
+        final lastReadBook = state.files.firstWhere(
+          (file) => file.wasRead,
+          orElse: () => state.files.first,
+        );
+        bookTitle = FileCard.extractFileName(lastReadBook.filePath);
+      }
+
+      final message = await _geminiService.askAboutText(
+        '', // No selected text needed for encouragement
+        customPrompt: '', // Let the character's personality shine
+        bookTitle: bookTitle,
+        currentPage: 1,
+        totalPages: 1,
+        task: 'encouragement', // Use the encouragement prompt
+      );
+
       if (mounted) {
         setState(() {
           _aiMessage = message;

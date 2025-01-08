@@ -15,6 +15,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:migrated/services/gemini_service.dart';
 import 'package:get_it/get_it.dart';
 import 'package:migrated/widgets/CompanionChat/floating_chat_widget.dart';
+import 'package:migrated/models/chat_message.dart';
 
 class PDFViewerScreen extends StatefulWidget {
   const PDFViewerScreen({Key? key}) : super(key: key);
@@ -452,9 +453,22 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                               // Show the chat if it's not already visible
                               _floatingChatKey.currentState?.showChat();
 
+                              // Format the message to include both selected text and prompt
+                              if (selectedTextCopy.isNotEmpty) {
+                                // Add the message to the chat UI
+                                _floatingChatKey.currentState
+                                    ?.addUserMessage(selectedTextCopy);
+                              }
+
+                              if (customPrompt != null) {
+                                _floatingChatKey.currentState
+                                    ?.addUserMessage(customPrompt ?? '');
+                              }
+
                               // Use handleChatMessage with the selected text
                               _handleChatMessage(
-                                customPrompt ?? "Can you explain this text?",
+                                customPrompt ??
+                                    "Can you explain what the text is about? After that share your thoughts in a single open ended question in the same paragraph, make the question short and concise.",
                                 selectedText: selectedTextCopy,
                               );
                             },
