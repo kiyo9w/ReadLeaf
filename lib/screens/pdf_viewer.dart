@@ -14,7 +14,7 @@ import 'package:migrated/widgets/text_search_view.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:migrated/services/gemini_service.dart';
 import 'package:get_it/get_it.dart';
-import 'package:migrated/widgets/floating_chat_widget.dart';
+import 'package:migrated/widgets/CompanionChat/floating_chat_widget.dart';
 
 class PDFViewerScreen extends StatefulWidget {
   const PDFViewerScreen({Key? key}) : super(key: key);
@@ -189,17 +189,18 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
 
     try {
       // If there's selected text, create a formatted message
-      String userMessage;
+      String userMessage = message;
       if (selectedText != null) {
-        userMessage = 'Imported text: "$selectedText"\n\n$message';
+        // contextText = 'Imported text: "$selectedText"\n\n$message';
         // Only add user message for selected text case
-        _floatingChatKey.currentState?.addUserMessage(userMessage);
-      } else {
-        userMessage = message;
+        _floatingChatKey.currentState?.addUserMessage(selectedText);
       }
 
       final response = await _geminiService.askAboutText(
-        userMessage,
+        selectedText ?? '',
+        customPrompt: selectedText != null
+            ? 'Imported text: "$selectedText"\n\n$message'
+            : message,
         bookTitle: bookTitle,
         currentPage: currentPage,
         totalPages: totalPages,

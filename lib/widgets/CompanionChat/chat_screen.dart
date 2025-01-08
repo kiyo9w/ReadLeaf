@@ -110,10 +110,6 @@ class ChatScreenState extends State<ChatScreen> {
         image: DecorationImage(
           image: const AssetImage('assets/images/chat_bg_pattern.png'),
           fit: BoxFit.cover,
-          colorFilter: ColorFilter.mode(
-            Colors.white.withOpacity(0.1),
-            BlendMode.dstATop,
-          ),
         ),
       ),
       child: Column(
@@ -144,7 +140,7 @@ class ChatScreenState extends State<ChatScreen> {
                     const SizedBox(width: 12),
                     const Expanded(
                       child: Text(
-                        'AI Assistant',
+                        'Amelia',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,

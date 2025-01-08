@@ -62,10 +62,6 @@ class GeminiService {
         return 'Gemini service is not initialized. Please check your API key configuration.';
       }
 
-      if (selectedText.isEmpty) {
-        return _getDefaultMessage();
-      }
-
       log('Current AI character: ${characterService.getSelectedCharacter()?.name ?? "none"}');
 
       // Get the appropriate prompt template
@@ -109,20 +105,39 @@ Text from {BOOK_TITLE} (page {PAGE_NUMBER}):
           .replaceAll('{TEXT}', cleanedText)
           .replaceAll('{BOOK_TITLE}', bookTitle)
           .replaceAll('{PAGE_NUMBER}', currentPage.toString())
-          .replaceAll('{TOTAL_PAGES}', totalPages.toString());
+          .replaceAll('{TOTAL_PAGES}', totalPages.toString())
+          .replaceAll('{CHARACTER_NAME}',
+              characterService.getSelectedCharacter()?.name ?? 'AI Assistant');
 
       log('Final prompt after replacement: $finalPrompt');
 
+      // Clean up any potential formatting issues
+      finalPrompt = finalPrompt.trim().replaceAll(RegExp(r'\n{3,}'), '\n\n');
+
       final content = [Content.text(finalPrompt)];
-      final response = await _model.generateContent(content);
+      try {
+        final response = await _model.generateContent(content);
 
-      if (response.text != null) {
-        return response.text!;
+        if (response.text != null) {
+          return response.text!;
+        }
+
+        // Check for specific error cases
+        if (response.promptFeedback != null) {
+          log('Prompt feedback: ${response.promptFeedback}');
+          return "I apologize, but I cannot process this request due to content restrictions. Please try rephrasing your question.";
+        }
+
+        return _getDefaultMessage();
+      } catch (e) {
+        log('Error in Gemini API call: $e');
+        if (e.toString().contains('PromptFeedback')) {
+          return "I apologize, but I cannot process this request due to content restrictions. Please try rephrasing your question.";
+        }
+        return _getDefaultMessage();
       }
-
-      return _getDefaultMessage();
     } catch (e) {
-      log('Error in Gemini API call: $e');
+      log('Error in askAboutText: $e');
       return _getDefaultMessage();
     }
   }

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:migrated/widgets/chat_screen.dart';
+import 'package:migrated/widgets/CompanionChat/chat_screen.dart';
 import 'package:migrated/models/chat_message.dart';
 
 class FloatingChatWidget extends StatefulWidget {
@@ -180,7 +180,7 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
                 ),
                 // Resize handle
                 Positioned(
-                  right: 0,
+                  left: 0,
                   bottom: 0,
                   child: GestureDetector(
                     onPanStart: (_) => setState(() => _isResizing = true),
