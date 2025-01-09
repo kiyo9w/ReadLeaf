@@ -21,8 +21,8 @@ class _FloatingChatHeadState extends State<FloatingChatHead> {
   void _updatePosition(DragUpdateDetails details) {
     setState(() {
       position = Offset(
-        position.dx + details.delta.dx,
-        position.dy + details.delta.dy,
+        position.dx - details.delta.dx,
+        position.dy - details.delta.dy,
       );
     });
   }

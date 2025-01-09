@@ -4,44 +4,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:migrated/widgets/snack_bar_widget.dart';
 import 'package:migrated/blocs/SearchBloc/search_bloc.dart';
 import 'package:migrated/screens/nav_screen.dart';
+import 'package:migrated/constants/search_constants.dart';
 import 'results_page.dart';
 import '../depeninject/injection.dart';
 import '../services/annas_archieve.dart';
-
-final Map<String, String> typeValues = {
-  'All': '',
-  'Any Books': 'book_any',
-  'Unknown Books': 'book_unknown',
-  'Fiction Books': 'book_fiction',
-  'Non-fiction Books': 'book_nonfiction',
-  'Comic Books': 'book_comic',
-  'Magazine': 'magazine',
-  'Standards Document': 'standards_document',
-  'Journal Article': 'journal_article'
-};
-
-final Map<String, String> sortValues = {
-  'Most Relevant': '',
-  'Newest': 'newest',
-  'Oldest': 'oldest',
-  'Largest': 'largest',
-  'Smallest': 'smallest',
-};
-
-final List<String> fileType = ["All", "PDF", "Epub", "Cbr", "Cbz"];
-
-final List<String> topSearchQueries = [
-  "The 48 Laws of Power",
-  "Atomic Habits",
-  "Control Your Mind and Master Your Feelings"
-];
-
-final List<String> trendingQueries = [
-  "fiction",
-  "novel",
-  "non-fiction",
-  "romance"
-];
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({Key? key}) : super(key: key);
@@ -101,9 +67,9 @@ class _SearchScreenState extends State<SearchScreen>
     setState(() => _isLoading = true);
     try {
       final trendingFuture =
-          _annasArchieve.getMassBooks(queries: trendingQueries);
-      final topSearchesFuture =
-          _annasArchieve.getMassBooks(queries: topSearchQueries);
+          _annasArchieve.getMassBooks(queries: SearchConstants.trendingQueries);
+      final topSearchesFuture = _annasArchieve.getMassBooks(
+          queries: SearchConstants.topSearchQueries);
       final results = await Future.wait([trendingFuture, topSearchesFuture]);
       setState(() {
         _trendingBooks = results[0];
@@ -120,8 +86,8 @@ class _SearchScreenState extends State<SearchScreen>
     if (searchQuery.isNotEmpty) {
       _searchBloc.add(SearchBooks(
         query: searchQuery,
-        content: typeValues[selectedType] ?? '',
-        sort: sortValues[selectedSort] ?? '',
+        content: SearchConstants.typeValues[selectedType] ?? '',
+        sort: SearchConstants.sortValues[selectedSort] ?? '',
         fileType:
             selectedFileType == "All" ? '' : selectedFileType.toLowerCase(),
         enableFilters: true,
@@ -180,7 +146,7 @@ class _SearchScreenState extends State<SearchScreen>
                       ),
                     ),
                     value: selectedType,
-                    items: typeValues.keys
+                    items: SearchConstants.typeValues.keys
                         .map<DropdownMenuItem<String>>((String value) {
                       return DropdownMenuItem<String>(
                         value: value,
@@ -217,7 +183,7 @@ class _SearchScreenState extends State<SearchScreen>
                       ),
                     ),
                     value: selectedSort,
-                    items: sortValues.keys
+                    items: SearchConstants.sortValues.keys
                         .map<DropdownMenuItem<String>>((String value) {
                       return DropdownMenuItem<String>(
                         value: value,
@@ -254,8 +220,8 @@ class _SearchScreenState extends State<SearchScreen>
                       ),
                     ),
                     value: selectedFileType,
-                    items:
-                        fileType.map<DropdownMenuItem<String>>((String value) {
+                    items: SearchConstants.fileTypes
+                        .map<DropdownMenuItem<String>>((String value) {
                       return DropdownMenuItem<String>(
                         value: value,
                         child: Text(

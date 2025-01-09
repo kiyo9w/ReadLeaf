@@ -93,7 +93,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/images/
+    - assets/images/chat_bg_pattern.png
     - assets/images/leafy_icon.png
     - assets/images/ai_characters/professor.png
     - assets/images/ai_characters/student.png

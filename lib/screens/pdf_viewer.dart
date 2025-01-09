@@ -14,7 +14,8 @@ import 'package:migrated/widgets/text_search_view.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:migrated/services/gemini_service.dart';
 import 'package:get_it/get_it.dart';
-import 'package:migrated/widgets/floating_chat_widget.dart';
+import 'package:migrated/widgets/CompanionChat/floating_chat_widget.dart';
+import 'package:migrated/models/chat_message.dart';
 
 class PDFViewerScreen extends StatefulWidget {
   const PDFViewerScreen({Key? key}) : super(key: key);
@@ -177,7 +178,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
     }
   }
 
-  void _handleChatMessage(String message, {String? selectedText}) async {
+  void _handleChatMessage(String? message, {String? selectedText}) async {
     final state = context.read<ReaderBloc>().state;
     if (state is! ReaderLoaded) {
       return;
@@ -188,18 +189,10 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
     final totalPages = state.totalPages;
 
     try {
-      // If there's selected text, create a formatted message
-      String userMessage;
-      if (selectedText != null) {
-        userMessage = 'Imported text: "$selectedText"\n\n$message';
-        // Only add user message for selected text case
-        _floatingChatKey.currentState?.addUserMessage(userMessage);
-      } else {
-        userMessage = message;
-      }
-
       final response = await _geminiService.askAboutText(
-        userMessage,
+        selectedText ?? '',
+        customPrompt: message ??
+            'Can you explain what the text is about? After that share your thoughts in a single open ended question in the same paragraph, make the question short and concise.',
         bookTitle: bookTitle,
         currentPage: currentPage,
         totalPages: totalPages,
@@ -451,9 +444,27 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                               // Show the chat if it's not already visible
                               _floatingChatKey.currentState?.showChat();
 
-                              // Use handleChatMessage with the selected text
+                              // Wait a tiny bit for the chat to become visible
+                              await Future.delayed(
+                                  const Duration(milliseconds: 100));
+
+                              if (!mounted) return;
+
+                              // Add the messages immediately
+                              if (selectedTextCopy.isNotEmpty) {
+                                _floatingChatKey.currentState!.addUserMessage(
+                                    'Imported Text: """$selectedTextCopy"""');
+
+                                if (customPrompt != null &&
+                                    customPrompt!.isNotEmpty) {
+                                  _floatingChatKey.currentState!
+                                      .addUserMessage(customPrompt!);
+                                }
+                              }
+
+                              // Now get the AI response
                               _handleChatMessage(
-                                customPrompt ?? "Can you explain this text?",
+                                customPrompt,
                                 selectedText: selectedTextCopy,
                               );
                             },

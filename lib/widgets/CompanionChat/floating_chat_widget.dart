@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:migrated/widgets/chat_screen.dart';
+import 'package:migrated/widgets/CompanionChat/chat_screen.dart';
 import 'package:migrated/models/chat_message.dart';
 
 class FloatingChatWidget extends StatefulWidget {
@@ -84,12 +84,23 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
     // Get screen size
     final size = MediaQuery.of(context).size;
 
-    // Define chat screen boundaries
+    // Calculate chat Y position
+    double chatY = _yPosition + 70;
+    if (chatY + _chatHeight > size.height - 20) {
+      chatY = size.height - _chatHeight - 20;
+    }
+
+    // Calculate chat X position based on floating head position
+    double chatX = _xPosition < size.width / 2
+        ? 16 // Left aligned
+        : size.width - _chatWidth - 16; // Right aligned
+
+    // Define chat screen boundaries using actual position and size
     final chatScreenRect = Rect.fromLTWH(
-      size.width - 340, // 20px from right edge
-      size.height - 580, // 100px from bottom
-      320, // chat screen width
-      480, // chat screen height
+      chatX,
+      chatY,
+      _chatWidth,
+      _chatHeight,
     );
 
     if (!chatScreenRect.contains(localOffset)) {
@@ -162,7 +173,10 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
         // The chat screen
         if (_showChat)
           Positioned(
-            right: 16,
+            right:
+                _xPosition < MediaQuery.of(context).size.width / 2 ? null : 16,
+            left:
+                _xPosition < MediaQuery.of(context).size.width / 2 ? 16 : null,
             top: chatY,
             child: Stack(
               children: [
@@ -180,13 +194,23 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
                 ),
                 // Resize handle
                 Positioned(
-                  right: 0,
+                  left: _xPosition < MediaQuery.of(context).size.width / 2
+                      ? null
+                      : 0,
+                  right: _xPosition < MediaQuery.of(context).size.width / 2
+                      ? 0
+                      : null,
                   bottom: 0,
                   child: GestureDetector(
                     onPanStart: (_) => setState(() => _isResizing = true),
                     onPanUpdate: (details) {
                       setState(() {
-                        _chatWidth = (_chatWidth + details.delta.dx)
+                        // If chat is on the left side, reverse the horizontal resize direction
+                        final horizontalDelta =
+                            _xPosition < MediaQuery.of(context).size.width / 2
+                                ? details.delta.dx
+                                : -details.delta.dx;
+                        _chatWidth = (_chatWidth + horizontalDelta)
                             .clamp(280.0, screenSize.width - 32);
                         _chatHeight = (_chatHeight + details.delta.dy)
                             .clamp(400.0, screenSize.height - 40);

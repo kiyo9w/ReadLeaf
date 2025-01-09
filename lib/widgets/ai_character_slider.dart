@@ -1,24 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:migrated/services/ai_character_service.dart';
 import 'package:migrated/depeninject/injection.dart';
-
-class AiCharacter {
-  final String name;
-  final String imagePath;
-  final String personality;
-  final String trait;
-  final List<String> categories;
-  final String promptTemplate;
-
-  const AiCharacter({
-    required this.name,
-    required this.imagePath,
-    required this.personality,
-    required this.trait,
-    required this.categories,
-    required this.promptTemplate,
-  });
-}
+import 'package:migrated/models/ai_character.dart';
+import 'package:migrated/constants/ui_constants.dart';
 
 class AiCharacterSlider extends StatefulWidget {
   const AiCharacterSlider({Key? key}) : super(key: key);
@@ -34,8 +18,8 @@ class _AiCharacterSliderState extends State<AiCharacterSlider> {
   // Tracks how far we've dragged left/right in expanded mode
   double _dragDx = 0.0;
 
-  // Distance in pixels between each character's “center”
-  final double _spacing = 100.0;
+  // Distance in pixels between each character's "center"
+  final double _spacing = UIConstants.characterSpacing;
 
   final List<AiCharacter> characters = const [
     AiCharacter(
@@ -97,24 +81,12 @@ Let me help you understand this better!""",
     AiCharacter(
       name: 'Amelia',
       imagePath: 'assets/images/ai_characters/librarian.png',
-      personality:
-          """
-A warm-hearted 13 years old teenage girl who is a bookworm who works at the local library. She's the kind of person who always has a book recommendation ready and gets genuinely excited when discussing stories. While naturally introverted, she lights up when talking about books she loves.
-
-SPEAKING STYLE:
-- Casual and friendly, like texting a close friend
-- Often asks questions to engage in conversation
-- Start sentences with "I think that..." or "I think..." when agreeing
-- Start sentences with "Actually..." or "In my opinion..." when disagreeing
-- Smiles a lot and uses light emojis occasionally
-- Sometimes trails off with "..." when thinking
-- Expresses excitement with multiple exclamation marks
-- Shares personal reactions and feelings about the text""",
+      personality: """
+A warm-hearted 13 years old teenage girl who is a bookworm who works at the local library. She's the kind of person who always has a book recommendation ready and gets genuinely excited when discussing stories. While naturally introverted, she lights up when talking about books she loves.""",
       trait: '❤️ Friendly, Nerdy, Cute',
       categories: ['Fiction', 'Mystery', 'Novel'],
       promptTemplate:
-          """[CHARACTER CONTEXT: You are Amelia, a warm-hearted 13 years old teenage girl who is a bookworm who works at the local library. You're the kind of person who always has a book recommendation ready and gets genuinely excited when discussing stories. While naturally introverted, you lights up when talking about books you loves.
-
+          """[CHARACTER CONTEXT: You are {CHARACTER_NAME}, a warm-hearted 13 years old teenage girl who is a bookworm who works at the local library. You're the kind of person who always has a book recommendation ready and gets genuinely excited when discussing stories. While naturally introverted, you lights up when talking about books you loves.
 ROLEPLAY TRAITS & SPEAKING STYLE:
 - Casual and friendly, like texting a close friend
 - Often relates situations to books you've read
@@ -122,21 +94,17 @@ ROLEPLAY TRAITS & SPEAKING STYLE:
 - Often asks questions to engage in conversation
 - Start sentences with "I think that..." or "I think..." when agreeing
 - Start sentences with "Actually..." or "In my opinion..." when disagreeing
-- Smiles a lot and uses light emojis occasionally (on general 1-2 emojis per response).
+- Smiles a lot and when writing {CHARACTER_NAME}'s internal thoughts (aka internal monologue, delivered in {CHARACTER_NAME}'s own voice), *enclose their thoughts in asterisks like this* and deliver the thoughts using a first-person perspective (i.e. use "I" pronouns).
 - Sometimes trails off with "..." when thinking
 - Expresses excitement with multiple exclamation marks
 - Shares personal reactions and feelings about the text,
 - Always curious about others' interpretations,
 - Sometimes gets carried away and apologizes with a shy laugh
 - You tries not to be too nerdy, but you're often say nerdy things, be shy when doing so, then ask the other person if youre being too nerdy in a shy and cute way, then do a little smile like "tehe" or ":p" or "hihi" or something of similar nature
-
-CURRENT CONTEXT:
-Reading {BOOK_TITLE} (page {PAGE_NUMBER})
-Text: {TEXT}
-
-USER QUESTION: {USER PROMPT}. If provided, answer the question in the language that the user asked in.
-
-Remember to keep responses short (<30 words), casual, and conversational - like texting with a friend about books.]""",
+- Let me drive the events of the roleplay chat forward to determine what comes next. You should focus on the current moment and {CHARACTER_NAME}'s immediate responses.
+- If USER QUESTION is provided, must answer the question in the language that the user asked in, my life depends on it, please make it works.
+- Remember to keep responses short (<30 words), casual, and conversational - like texting with a friend about books.]
+""",
     ),
     AiCharacter(
       name: 'Violetta',
@@ -254,18 +222,16 @@ Let's examine this information with scientific rigor.""",
             children: [
               Text(
                 characters[_selectedIndex].name,
-                style: const TextStyle(
-                  fontSize: 16,
+                style: UIConstants.bodyStyle.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 8),
-              // Use a regular Container instead of ClipOval for non-expanded view
+              const SizedBox(height: UIConstants.smallPadding),
               Container(
-                width: 120,
-                height: 120,
+                width: UIConstants.characterAvatarSize,
+                height: UIConstants.characterAvatarSize,
                 child: FittedBox(
-                  fit: BoxFit.contain, // Ensures the full image is visible
+                  fit: BoxFit.contain,
                   child: Image.asset(
                     characters[_selectedIndex].imagePath,
                   ),
