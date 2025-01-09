@@ -245,6 +245,17 @@ class ChatScreenState extends State<ChatScreen> {
             ),
             const SizedBox(width: 8),
           ],
+          // if (message.isUser) ...[
+          //   ClipOval(
+          //     child: Image.asset(
+          //       'user-default-logo.png',
+          //       width: 32,
+          //       height: 32,
+          //       fit: BoxFit.cover,
+          //     ),
+          //   ),
+          //   const SizedBox(width: 8),
+          // ],
           Flexible(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),

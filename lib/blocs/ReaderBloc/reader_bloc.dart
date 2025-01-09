@@ -1,10 +1,12 @@
 import 'dart:io';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:flutter/material.dart';
 import 'package:migrated/depeninject/injection.dart';
 import 'package:migrated/models/book_metadata.dart';
 import 'package:migrated/services/book_metadata_repository.dart';
 import 'package:path/path.dart' as path;
+import 'package:pdfrx/pdfrx.dart';
 
 part 'reader_event.dart';
 part 'reader_state.dart';
@@ -36,16 +38,30 @@ class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
         return;
       }
 
+      // Get the total pages from the PDF document
+      int totalPages = 100; // Default value
+      if (fileType == "pdf") {
+        final document = await PdfDocument.openFile(event.filePath);
+        totalPages = document.pages.length;
+        await document.dispose();
+      }
+
       // Get or create metadata
       BookMetadata? metadata = _metadataRepository.getMetadata(event.filePath);
       if (metadata == null) {
         metadata = BookMetadata(
           filePath: event.filePath,
           title: path.basename(event.filePath),
-          totalPages: 100, // This should be determined from the actual PDF
+          totalPages: totalPages, // Now using the actual page count
           lastReadTime: DateTime.now(),
         );
         await _metadataRepository.saveMetadata(metadata);
+      } else {
+        // Update the total pages in case it was incorrect before
+        if (metadata.totalPages != totalPages) {
+          metadata = metadata.copyWith(totalPages: totalPages);
+          await _metadataRepository.saveMetadata(metadata);
+        }
       }
 
       emit(ReaderLoaded(
