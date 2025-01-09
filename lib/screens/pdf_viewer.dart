@@ -190,18 +190,16 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
 
     try {
       // If there's selected text, create a formatted message
-      String userMessage = message;
-      if (selectedText != null) {
-        // contextText = 'Imported text: "$selectedText"\n\n$message';
-        // Only add user message for selected text case
-        _floatingChatKey.currentState?.addUserMessage(selectedText);
-      }
+      // String contextText = '';
+      // if (selectedText != null) {
+      //   contextText = 'Imported text: "$selectedText"\n\n$message';
+      //   // Only add user message for selected text case
+      //   // _floatingChatKey.currentState?.addUserMessage(selectedText);
+      // }
 
       final response = await _geminiService.askAboutText(
         selectedText ?? '',
-        customPrompt: selectedText != null
-            ? 'Imported text: "$selectedText"\n\n$message'
-            : message,
+        customPrompt: message ?? '',
         bookTitle: bookTitle,
         currentPage: currentPage,
         totalPages: totalPages,

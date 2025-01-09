@@ -84,7 +84,7 @@ ROLEPLAY RULES:
 
 Task Guidelines:
 - Make the greeting feel personal and warm
-- Keep it under 30 words
+- Keep it under 10 words
 - Make it feel like greeting a friend
 - Reference any relevant context if available""";
 

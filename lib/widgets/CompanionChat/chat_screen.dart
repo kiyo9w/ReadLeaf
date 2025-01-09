@@ -294,12 +294,14 @@ class ChatScreenState extends State<ChatScreen> {
                     ),
                     const SizedBox(height: 8),
                   ],
-                  Text(
-                    displayText,
-                    style: TextStyle(
-                      color: Colors.black87,
-                      fontSize: 15,
-                      height: 1.4,
+                  RichText(
+                    text: TextSpan(
+                      style: TextStyle(
+                        color: Colors.black87,
+                        fontSize: 15,
+                        height: 1.4,
+                      ),
+                      children: _parseText(displayText),
                     ),
                   ),
                 ],
@@ -311,5 +313,68 @@ class ChatScreenState extends State<ChatScreen> {
         ],
       ),
     );
+  }
+
+  List<TextSpan> _parseText(String text) {
+    final List<TextSpan> spans = [];
+    final RegExp emotePattern = RegExp(r'\*(.*?)\*');
+    final RegExp importedTextPattern = RegExp(r'""".*?"""');
+
+    int currentPosition = 0;
+
+    while (currentPosition < text.length) {
+      // Try to find the next emote or imported text
+      final emoteMatch =
+          emotePattern.firstMatch(text.substring(currentPosition));
+      final importedMatch =
+          importedTextPattern.firstMatch(text.substring(currentPosition));
+
+      // Determine which pattern comes first
+      final emoteIndex = emoteMatch?.start ?? text.length;
+      final importedIndex = importedMatch?.start ?? text.length;
+
+      if (emoteIndex < importedIndex) {
+        // Add text before the emote
+        if (emoteIndex > 0) {
+          spans.add(TextSpan(
+            text: text.substring(currentPosition, currentPosition + emoteIndex),
+          ));
+        }
+        // Add the emote with special styling
+        spans.add(TextSpan(
+          text: emoteMatch![1],
+          style: TextStyle(
+            color: Colors.grey[600],
+            fontStyle: FontStyle.italic,
+          ),
+        ));
+        currentPosition += emoteMatch.end;
+      } else if (importedIndex < text.length) {
+        // Add text before the imported text
+        if (importedIndex > 0) {
+          spans.add(TextSpan(
+            text: text.substring(
+                currentPosition, currentPosition + importedIndex),
+          ));
+        }
+        // Add the entire imported text block including quotes with special styling
+        spans.add(TextSpan(
+          text: importedMatch![
+              0], // Use [0] to get the entire match including quotes
+          style: TextStyle(
+            color: Colors.grey[600],
+          ),
+        ));
+        currentPosition += importedMatch.end;
+      } else {
+        // Add the remaining text
+        spans.add(TextSpan(
+          text: text.substring(currentPosition),
+        ));
+        break;
+      }
+    }
+
+    return spans;
   }
 }
