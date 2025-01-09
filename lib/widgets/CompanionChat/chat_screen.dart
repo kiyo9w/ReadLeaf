@@ -225,17 +225,7 @@ class ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildMessageBubble(ChatMessage message) {
-    // Split message into imported text and question if it contains "Imported text:"
-    String? importedText;
     String displayText = message.text;
-
-    if (message.text.startsWith('Imported text:')) {
-      final parts = message.text.split('\n\n');
-      if (parts.length > 1) {
-        importedText = parts[0];
-        displayText = parts.sublist(1).join('\n\n');
-      }
-    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -277,23 +267,6 @@ class ChatScreenState extends State<ChatScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (importedText != null) ...[
-                    Text(
-                      importedText,
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 14,
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      width: double.infinity,
-                      height: 1,
-                      color: Colors.grey[200],
-                    ),
-                    const SizedBox(height: 8),
-                  ],
                   RichText(
                     text: TextSpan(
                       style: TextStyle(

@@ -84,12 +84,23 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
     // Get screen size
     final size = MediaQuery.of(context).size;
 
-    // Define chat screen boundaries
+    // Calculate chat Y position
+    double chatY = _yPosition + 70;
+    if (chatY + _chatHeight > size.height - 20) {
+      chatY = size.height - _chatHeight - 20;
+    }
+
+    // Calculate chat X position based on floating head position
+    double chatX = _xPosition < size.width / 2
+        ? 16 // Left aligned
+        : size.width - _chatWidth - 16; // Right aligned
+
+    // Define chat screen boundaries using actual position and size
     final chatScreenRect = Rect.fromLTWH(
-      size.width - 340, // 20px from right edge
-      size.height - 580, // 100px from bottom
-      320, // chat screen width
-      480, // chat screen height
+      chatX,
+      chatY,
+      _chatWidth,
+      _chatHeight,
     );
 
     if (!chatScreenRect.contains(localOffset)) {
