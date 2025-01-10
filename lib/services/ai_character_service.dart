@@ -237,7 +237,7 @@ USER QUESTION: {USER_PROMPT}
     return cleanedParts.join('\n').trim();
   }
 
-  String getProgressPercentage(int pageNumber, int totalPages) {
+  static String getProgressPercentage(int pageNumber, int totalPages) {
     return ((pageNumber / totalPages) * 100).toStringAsFixed(1);
   }
 

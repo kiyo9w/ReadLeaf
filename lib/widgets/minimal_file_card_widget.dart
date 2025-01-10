@@ -136,7 +136,7 @@ class MinimalFileCard extends StatelessWidget {
               right: 0,
               child: LinearPercentIndicator(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
-                lineHeight: 2.0,
+                lineHeight: 4.0,
                 percent: progress,
                 backgroundColor: Colors.brown.shade100,
                 progressColor: Colors.brown.shade300,

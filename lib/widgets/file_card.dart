@@ -11,6 +11,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:migrated/services/book_metadata_repository.dart';
+import 'package:migrated/services/ai_character_service.dart';
 import 'package:get_it/get_it.dart';
 
 class FileCard extends StatelessWidget {
@@ -191,7 +192,7 @@ class FileCard extends StatelessWidget {
         const SizedBox(height: 62),
         LinearPercentIndicator(
           padding: const EdgeInsets.symmetric(horizontal: 0),
-          lineHeight: 2.0,
+          lineHeight: 4.0,
           percent: progress,
           backgroundColor: Colors.brown.shade100,
           progressColor: Colors.brown.shade300,
@@ -204,8 +205,15 @@ class FileCard extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 22),
-        const SizedBox(height: 22),
+        const SizedBox(height: 6),
+        Text(_getProgressText(), 
+          textAlign: TextAlign.right,
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 12, 
+            color: Colors.brown.shade300
+            ),
+          ),
         // Icons at the bottom (Star and a check icon)
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
