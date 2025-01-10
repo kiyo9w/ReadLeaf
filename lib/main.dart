@@ -6,12 +6,25 @@ import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
 import 'package:migrated/screens/nav_screen.dart';
 import 'package:migrated/screens/pdf_viewer.dart';
 import 'package:migrated/depeninject/injection.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:migrated/models/ai_character_preference.dart';
+import 'package:migrated/services/ai_character_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Setup dependencies
+  // Initialize Hive
+  await Hive.initFlutter();
+
+  // Register Hive adapters
+  Hive.registerAdapter(AiCharacterPreferenceAdapter());
+
+  // Initialize services
   await configureDependencies();
+
+  // Initialize the AI character service
+  final aiCharacterService = getIt<AiCharacterService>();
+  await aiCharacterService.init();
 
   runApp(const MyApp());
 }

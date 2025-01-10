@@ -108,6 +108,7 @@ Text from {BOOK_TITLE} (page {PAGE_NUMBER}):
           .replaceAll('{BOOK_TITLE}', bookTitle)
           .replaceAll('{PAGE_NUMBER}', currentPage.toString())
           .replaceAll('{TOTAL_PAGES}', totalPages.toString())
+          .replaceAll('{PROGRESS}', characterService.getProgressPercentage(currentPage, totalPages))
           .replaceAll('{CHARACTER_NAME}',
               characterService.getSelectedCharacter()?.name ?? 'AI Assistant')
           .replaceAll('{USER_PROMPT}', customPrompt ?? '');

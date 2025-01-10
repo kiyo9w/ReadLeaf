@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:migrated/services/ai_character_service.dart';
 import 'package:migrated/depeninject/injection.dart';
+import 'package:migrated/widgets/typing_text.dart';
 
 class AIMessageCard extends StatelessWidget {
   final String message;
@@ -49,12 +50,13 @@ class AIMessageCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Text(
-                    message,
+                  TypingText(
+                    text: message,
                     style: const TextStyle(
                       fontSize: 15,
                       height: 1.4,
                     ),
+                    typingSpeed: const Duration(milliseconds: 30),
                   ),
                 ],
               ),
