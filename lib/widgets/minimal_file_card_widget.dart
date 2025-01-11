@@ -3,6 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:migrated/blocs/FileBloc/file_bloc.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'dart:io';
+import 'package:percent_indicator/linear_percent_indicator.dart';
+import 'package:migrated/services/book_metadata_repository.dart';
+import 'package:get_it/get_it.dart';
 
 class MinimalFileCard extends StatelessWidget {
   final String filePath;
@@ -21,6 +24,19 @@ class MinimalFileCard extends StatelessWidget {
     required this.onTap,
     this.isInternetBook = false,
   }) : super(key: key);
+
+  double _getReadingProgress() {
+    final metadata = GetIt.I<BookMetadataRepository>().getMetadata(filePath);
+    if (metadata != null) {
+      return metadata.readingProgress;
+    }
+    return 0.0;
+  }
+
+  String _getProgressText() {
+    final progress = _getReadingProgress();
+    return '${(progress * 100).toInt()}%';
+  }
 
   Widget _buildThumbnail() {
     if (isInternetBook && thumbnailUrl != null) {
@@ -55,6 +71,8 @@ class MinimalFileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final progress = _getReadingProgress();
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -109,6 +127,26 @@ class MinimalFileCard extends StatelessWidget {
                   onPressed: () {
                     context.read<FileBloc>().add(RemoveFile(filePath));
                   },
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 60,
+              left: 0,
+              right: 0,
+              child: LinearPercentIndicator(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                lineHeight: 4.0,
+                percent: progress,
+                backgroundColor: Colors.brown.shade100,
+                progressColor: Colors.brown.shade300,
+                barRadius: const Radius.circular(1),
+                center: Text(
+                  _getProgressText(),
+                  style: TextStyle(
+                    fontSize: 8,
+                    color: Colors.brown.shade300,
+                  ),
                 ),
               ),
             ),

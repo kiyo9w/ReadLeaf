@@ -14,15 +14,16 @@ import 'package:migrated/services/annas_archieve.dart';
 import 'package:migrated/depeninject/injection.dart';
 import 'package:migrated/models/file_info.dart';
 import 'package:migrated/screens/nav_screen.dart';
+import 'package:migrated/services/book_metadata_repository.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<HomeScreen> createState() => HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class HomeScreenState extends State<HomeScreen> {
   late final GeminiService _geminiService;
   late final AnnasArchieve _annasArchieve;
   String? _aiMessage;
@@ -84,6 +85,8 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final state = context.read<FileBloc>().state;
       String bookTitle = '';
+      int currentPage = 1;
+      int totalPages = 1;
 
       if (state is FileLoaded && state.files.isNotEmpty) {
         final lastReadBook = state.files.firstWhere(
@@ -91,14 +94,22 @@ class _HomeScreenState extends State<HomeScreen> {
           orElse: () => state.files.first,
         );
         bookTitle = FileCard.extractFileName(lastReadBook.filePath);
+
+        // Get actual page numbers from book metadata
+        final bookMetadataRepo = getIt<BookMetadataRepository>();
+        final metadata = bookMetadataRepo.getMetadata(lastReadBook.filePath);
+        if (metadata != null) {
+          currentPage = metadata.lastOpenedPage;
+          totalPages = metadata.totalPages;
+        }
       }
 
       final message = await _geminiService.askAboutText(
         '', // No selected text needed for encouragement
         customPrompt: '', // Let the character's personality shine
         bookTitle: bookTitle,
-        currentPage: 1,
-        totalPages: 1,
+        currentPage: currentPage,
+        totalPages: totalPages,
         task: 'encouragement', // Use the encouragement prompt
       );
 
@@ -110,6 +121,11 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       print('Error generating AI message: $e');
     }
+  }
+
+  // Make this method public so it can be called from the character slider
+  void generateNewAIMessage() {
+    _generateAIMessage();
   }
 
   @override

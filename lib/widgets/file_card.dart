@@ -9,6 +9,10 @@ import 'package:migrated/screens/search_screen.dart';
 import 'package:path/path.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:pdfrx/pdfrx.dart';
+import 'package:percent_indicator/linear_percent_indicator.dart';
+import 'package:migrated/services/book_metadata_repository.dart';
+import 'package:migrated/services/ai_character_service.dart';
+import 'package:get_it/get_it.dart';
 
 class FileCard extends StatelessWidget {
   final String filePath;
@@ -42,6 +46,19 @@ class FileCard extends StatelessWidget {
     this.isStarred = false,
     Key? key,
   }) : super(key: key);
+
+  double _getReadingProgress() {
+    final metadata = GetIt.I<BookMetadataRepository>().getMetadata(filePath);
+    if (metadata != null) {
+      return metadata.readingProgress;
+    }
+    return 0.0;
+  }
+
+  String _getProgressText() {
+    final progress = _getReadingProgress();
+    return '${(progress * 100).toInt()}%';
+  }
 
   Widget _buildThumbnail() {
     if (isInternetBook && thumbnailUrl != null) {
@@ -124,6 +141,7 @@ class FileCard extends StatelessWidget {
 
   Widget _buildLocalFileInfo(BuildContext context) {
     final hardCodedAuthor = "Yuval Noah Harari";
+    final progress = _getReadingProgress();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,9 +157,8 @@ class FileCard extends StatelessWidget {
                   fontWeight: FontWeight.normal,
                   color: isSelected ? Colors.grey[600] : Colors.black,
                 ),
-                maxLines: 1, // Limit to one line
-                overflow:
-                    TextOverflow.ellipsis, // Add ellipsis if text overflows
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 8.0),
@@ -154,7 +171,6 @@ class FileCard extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 4),
-        // Author
         Text(
           hardCodedAuthor,
           style: const TextStyle(
@@ -166,7 +182,6 @@ class FileCard extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 4),
-        // File info (PDF, size)
         Text(
           "PDF, ${formatFileSize(fileSize)}",
           style: TextStyle(
@@ -175,28 +190,30 @@ class FileCard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 62),
-        Row(
-          children: [
-            _buildDot(Colors.brown.shade300),
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                height: 1,
-                color: Colors.brown.shade300,
-              ),
+        LinearPercentIndicator(
+          padding: const EdgeInsets.symmetric(horizontal: 0),
+          lineHeight: 4.0,
+          percent: progress,
+          backgroundColor: Colors.brown.shade100,
+          progressColor: Colors.brown.shade300,
+          barRadius: const Radius.circular(1),
+          center: Text(
+            _getProgressText(),
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.brown.shade300,
             ),
-            _buildDot(Colors.brown.shade300),
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                height: 1,
-                color: Colors.brown.shade300,
-              ),
-            ),
-            _buildDot(Colors.brown.shade300),
-          ],
+          ),
         ),
-        const SizedBox(height: 22),
+        const SizedBox(height: 6),
+        Text(_getProgressText(), 
+          textAlign: TextAlign.right,
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 12, 
+            color: Colors.brown.shade300
+            ),
+          ),
         // Icons at the bottom (Star and a check icon)
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
@@ -286,27 +303,6 @@ class FileCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         const SizedBox(height: 62),
-        Row(
-          children: [
-            _buildDot(Colors.brown.shade300),
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                height: 1,
-                color: Colors.brown.shade300,
-              ),
-            ),
-            _buildDot(Colors.brown.shade300),
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                height: 1,
-                color: Colors.brown.shade300,
-              ),
-            ),
-            _buildDot(Colors.brown.shade300),
-          ],
-        ),
         const SizedBox(height: 22),
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
