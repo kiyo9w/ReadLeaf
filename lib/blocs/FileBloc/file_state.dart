@@ -18,13 +18,13 @@ class FileLoaded extends FileState {
   List<Object> get props => [files];
 }
 
-class FileViewing extends FileState {
+class FileViewing extends FileLoaded {
   final String filePath;
 
-  const FileViewing(this.filePath);
+  const FileViewing(List<FileInfo> files, this.filePath) : super(files);
 
   @override
-  List<Object> get props => [filePath];
+  List<Object> get props => [...super.props, filePath];
 }
 
 class FileScanning extends FileState {}

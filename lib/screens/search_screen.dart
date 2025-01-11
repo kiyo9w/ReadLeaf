@@ -8,6 +8,7 @@ import 'package:migrated/constants/search_constants.dart';
 import 'results_page.dart';
 import '../depeninject/injection.dart';
 import '../services/annas_archieve.dart';
+import 'package:migrated/services/thumbnail_service.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({Key? key}) : super(key: key);
@@ -346,18 +347,38 @@ class _SearchScreenState extends State<SearchScreen>
                             ClipRRect(
                               borderRadius: const BorderRadius.vertical(
                                   top: Radius.circular(8)),
-                              child: Image.network(
-                                book.thumbnail!,
+                              child: SizedBox(
                                 height: 120,
                                 width: 120,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    height: 120,
-                                    color: Colors.grey[300],
-                                    child: const Icon(Icons.book),
-                                  );
-                                },
+                                child: FutureBuilder<ImageProvider>(
+                                  future: ThumbnailService()
+                                      .getNetworkThumbnail(book.thumbnail!),
+                                  builder: (context, snapshot) {
+                                    if (snapshot.connectionState ==
+                                        ConnectionState.waiting) {
+                                      return const Center(
+                                          child: CircularProgressIndicator());
+                                    }
+                                    if (snapshot.hasError ||
+                                        !snapshot.hasData) {
+                                      return Container(
+                                        color: Colors.grey[300],
+                                        child: const Icon(Icons.book),
+                                      );
+                                    }
+                                    return Image(
+                                      image: snapshot.data!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) {
+                                        return Container(
+                                          color: Colors.grey[300],
+                                          child: const Icon(Icons.book),
+                                        );
+                                      },
+                                    );
+                                  },
+                                ),
                               ),
                             )
                           else

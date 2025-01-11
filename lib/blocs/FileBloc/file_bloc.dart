@@ -11,7 +11,6 @@ part 'file_state.dart';
 class FileBloc extends Bloc<FileEvent, FileState> {
   final FileRepository fileRepository;
   final StorageScannerService storageScannerService;
-  FileLoaded? _lastLoadedState;
 
   FileBloc({
     required this.fileRepository,
@@ -31,9 +30,7 @@ class FileBloc extends Bloc<FileEvent, FileState> {
     final savedFiles = await fileRepository.loadFiles();
     print(savedFiles.toString());
     if (savedFiles.isNotEmpty) {
-      final loadedState = FileLoaded(savedFiles);
-      _lastLoadedState = loadedState;
-      emit(loadedState);
+      emit(FileLoaded(savedFiles));
     } else {
       emit(FileInitial());
     }
@@ -59,9 +56,7 @@ class FileBloc extends Bloc<FileEvent, FileState> {
         emit(FileLoaded(currentFiles));
       } else {
         final newFiles = [...currentFiles, FileInfo(filePath, fileSize)];
-        final newState = FileLoaded(newFiles);
-        _lastLoadedState = newState;
-        emit(newState);
+        emit(FileLoaded(newFiles));
         await fileRepository.saveFiles(newFiles);
       }
     } catch (e) {
@@ -79,22 +74,20 @@ class FileBloc extends Bloc<FileEvent, FileState> {
         return file;
       }).toList();
 
-      final newState = FileLoaded(updatedFiles);
-      _lastLoadedState = newState;
-      emit(newState);
+      emit(FileLoaded(updatedFiles));
       await fileRepository.saveFiles(updatedFiles);
     }
   }
 
   void _onViewFile(ViewFile event, Emitter<FileState> emit) async {
     if (state is FileLoaded) {
-      _lastLoadedState = state as FileLoaded;
-      final fileToView = _lastLoadedState!.files.firstWhere(
+      final currentState = state as FileLoaded;
+      final fileToView = currentState.files.firstWhere(
         (file) => file.filePath == event.filePath,
-        orElse: () => _lastLoadedState!.files.first,
+        orElse: () => currentState.files.first,
       );
 
-      final updatedFiles = _lastLoadedState!.files.map((file) {
+      final updatedFiles = currentState.files.map((file) {
         if (file.filePath == event.filePath) {
           return file.copyWith(wasRead: true);
         }
@@ -102,8 +95,7 @@ class FileBloc extends Bloc<FileEvent, FileState> {
       }).toList();
 
       await fileRepository.saveFiles(updatedFiles);
-      _lastLoadedState = FileLoaded(updatedFiles);
-      emit(FileViewing(fileToView.filePath));
+      emit(FileViewing(updatedFiles, fileToView.filePath));
     }
   }
 
@@ -115,13 +107,10 @@ class FileBloc extends Bloc<FileEvent, FileState> {
           .toList();
 
       if (updatedFiles.isEmpty) {
-        _lastLoadedState = null;
         emit(FileInitial());
         await fileRepository.saveFiles([]);
       } else {
-        final newState = FileLoaded(updatedFiles);
-        _lastLoadedState = newState;
-        emit(newState);
+        emit(FileLoaded(updatedFiles));
         await fileRepository.saveFiles(updatedFiles);
       }
     }
@@ -129,11 +118,8 @@ class FileBloc extends Bloc<FileEvent, FileState> {
 
   void _onCloseViewer(CloseViewer event, Emitter<FileState> emit) {
     if (state is FileViewing) {
-      if (_lastLoadedState != null) {
-        emit(_lastLoadedState!);
-      } else {
-        emit(FileInitial());
-      }
+      final fileViewingState = state as FileViewing;
+      emit(FileLoaded(fileViewingState.files));
     }
   }
 
@@ -148,9 +134,7 @@ class FileBloc extends Bloc<FileEvent, FileState> {
         return file;
       }).toList();
 
-      final newState = FileLoaded(updatedFiles);
-      _lastLoadedState = newState;
-      emit(newState);
+      emit(FileLoaded(updatedFiles));
       await fileRepository.saveFiles(updatedFiles);
     }
   }
@@ -174,9 +158,7 @@ class FileBloc extends Bloc<FileEvent, FileState> {
             .where((file) => !existingPaths.contains(file.filePath))
       ];
 
-      final newState = FileLoaded(newFiles);
-      _lastLoadedState = newState;
-      emit(newState);
+      emit(FileLoaded(newFiles));
       await fileRepository.saveFiles(newFiles);
     } catch (e) {
       emit(FileError(message: 'Storage scanning failed: ${e.toString()}'));
