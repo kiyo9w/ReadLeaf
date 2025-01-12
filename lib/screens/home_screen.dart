@@ -9,13 +9,12 @@ import 'package:migrated/widgets/ai_message_card.dart';
 import 'package:migrated/widgets/ai_character_slider.dart';
 import 'package:migrated/utils/file_utils.dart';
 import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
+import 'package:migrated/services/gemini_service.dart';
 import 'package:migrated/services/annas_archieve.dart';
 import 'package:migrated/depeninject/injection.dart';
 import 'package:migrated/models/file_info.dart';
 import 'package:migrated/screens/nav_screen.dart';
 import 'package:migrated/services/book_metadata_repository.dart';
-import 'package:migrated/services/ai_character_service.dart';
-import 'package:migrated/services/rag_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,8 +24,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class HomeScreenState extends State<HomeScreen> {
+  late final GeminiService _geminiService;
   late final AnnasArchieve _annasArchieve;
-  late final AiCharacterService _aiCharacterService;
   String? _aiMessage;
   BookData? _bookOfTheDay;
   final ScrollController _scrollController = ScrollController();
@@ -35,8 +34,8 @@ class HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _geminiService = GeminiService();
     _annasArchieve = getIt<AnnasArchieve>();
-    _aiCharacterService = getIt<AiCharacterService>();
     _loadBookOfTheDay();
     _generateAIMessage();
     _scrollController.addListener(_scrollListener);
@@ -105,15 +104,13 @@ class HomeScreenState extends State<HomeScreen> {
         }
       }
 
-      final character = _aiCharacterService.getSelectedCharacter();
-      final message = await RagService.queryRag(
-        userQuery: '', // No specific query for encouragement
-        selectedText: '', // No selected text needed for encouragement
+      final message = await _geminiService.askAboutText(
+        '', // No selected text needed for encouragement
+        customPrompt: '', // Let the character's personality shine
         bookTitle: bookTitle,
-        pageNumber: currentPage,
+        currentPage: currentPage,
         totalPages: totalPages,
-        aiName: character?.name ?? 'AI Assistant',
-        aiPersonality: character?.personality ?? 'Friendly and helpful',
+        task: 'encouragement', // Use the encouragement prompt
       );
 
       if (mounted) {

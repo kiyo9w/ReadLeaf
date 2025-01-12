@@ -12,11 +12,10 @@ import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
 import 'package:migrated/screens/nav_screen.dart';
 import 'package:migrated/widgets/text_search_view.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:migrated/services/gemini_service.dart';
 import 'package:get_it/get_it.dart';
 import 'package:migrated/widgets/CompanionChat/floating_chat_widget.dart';
 import 'package:migrated/models/chat_message.dart';
-import 'package:migrated/services/ai_character_service.dart';
-import 'package:migrated/services/rag_service.dart';
 
 class PDFViewerScreen extends StatefulWidget {
   const PDFViewerScreen({Key? key}) : super(key: key);
@@ -28,7 +27,7 @@ class PDFViewerScreen extends StatefulWidget {
 class _PDFViewerScreenState extends State<PDFViewerScreen> {
   final _controller = PdfViewerController();
   late final _textSearcher = PdfTextSearcher(_controller)..addListener(_update);
-  late final _aiCharacterService = GetIt.I<AiCharacterService>();
+  late final _geminiService = GetIt.I<GeminiService>();
   bool _showSearchPanel = false;
   bool _isZoomedIn = false;
   double _scaleFactor = 1.0;
@@ -188,18 +187,23 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
     final bookTitle = path.basename(state.file.path);
     final currentPage = state.currentPage;
     final totalPages = state.totalPages;
-    final character = _aiCharacterService.getSelectedCharacter();
 
     try {
-      final response = await RagService.queryRag(
-        userQuery: message ??
+      // If there's selected text, create a formatted message
+      // String contextText = '';
+      // if (selectedText != null) {
+      //   contextText = 'Imported text: "$selectedText"\n\n$message';
+      //   // Only add user message for selected text case
+      //   // _floatingChatKey.currentState?.addUserMessage(selectedText);
+      // }
+
+      final response = await _geminiService.askAboutText(
+        selectedText ?? '',
+        customPrompt: message ??
             'Can you explain what the text is about? After that share your thoughts in a single open ended question in the same paragraph, make the question short and concise.',
-        selectedText: selectedText ?? '',
         bookTitle: bookTitle,
-        pageNumber: currentPage,
+        currentPage: currentPage,
         totalPages: totalPages,
-        aiName: character?.name ?? 'AI Assistant',
-        aiPersonality: character?.personality ?? 'Friendly and helpful',
       );
 
       if (!mounted) return;
