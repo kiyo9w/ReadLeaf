@@ -62,46 +62,46 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
       child: GestureDetector(
         onTap: onTap,
         child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
               ),
             ),
-          ),
-          // Count badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: (count > 10)
-                  ? Color(0xffC5AA17)
-                  : (count > 5)
-                      ? Color(0xffEBD766)
-                      : (count > 0)
-                          ? Color(0xffFCF6D6)
-                          : Colors.white,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              '$count',
-              style: const TextStyle(
-                fontSize: 14,
-                color: Colors.black,
+            // Count badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: (count > 10)
+                    ? Color(0xffC5AA17)
+                    : (count > 5)
+                        ? Color(0xffEBD766)
+                        : (count > 0)
+                            ? Color(0xffFCF6D6)
+                            : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '$count',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.black,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Icon(
-            isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-            color: Colors.black,
-          ),
-        ],
+            const SizedBox(width: 8),
+            Icon(
+              isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+              color: Colors.black,
+            ),
+          ],
+        ),
       ),
-    ),
     );
   }
 
@@ -138,16 +138,7 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<FileBloc, FileState>(
-      listener: (context, state) {
-        if (state is FileViewing) {
-          final file = File(state.filePath);
-          context.read<ReaderBloc>().add(
-                OpenReader('', file: file, filePath: state.filePath),
-              );
-          Navigator.pushNamed(context, '/viewer');
-        }
-      },
+    return BlocBuilder<FileBloc, FileState>(
       builder: (context, state) {
         if (state is FileLoaded) {
           final starredBooks =

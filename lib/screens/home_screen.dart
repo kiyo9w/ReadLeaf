@@ -130,16 +130,7 @@ class HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<FileBloc, FileState>(
-      listener: (context, state) {
-        if (state is FileViewing) {
-          final file = File(state.filePath);
-          context.read<ReaderBloc>().add(
-                OpenReader('', file: file, filePath: state.filePath),
-              );
-          Navigator.pushNamed(context, '/viewer');
-        }
-      },
+    return BlocBuilder<FileBloc, FileState>(
       builder: (context, state) {
         FileInfo? lastReadBook;
         if (state is FileLoaded && state.files.isNotEmpty) {

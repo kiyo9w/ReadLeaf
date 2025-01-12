@@ -1,15 +1,26 @@
 import 'dart:developer';
 import 'dart:math' as math;
+import 'dart:collection';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:migrated/services/ai_character_service.dart';
 import 'package:migrated/depeninject/injection.dart';
+
+class ConversationEntry {
+  final String userInput;
+  final String aiResponse;
+  ConversationEntry(this.userInput, this.aiResponse);
+}
 
 class GeminiService {
   static final GeminiService _instance = GeminiService._internal();
   late final GenerativeModel _model;
   AiCharacterService? _characterService;
   bool _isInitialized = false;
+  static const int maxConversations = 5;
+
+  // Store conversations per book
+  final Map<String, Queue<ConversationEntry>> _conversationHistory = {};
 
   // Private constructor
   GeminiService._internal();
@@ -50,6 +61,31 @@ class GeminiService {
     }
   }
 
+  String _buildConversationContext(String bookId) {
+    final conversations = _conversationHistory[bookId];
+    if (conversations == null || conversations.isEmpty) return '';
+
+    final contextBuilder = StringBuffer('Previous conversations:\n');
+    for (var entry in conversations) {
+      contextBuilder.writeln('User: ${entry.userInput}');
+      contextBuilder.writeln('Assistant: ${entry.aiResponse}\n');
+    }
+    return contextBuilder.toString();
+  }
+
+  void _addToConversationHistory(
+      String bookId, String userInput, String aiResponse) {
+    if (!_conversationHistory.containsKey(bookId)) {
+      _conversationHistory[bookId] = Queue<ConversationEntry>();
+    }
+
+    final queue = _conversationHistory[bookId]!;
+    if (queue.length >= maxConversations) {
+      queue.removeFirst();
+    }
+    queue.add(ConversationEntry(userInput, aiResponse));
+  }
+
   Future<String> askAboutText(
     String selectedText, {
     String? customPrompt,
@@ -68,18 +104,24 @@ class GeminiService {
       // Get the appropriate prompt template based on task
       String finalPrompt = characterService.getPromptForTask(task);
 
+      // Add conversation history to context
+      final conversationContext = _buildConversationContext(bookTitle);
+
       // Handle custom prompt
       if (customPrompt != null && customPrompt.isNotEmpty) {
-        // If we have a character prompt, insert the custom prompt in the USER PROMPT section
         if (finalPrompt.isNotEmpty) {
           finalPrompt = finalPrompt.replaceAll('{USER_PROMPT}', customPrompt);
+          finalPrompt = """$finalPrompt
+
+$conversationContext""";
         } else {
-          // If no character prompt, use the custom prompt directly
           finalPrompt = """
 $customPrompt
 
 Text from {BOOK_TITLE} (page {PAGE_NUMBER}):
-{TEXT}""";
+{TEXT}
+
+$conversationContext""";
         }
       }
 
@@ -87,7 +129,13 @@ Text from {BOOK_TITLE} (page {PAGE_NUMBER}):
       if (finalPrompt.isEmpty) {
         finalPrompt =
             """Please analyze this text from {BOOK_TITLE} (page {PAGE_NUMBER}):
-{TEXT}""";
+{TEXT}
+
+$conversationContext""";
+      } else if (!finalPrompt.contains(conversationContext)) {
+        finalPrompt = """$finalPrompt
+
+$conversationContext""";
       }
 
       // Clean the selected text if provided
@@ -108,7 +156,8 @@ Text from {BOOK_TITLE} (page {PAGE_NUMBER}):
           .replaceAll('{BOOK_TITLE}', bookTitle)
           .replaceAll('{PAGE_NUMBER}', currentPage.toString())
           .replaceAll('{TOTAL_PAGES}', totalPages.toString())
-          .replaceAll('{PROGRESS}', AiCharacterService.getProgressPercentage(currentPage, totalPages))
+          .replaceAll('{PROGRESS}',
+              AiCharacterService.getProgressPercentage(currentPage, totalPages))
           .replaceAll('{CHARACTER_NAME}',
               characterService.getSelectedCharacter()?.name ?? 'AI Assistant')
           .replaceAll('{USER_PROMPT}', customPrompt ?? '');
@@ -123,6 +172,9 @@ Text from {BOOK_TITLE} (page {PAGE_NUMBER}):
         final response = await _model.generateContent(content);
 
         if (response.text != null) {
+          // Store the conversation
+          _addToConversationHistory(
+              bookTitle, customPrompt ?? selectedText, response.text!);
           return response.text!;
         }
 

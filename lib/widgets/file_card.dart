@@ -12,6 +12,7 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:migrated/services/book_metadata_repository.dart';
 import 'package:migrated/services/ai_character_service.dart';
+import 'package:migrated/services/thumbnail_service.dart';
 import 'package:get_it/get_it.dart';
 
 class FileCard extends StatelessWidget {
@@ -62,12 +63,23 @@ class FileCard extends StatelessWidget {
 
   Widget _buildThumbnail() {
     if (isInternetBook && thumbnailUrl != null) {
-      return Image.network(
-        thumbnailUrl!,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => const Center(
-          child: Icon(Icons.error),
-        ),
+      return FutureBuilder<ImageProvider>(
+        future: ThumbnailService().getNetworkThumbnail(thumbnailUrl!),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError || !snapshot.hasData) {
+            return const Center(child: Icon(Icons.error));
+          }
+          return Image(
+            image: snapshot.data!,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => const Center(
+              child: Icon(Icons.error),
+            ),
+          );
+        },
       );
     }
 

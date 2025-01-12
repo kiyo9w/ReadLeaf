@@ -10,6 +10,7 @@ import 'package:migrated/widgets/file_card.dart';
 import 'package:migrated/widgets/page_title_widget.dart';
 import 'package:migrated/widgets/book_info_widget.dart';
 import 'package:migrated/screens/nav_screen.dart';
+import 'package:migrated/services/thumbnail_service.dart';
 
 class ResultPage extends StatefulWidget {
   final String searchQuery;
