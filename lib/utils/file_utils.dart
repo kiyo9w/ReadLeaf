@@ -6,6 +6,7 @@ import 'package:migrated/models/file_info.dart';
 import 'package:migrated/depeninject/injection.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
+import 'package:migrated/services/rag_service.dart';
 // import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
@@ -39,11 +40,16 @@ class FileUtils {
           // Copy the file
           await File(filePath).copy(destinationPath);
 
-          return destinationPath;
-          // Lmao I'm stupid af
-          // await File(filePath).copy(destinationPath);
-
-          // return destinationPath;
+          // Upload to RAG backend
+          final success = await RagService.uploadPdf(File(destinationPath));
+          if (success) {
+            print("PDF uploaded successfully to backend");
+            return destinationPath;
+          } else {
+            print("Failed to upload PDF to backend");
+            // Still return the path since we have it locally
+            return destinationPath;
+          }
         }
       }
       return null;
