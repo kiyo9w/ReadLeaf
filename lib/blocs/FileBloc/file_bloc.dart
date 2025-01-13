@@ -28,14 +28,45 @@ class FileBloc extends Bloc<FileEvent, FileState> {
   }
 
   Future<void> _onInitFiles(InitFiles event, Emitter<FileState> emit) async {
+    print('Initializing files...');
     final savedFiles = await fileRepository.loadFiles();
-    print(savedFiles.toString());
+    print('Loaded saved files: ${savedFiles.length}');
+
     if (savedFiles.isNotEmpty) {
-      final loadedState = FileLoaded(savedFiles);
-      _lastLoadedState = loadedState;
-      emit(loadedState);
+      print('Using existing saved files');
+      emit(FileLoaded(savedFiles));
     } else {
-      emit(FileInitial());
+      print('No saved files found, copying default PDFs...');
+      // Copy default PDFs and load them
+      final defaultPdfPaths = await FileUtils.copyDefaultPDFs();
+      print('Received paths for copied PDFs: $defaultPdfPaths');
+
+      List<FileInfo> defaultFiles = [];
+
+      for (String filePath in defaultPdfPaths) {
+        try {
+          print('Processing copied PDF at: $filePath');
+          final file = File(filePath);
+          if (await file.exists()) {
+            final fileSize = await file.length();
+            print('Adding file to defaultFiles: $filePath (size: $fileSize)');
+            defaultFiles.add(FileInfo(filePath, fileSize));
+          } else {
+            print('File does not exist at path: $filePath');
+          }
+        } catch (e) {
+          print('Error loading default PDF $filePath: $e');
+        }
+      }
+
+      if (defaultFiles.isNotEmpty) {
+        print('Saving ${defaultFiles.length} default files');
+        await fileRepository.saveFiles(defaultFiles);
+        emit(FileLoaded(defaultFiles));
+      } else {
+        print('No default files were loaded successfully');
+        emit(FileInitial());
+      }
     }
   }
 

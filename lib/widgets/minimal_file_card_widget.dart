@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:migrated/blocs/FileBloc/file_bloc.dart';
-import 'package:pdfrx/pdfrx.dart';
+import 'package:migrated/services/thumbnail_service.dart';
 import 'dart:io';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:migrated/services/book_metadata_repository.dart';
 import 'package:get_it/get_it.dart';
 
-class MinimalFileCard extends StatelessWidget {
+class MinimalFileCard extends StatefulWidget {
   final String filePath;
   final String title;
   final String? author;
@@ -25,8 +25,38 @@ class MinimalFileCard extends StatelessWidget {
     this.isInternetBook = false,
   }) : super(key: key);
 
+  @override
+  State<MinimalFileCard> createState() => _MinimalFileCardState();
+}
+
+class _MinimalFileCardState extends State<MinimalFileCard> {
+  late Future<ImageProvider> _thumbnailFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _initThumbnailFuture();
+  }
+
+  @override
+  void didUpdateWidget(MinimalFileCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.filePath != oldWidget.filePath ||
+        widget.thumbnailUrl != oldWidget.thumbnailUrl ||
+        widget.isInternetBook != oldWidget.isInternetBook) {
+      _initThumbnailFuture();
+    }
+  }
+
+  void _initThumbnailFuture() {
+    _thumbnailFuture = widget.isInternetBook && widget.thumbnailUrl != null
+        ? ThumbnailService().getNetworkThumbnail(widget.thumbnailUrl!)
+        : ThumbnailService().getPdfThumbnail(widget.filePath);
+  }
+
   double _getReadingProgress() {
-    final metadata = GetIt.I<BookMetadataRepository>().getMetadata(filePath);
+    final metadata =
+        GetIt.I<BookMetadataRepository>().getMetadata(widget.filePath);
     if (metadata != null) {
       return metadata.readingProgress;
     }
@@ -39,31 +69,31 @@ class MinimalFileCard extends StatelessWidget {
   }
 
   Widget _buildThumbnail() {
-    if (isInternetBook && thumbnailUrl != null) {
-      return Image.network(
-        thumbnailUrl!,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => const Center(
-          child: Icon(Icons.book, size: 40, color: Colors.black26),
-        ),
-      );
-    }
-
-    return PdfDocumentViewBuilder.file(
-      filePath,
-      builder: (context, document) {
-        if (document == null) {
+    return FutureBuilder<ImageProvider>(
+      future: _thumbnailFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        return PdfPageView(
-          document: document,
-          pageNumber: 1,
-          alignment: Alignment.center,
-          maximumDpi: 150,
-          decorationBuilder: (context, pageSize, page, pageImage) {
-            return pageImage ??
-                const Center(child: CircularProgressIndicator());
-          },
+        if (snapshot.hasError || !snapshot.hasData) {
+          return Center(
+            child: Icon(
+              widget.isInternetBook ? Icons.book : Icons.picture_as_pdf,
+              size: 40,
+              color: Colors.black26,
+            ),
+          );
+        }
+        return Image(
+          image: snapshot.data!,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => Center(
+            child: Icon(
+              widget.isInternetBook ? Icons.book : Icons.picture_as_pdf,
+              size: 40,
+              color: Colors.black26,
+            ),
+          ),
         );
       },
     );
@@ -74,7 +104,7 @@ class MinimalFileCard extends StatelessWidget {
     final progress = _getReadingProgress();
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: widget.onTap,
       child: Container(
         width: 120,
         margin: const EdgeInsets.only(right: 12),
@@ -94,7 +124,7 @@ class MinimalFileCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  title,
+                  widget.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -102,10 +132,10 @@ class MinimalFileCard extends StatelessWidget {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                if (author != null) ...[
+                if (widget.author != null) ...[
                   const SizedBox(height: 2),
                   Text(
-                    author!,
+                    widget.author!,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -125,7 +155,7 @@ class MinimalFileCard extends StatelessWidget {
                   icon: const Icon(Icons.close, size: 18),
                   color: Colors.black54,
                   onPressed: () {
-                    context.read<FileBloc>().add(RemoveFile(filePath));
+                    context.read<FileBloc>().add(RemoveFile(widget.filePath));
                   },
                 ),
               ),

@@ -12,9 +12,10 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:migrated/services/book_metadata_repository.dart';
 import 'package:migrated/services/ai_character_service.dart';
+import 'package:migrated/services/thumbnail_service.dart';
 import 'package:get_it/get_it.dart';
 
-class FileCard extends StatelessWidget {
+class FileCard extends StatefulWidget {
   final String filePath;
   final int fileSize;
   final bool isSelected;
@@ -24,7 +25,6 @@ class FileCard extends StatelessWidget {
   final VoidCallback onDownload;
   final VoidCallback onStar;
   final String title;
-
   final bool isInternetBook;
   final String? author;
   final String? thumbnailUrl;
@@ -47,8 +47,42 @@ class FileCard extends StatelessWidget {
     Key? key,
   }) : super(key: key);
 
+  static String extractFileName(String filePath) {
+    return basename(filePath).replaceAll(RegExp(r'\.[^/.]+$'), '');
+  }
+
+  @override
+  State<FileCard> createState() => _FileCardState();
+}
+
+class _FileCardState extends State<FileCard> {
+  late Future<ImageProvider> _thumbnailFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _initThumbnailFuture();
+  }
+
+  @override
+  void didUpdateWidget(FileCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.filePath != oldWidget.filePath ||
+        widget.thumbnailUrl != oldWidget.thumbnailUrl ||
+        widget.isInternetBook != oldWidget.isInternetBook) {
+      _initThumbnailFuture();
+    }
+  }
+
+  void _initThumbnailFuture() {
+    _thumbnailFuture = widget.isInternetBook && widget.thumbnailUrl != null
+        ? ThumbnailService().getNetworkThumbnail(widget.thumbnailUrl!)
+        : ThumbnailService().getPdfThumbnail(widget.filePath);
+  }
+
   double _getReadingProgress() {
-    final metadata = GetIt.I<BookMetadataRepository>().getMetadata(filePath);
+    final metadata =
+        GetIt.I<BookMetadataRepository>().getMetadata(widget.filePath);
     if (metadata != null) {
       return metadata.readingProgress;
     }
@@ -61,31 +95,27 @@ class FileCard extends StatelessWidget {
   }
 
   Widget _buildThumbnail() {
-    if (isInternetBook && thumbnailUrl != null) {
-      return Image.network(
-        thumbnailUrl!,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => const Center(
-          child: Icon(Icons.error),
-        ),
-      );
-    }
-
-    return PdfDocumentViewBuilder.file(
-      filePath,
-      builder: (context, document) {
-        if (document == null) {
+    return FutureBuilder<ImageProvider>(
+      future: _thumbnailFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        return PdfPageView(
-          document: document,
-          pageNumber: 1,
-          alignment: Alignment.center,
-          maximumDpi: 150, // Lower DPI for thumbnails to improve performance
-          decorationBuilder: (context, pageSize, page, pageImage) {
-            return pageImage ??
-                const Center(child: CircularProgressIndicator());
-          },
+        if (snapshot.hasError || !snapshot.hasData) {
+          return Center(
+            child: Icon(
+              widget.isInternetBook ? Icons.error : Icons.picture_as_pdf,
+            ),
+          );
+        }
+        return Image(
+          image: snapshot.data!,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => Center(
+            child: Icon(
+              widget.isInternetBook ? Icons.error : Icons.picture_as_pdf,
+            ),
+          ),
         );
       },
     );
@@ -94,17 +124,17 @@ class FileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dismissible(
-      key: Key(filePath),
+      key: Key(widget.filePath),
       direction: DismissDirection.horizontal,
       onDismissed: (direction) {
-        onRemove();
+        widget.onRemove();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$title removed')),
+          SnackBar(content: Text('${widget.title} removed')),
         );
       },
       child: GestureDetector(
-        onLongPress: onSelected,
-        onTap: onView,
+        onLongPress: widget.onSelected,
+        onTap: widget.onView,
         child: Container(
           margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
           padding: const EdgeInsets.all(5),
@@ -128,7 +158,7 @@ class FileCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: isInternetBook
+                child: widget.isInternetBook
                     ? _buildInternetBookInfo(context)
                     : _buildLocalFileInfo(context),
               ),
@@ -151,18 +181,18 @@ class FileCard extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                title,
+                widget.title,
                 style: TextStyle(
                   fontSize: 18.0,
                   fontWeight: FontWeight.normal,
-                  color: isSelected ? Colors.grey[600] : Colors.black,
+                  color: widget.isSelected ? Colors.grey[600] : Colors.black,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 8.0),
-            if (isSelected)
+            if (widget.isSelected)
               Icon(
                 Icons.check_box,
                 color: Colors.blue,
@@ -183,10 +213,10 @@ class FileCard extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          "PDF, ${formatFileSize(fileSize)}",
+          "PDF, ${formatFileSize(widget.fileSize)}",
           style: TextStyle(
             fontSize: 14.0,
-            color: isSelected ? Colors.grey[600] : Colors.grey[800],
+            color: widget.isSelected ? Colors.grey[600] : Colors.grey[800],
           ),
         ),
         const SizedBox(height: 62),
@@ -220,12 +250,12 @@ class FileCard extends StatelessWidget {
           children: [
             IconButton(
               icon: Icon(
-                isStarred ? Icons.star : Icons.star_border_outlined,
-                color: isStarred ? Colors.amber : Colors.black87,
+                widget.isStarred ? Icons.star : Icons.star_border_outlined,
+                color: widget.isStarred ? Colors.amber : Colors.black87,
                 size: 24.0,
               ),
               onPressed: () {
-                onStar();
+                widget.onStar();
               },
             ),
             const SizedBox(width: 36.0),
@@ -236,7 +266,7 @@ class FileCard extends StatelessWidget {
                 size: 20.0,
               ),
               onPressed: () {
-                onRemove();
+                widget.onRemove();
               },
             ),
             const SizedBox(width: 22.0),
@@ -271,18 +301,18 @@ class FileCard extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                title,
+                widget.title,
                 style: TextStyle(
                   fontSize: 18.0,
                   fontWeight: FontWeight.normal,
-                  color: isSelected ? Colors.grey[600] : Colors.black,
+                  color: widget.isSelected ? Colors.grey[600] : Colors.black,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 8.0),
-            if (isSelected)
+            if (widget.isSelected)
               Icon(
                 Icons.check_box,
                 color: Colors.blue,
@@ -291,9 +321,9 @@ class FileCard extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 4),
-        if (author != null && author!.isNotEmpty)
+        if (widget.author != null && widget.author!.isNotEmpty)
           Text(
-            author!,
+            widget.author!,
             style: const TextStyle(
               fontSize: 14.0,
               fontWeight: FontWeight.normal,
@@ -316,7 +346,7 @@ class FileCard extends StatelessWidget {
             const SizedBox(width: 22.0),
             IconButton(
                 onPressed: () {
-                  onDownload();
+                  widget.onDownload();
                 },
                 icon: Icon(
                   Icons.download,
@@ -327,11 +357,6 @@ class FileCard extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  static String extractFileName(String filePath) {
-    File file = File(filePath);
-    return basename(file.path);
   }
 
   String formatFileSize(int bytes) {
