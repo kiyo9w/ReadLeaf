@@ -16,6 +16,8 @@ import 'package:migrated/services/gemini_service.dart';
 import 'package:get_it/get_it.dart';
 import 'package:migrated/widgets/CompanionChat/floating_chat_widget.dart';
 import 'package:migrated/models/chat_message.dart';
+import 'package:migrated/services/ai_character_service.dart';
+import 'package:migrated/models/ai_character.dart';
 
 class PDFViewerScreen extends StatefulWidget {
   const PDFViewerScreen({Key? key}) : super(key: key);
@@ -28,15 +30,15 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
   final _controller = PdfViewerController();
   late final _textSearcher = PdfTextSearcher(_controller)..addListener(_update);
   late final _geminiService = GetIt.I<GeminiService>();
+  late final _characterService = GetIt.I<AiCharacterService>();
+  final GlobalKey<FloatingChatWidgetState> _floatingChatKey = GlobalKey();
   bool _showSearchPanel = false;
   bool _isZoomedIn = false;
-  double _scaleFactor = 1.0;
-  double _baseScaleFactor = 1.0;
-  String? _selectedText;
   bool _showAskAiButton = false;
   bool _isLoadingAiResponse = false;
-  final GlobalKey<FloatingChatWidgetState> _floatingChatKey =
-      GlobalKey<FloatingChatWidgetState>();
+  String? _selectedText;
+  double _scaleFactor = 1.0;
+  double _baseScaleFactor = 1.0;
 
   void _update() {
     if (mounted) {
@@ -189,14 +191,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
     final totalPages = state.totalPages;
 
     try {
-      // If there's selected text, create a formatted message
-      // String contextText = '';
-      // if (selectedText != null) {
-      //   contextText = 'Imported text: "$selectedText"\n\n$message';
-      //   // Only add user message for selected text case
-      //   // _floatingChatKey.currentState?.addUserMessage(selectedText);
-      // }
-
       final response = await _geminiService.askAboutText(
         selectedText ?? '',
         customPrompt: message ??
@@ -217,7 +211,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
         }
       }
 
-      // Only add the AI response
       if (_floatingChatKey.currentState != null) {
         _floatingChatKey.currentState!.addAiResponse(response);
       }
@@ -243,10 +236,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
       return;
     }
 
-    // Create a local copy immediately
     final String selectedTextCopy = _selectedText!;
 
-    // Validate the copy
     if (selectedTextCopy.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -455,19 +446,15 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
 
                               setDialogState(() => isLoading = true);
 
-                              // Close the dialog
                               Navigator.pop(dialogContext);
 
-                              // Show the chat if it's not already visible
                               _floatingChatKey.currentState?.showChat();
 
-                              // Wait a tiny bit for the chat to become visible
                               await Future.delayed(
                                   const Duration(milliseconds: 100));
 
                               if (!mounted) return;
 
-                              // Add the messages immediately
                               if (selectedTextCopy.isNotEmpty) {
                                 _floatingChatKey.currentState!.addUserMessage(
                                     'Imported Text: """$selectedTextCopy"""');
@@ -479,7 +466,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                                 }
                               }
 
-                              // Now get the AI response
                               _handleChatMessage(
                                 customPrompt,
                                 selectedText: selectedTextCopy,
@@ -794,8 +780,24 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                   // Add the floating chat widget
                   FloatingChatWidget(
                     key: _floatingChatKey,
-                    avatarImagePath:
-                        'assets/images/ai_characters/librarian.png',
+                    character: _characterService.getSelectedCharacter() ??
+                        AiCharacter(
+                          name: 'Amelia',
+                          imagePath: 'assets/images/ai_characters/amelia.png',
+                          personality: 'A friendly and helpful AI assistant.',
+                          trait: 'Friendly and helpful',
+                          categories: ['Default'],
+                          promptTemplate:
+                              'You are Amelia, a friendly AI assistant.\n\nCURRENT TASK:\n{USER_PROMPT}',
+                          taskPrompts: {
+                            'greeting':
+                                'Hello! I\'m Amelia. How can I help you today?',
+                            'analyze_text':
+                                'I\'ll help you understand this text.',
+                            'encouragement':
+                                'You\'re doing great! Keep reading!',
+                          },
+                        ),
                     onSendMessage: _handleChatMessage,
                     bookId: file.path, // Use file path as unique identifier
                     bookTitle: path.basename(file.path),

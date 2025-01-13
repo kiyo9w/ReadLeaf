@@ -65,11 +65,23 @@ class GeminiService {
     final conversations = _conversationHistory[bookId];
     if (conversations == null || conversations.isEmpty) return '';
 
-    final contextBuilder = StringBuffer('Previous conversations:\n');
-    for (var entry in conversations) {
+    final contextBuilder = StringBuffer("""
+SYSTEM: You have access to the last few conversation exchanges between you and the user, numbered from [1] being the most recent to [${conversations.length}] being the oldest. Use this context to maintain consistency and build upon previous responses. Pay special attention to more recent exchanges (lower numbers) as they represent the current flow of conversation.
+
+Past conversations (ordered from most recent to oldest):
+""");
+
+    int conversationNumber = 1;
+    final List<ConversationEntry> orderedConversations =
+        conversations.toList().reversed.toList();
+
+    for (var entry in orderedConversations) {
+      contextBuilder.writeln('[$conversationNumber]');
       contextBuilder.writeln('User: ${entry.userInput}');
       contextBuilder.writeln('Assistant: ${entry.aiResponse}\n');
+      conversationNumber++;
     }
+
     return contextBuilder.toString();
   }
 

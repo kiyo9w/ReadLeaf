@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:migrated/models/chat_message.dart';
+import 'package:migrated/models/ai_character.dart';
 import 'package:migrated/services/chat_service.dart';
 import 'package:get_it/get_it.dart';
 
 class ChatScreen extends StatefulWidget {
-  final String avatarImagePath;
+  final AiCharacter character;
   final VoidCallback onClose;
   final Function(String) onSendMessage;
   final String bookId;
@@ -12,7 +13,7 @@ class ChatScreen extends StatefulWidget {
 
   const ChatScreen({
     Key? key,
-    required this.avatarImagePath,
+    required this.character,
     required this.onClose,
     required this.onSendMessage,
     required this.bookId,
@@ -116,55 +117,29 @@ class ChatScreenState extends State<ChatScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor.withOpacity(0.1),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(20),
-                topRight: Radius.circular(20),
-              ),
+              color: Colors.grey[100],
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(12)),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    ClipOval(
-                      child: Image.asset(
-                        widget.avatarImagePath,
-                        width: 32,
-                        height: 32,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        'Amelia',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: widget.onClose,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ],
+                CircleAvatar(
+                  backgroundImage: AssetImage(widget.character.imagePath),
+                  radius: 16,
                 ),
-                if (widget.bookTitle.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.bookTitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[700],
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                const SizedBox(width: 8),
+                Text(
+                  widget.character.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
                   ),
-                ],
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: widget.onClose,
+                ),
               ],
             ),
           ),

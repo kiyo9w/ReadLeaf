@@ -5,24 +5,87 @@ import 'package:migrated/models/ai_character_preference.dart';
 
 class AiCharacterService {
   static const String _boxName = 'ai_character_preferences';
+  static const String _customCharactersBoxName = 'custom_characters';
   late Box<AiCharacterPreference> _box;
+  late Box<Map> _customCharactersBox;
   AiCharacter? _selectedCharacter;
+  List<AiCharacter> _customCharacters = [];
 
   Future<void> init() async {
-    // Open the Hive box
+    // Open the Hive boxes
     _box = await Hive.openBox<AiCharacterPreference>(_boxName);
+    _customCharactersBox = await Hive.openBox<Map>(_customCharactersBoxName);
+
+    // Load custom characters
+    _loadCustomCharacters();
 
     // Load the last selected character if any
     final preference = _box.values.isEmpty ? null : _box.values.last;
     if (preference != null) {
-      // Find the character by name
-      _selectedCharacter = defaultCharacters.firstWhere(
+      // Find the character by name in both default and custom characters
+      _selectedCharacter = getAllCharacters().firstWhere(
         (char) => char.name == preference.characterName,
         orElse: () => defaultCharacters[2], // Default to Amelia if not found
       );
     } else {
       _selectedCharacter = defaultCharacters[2]; // Default to Amelia
     }
+  }
+
+  void _loadCustomCharacters() {
+    _customCharacters = _customCharactersBox.values.map((map) {
+      return AiCharacter(
+        name: map['name'] as String,
+        imagePath: map['imagePath'] as String,
+        personality: map['personality'] as String,
+        trait: map['trait'] as String,
+        categories: List<String>.from(map['categories'] as List),
+        promptTemplate: map['promptTemplate'] as String,
+        taskPrompts: Map<String, String>.from(map['taskPrompts'] as Map),
+      );
+    }).toList();
+  }
+
+  Future<void> addCustomCharacter(AiCharacter character) async {
+    // Save to Hive
+    await _customCharactersBox.add({
+      'name': character.name,
+      'imagePath': character.imagePath,
+      'personality': character.personality,
+      'trait': character.trait,
+      'categories': character.categories,
+      'promptTemplate': character.promptTemplate,
+      'taskPrompts': character.taskPrompts,
+    });
+
+    // Update local list
+    _loadCustomCharacters();
+  }
+
+  Future<void> deleteCharacter(AiCharacter character) async {
+    // Only allow deleting custom characters
+    if (!character.categories.contains('Custom')) return;
+
+    // Find and delete the character from Hive
+    for (var i = 0; i < _customCharactersBox.length; i++) {
+      final map = _customCharactersBox.getAt(i);
+      if (map != null && map['name'] == character.name) {
+        await _customCharactersBox.deleteAt(i);
+        break;
+      }
+    }
+
+    // If this was the selected character, select Amelia
+    if (_selectedCharacter?.name == character.name) {
+      setSelectedCharacter(defaultCharacters[2]);
+    }
+
+    // Update local list
+    _loadCustomCharacters();
+  }
+
+  List<AiCharacter> getAllCharacters() {
+    return [...defaultCharacters, ..._customCharacters];
   }
 
   // List of default characters
@@ -177,7 +240,11 @@ Let's examine this information with scientific rigor.""",
   }
 
   AiCharacter? getSelectedCharacter() {
-    return _selectedCharacter;
+    if (_selectedCharacter == null) return defaultCharacters[2];
+    return getAllCharacters().firstWhere(
+      (char) => char.name == _selectedCharacter!.name,
+      orElse: () => defaultCharacters[2],
+    );
   }
 
   String getPromptTemplate() {
@@ -188,8 +255,10 @@ Let's examine this information with scientific rigor.""",
     if (_selectedCharacter == null) return _getDefaultPromptForTask(task);
 
     // Get the character's personality and speaking style
-    String baseTemplate =
-        """CHARACTER CONTEXT: You are ${_selectedCharacter!.name}, ${_selectedCharacter!.personality}
+    String baseTemplate = _selectedCharacter!.promptTemplate;
+    if (baseTemplate == '') {
+      baseTemplate =
+          """CHARACTER CONTEXT: You are ${_selectedCharacter!.name}, ${_selectedCharacter!.personality}
 
 ROLEPLAY RULES:
 - Chat exclusively as ${_selectedCharacter!.name}
@@ -200,6 +269,7 @@ ROLEPLAY RULES:
 - Stay in character at all times
 - Express emotions and reactions naturally
 - Use your character's unique way of speaking""";
+    }
 
     // If the character has a custom task prompt, use it
     String taskPrompt = _selectedCharacter!.taskPrompts[task] ?? '';
