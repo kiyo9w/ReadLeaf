@@ -55,7 +55,7 @@ class _NavScreenState extends State<NavScreen> {
               hideNavigationBar: hideNavBar,
               tabs: [
                 PersistentTabConfig(
-                  screen: const HomeScreen(),
+                  screen: HomeScreen(),
                   item: ItemConfig(
                     icon: const Icon(Icons.home_filled),
                     inactiveIcon: const Icon(Icons.home_filled),

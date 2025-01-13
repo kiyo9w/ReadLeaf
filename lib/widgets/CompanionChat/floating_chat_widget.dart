@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:migrated/widgets/CompanionChat/chat_screen.dart';
 import 'package:migrated/models/chat_message.dart';
+import 'package:migrated/models/ai_character.dart';
 
 class FloatingChatWidget extends StatefulWidget {
-  final String avatarImagePath;
+  final AiCharacter character;
   final Function(String) onSendMessage;
   final String bookId;
   final String bookTitle;
 
   const FloatingChatWidget({
     Key? key,
-    required this.avatarImagePath,
+    required this.character,
     required this.onSendMessage,
     required this.bookId,
     required this.bookTitle,
@@ -71,7 +72,7 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
           text: message,
           isUser: false,
           timestamp: DateTime.now(),
-          avatarImagePath: widget.avatarImagePath,
+          avatarImagePath: widget.character.imagePath,
         ),
       );
     }
@@ -184,7 +185,7 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
                   width: _chatWidth,
                   height: _chatHeight,
                   child: ChatScreen(
-                    avatarImagePath: widget.avatarImagePath,
+                    character: widget.character,
                     onClose: () => setState(() => _showChat = false),
                     onSendMessage: widget.onSendMessage,
                     bookId: widget.bookId,
@@ -260,7 +261,7 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
               ),
               child: ClipOval(
                 child: Image.asset(
-                  widget.avatarImagePath,
+                  widget.character.imagePath,
                   fit: BoxFit.cover,
                 ),
               ),
