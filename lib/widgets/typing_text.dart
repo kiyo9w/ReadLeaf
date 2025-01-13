@@ -3,71 +3,40 @@ import 'dart:async';
 
 class TypingText extends StatefulWidget {
   final String text;
-  final TextStyle? style;
+  final TextStyle style;
   final Duration typingSpeed;
   final bool startTyping;
+  final int? maxLines;
+  final TextOverflow? overflow;
 
   const TypingText({
-    Key? key,
     required this.text,
-    this.style,
+    required this.style,
     this.typingSpeed = const Duration(milliseconds: 50),
     this.startTyping = true,
+    this.maxLines,
+    this.overflow,
+    Key? key,
   }) : super(key: key);
 
   @override
   State<TypingText> createState() => _TypingTextState();
 }
 
-class _TypingTextState extends State<TypingText>
-    with SingleTickerProviderStateMixin {
-  String _displayText = '';
+class _TypingTextState extends State<TypingText> {
+  late String _displayText;
   Timer? _timer;
   int _currentIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    _displayText = '';
     if (widget.startTyping) {
-      _startTypingAnimation();
+      _startTyping();
+    } else {
+      _displayText = widget.text;
     }
-  }
-
-  @override
-  void didUpdateWidget(TypingText oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.text != oldWidget.text ||
-        widget.startTyping != oldWidget.startTyping) {
-      _resetAnimation();
-      if (widget.startTyping) {
-        _startTypingAnimation();
-      }
-    }
-  }
-
-  void _resetAnimation() {
-    _timer?.cancel();
-    _currentIndex = 0;
-    if (mounted) {
-      setState(() {
-        _displayText = '';
-      });
-    }
-  }
-
-  void _startTypingAnimation() {
-    _timer = Timer.periodic(widget.typingSpeed, (timer) {
-      if (_currentIndex < widget.text.length) {
-        if (mounted) {
-          setState(() {
-            _displayText = widget.text.substring(0, _currentIndex + 1);
-            _currentIndex++;
-          });
-        }
-      } else {
-        _timer?.cancel();
-      }
-    });
   }
 
   @override
@@ -76,11 +45,27 @@ class _TypingTextState extends State<TypingText>
     super.dispose();
   }
 
+  void _startTyping() {
+    _timer = Timer.periodic(widget.typingSpeed, (timer) {
+      if (_currentIndex < widget.text.length) {
+        setState(() {
+          _displayText += widget.text[_currentIndex];
+          _currentIndex++;
+        });
+      } else {
+        timer.cancel();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Text(
       _displayText,
       style: widget.style,
+      maxLines: widget.maxLines,
+      overflow: widget.overflow ??
+          (widget.maxLines != null ? TextOverflow.ellipsis : null),
     );
   }
 }
