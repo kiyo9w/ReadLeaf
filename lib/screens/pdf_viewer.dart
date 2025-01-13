@@ -202,14 +202,14 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
 
       if (!mounted) return;
 
-      if (selectedText != null) {
-        _floatingChatKey.currentState!
-            .addUserMessage('Imported Text: """$selectedText"""');
+      // if (selectedText != null) {
+      //   _floatingChatKey.currentState!
+      //       .addUserMessage('Imported Text: """$selectedText"""');
 
-        if (message != null) {
-          _floatingChatKey.currentState!.addUserMessage(message);
-        }
-      }
+      //   if (message != null) {
+      //     _floatingChatKey.currentState!.addUserMessage(message);
+      //   }
+      // }
 
       if (_floatingChatKey.currentState != null) {
         _floatingChatKey.currentState!.addAiResponse(response);

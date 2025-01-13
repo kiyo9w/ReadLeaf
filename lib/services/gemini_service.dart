@@ -153,10 +153,7 @@ $conversationContext""";
       // Clean the selected text if provided
       String cleanedText = '';
       if (selectedText.isNotEmpty) {
-        cleanedText = selectedText
-            .replaceAll(RegExp(r'\s+'), ' ')
-            .trim()
-            .replaceAll(RegExp(r'[^\x20-\x7E]'), '');
+        cleanedText = selectedText.replaceAll(RegExp(r'\s+'), ' ').trim();
       }
 
       log('Selected text length: ${cleanedText.length}');
