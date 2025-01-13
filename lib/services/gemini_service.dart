@@ -93,10 +93,7 @@ Text from {BOOK_TITLE} (page {PAGE_NUMBER}):
       // Clean the selected text if provided
       String cleanedText = '';
       if (selectedText.isNotEmpty) {
-        cleanedText = selectedText
-            .replaceAll(RegExp(r'\s+'), ' ')
-            .trim()
-            .replaceAll(RegExp(r'[^\x20-\x7E]'), '');
+        cleanedText = selectedText.replaceAll(RegExp(r'\s+'), ' ').trim();
       }
 
       log('Selected text length: ${cleanedText.length}');
@@ -108,7 +105,8 @@ Text from {BOOK_TITLE} (page {PAGE_NUMBER}):
           .replaceAll('{BOOK_TITLE}', bookTitle)
           .replaceAll('{PAGE_NUMBER}', currentPage.toString())
           .replaceAll('{TOTAL_PAGES}', totalPages.toString())
-          .replaceAll('{PROGRESS}', AiCharacterService.getProgressPercentage(currentPage, totalPages))
+          .replaceAll('{PROGRESS}',
+              AiCharacterService.getProgressPercentage(currentPage, totalPages))
           .replaceAll('{CHARACTER_NAME}',
               characterService.getSelectedCharacter()?.name ?? 'AI Assistant')
           .replaceAll('{USER_PROMPT}', customPrompt ?? '');
