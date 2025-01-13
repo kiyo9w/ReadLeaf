@@ -1,7 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:migrated/models/ai_character.dart';
 import 'package:migrated/services/ai_character_service.dart';
 import 'package:migrated/depeninject/injection.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart' as path_provider;
+import 'package:path/path.dart' as path;
+import 'package:migrated/widgets/ai_character_slider.dart';
+import 'package:migrated/screens/home_screen.dart';
 
 class CharacterScreen extends StatefulWidget {
   const CharacterScreen({super.key});
@@ -38,11 +44,47 @@ class _CharacterScreenState extends State<CharacterScreen> {
     'Review'
   ];
 
+  final ImagePicker _picker = ImagePicker();
+  String? _localImagePath;
+
   void _nextStep() {
-    if (_currentStep < 6) {
+    bool canProceed = true;
+
+    // Validate current step
+    switch (_currentStep) {
+      case 0: // Name
+        canProceed = _nameController.text.isNotEmpty;
+        break;
+      case 1: // Photo
+        canProceed = _selectedImagePath != null;
+        break;
+      case 2: // Tagline
+        canProceed = true; // Optional
+        break;
+      case 3: // Description
+        canProceed = _descriptionController.text.isNotEmpty;
+        break;
+      case 4: // Greeting
+        canProceed = true; // Optional
+        break;
+      case 5: // Voice
+        canProceed = _selectedVoice != null;
+        break;
+    }
+
+    if (canProceed) {
       setState(() {
-        _currentStep++;
+        if (_currentStep < 6) {
+          _currentStep++;
+        }
       });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill in all required fields'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -92,6 +134,7 @@ class _CharacterScreenState extends State<CharacterScreen> {
             decoration: const InputDecoration(
               hintText: 'e.g. Albert Einstein',
               border: OutlineInputBorder(),
+              labelText: 'Character Name *',
             ),
             validator: (value) {
               if (value == null || value.isEmpty) {
@@ -106,6 +149,45 @@ class _CharacterScreenState extends State<CharacterScreen> {
     );
   }
 
+  Future<String?> _saveImageToLocal(XFile image) async {
+    try {
+      final directory = await path_provider.getApplicationDocumentsDirectory();
+      final charactersDir = Directory('${directory.path}/characters');
+
+      // Create the characters directory if it doesn't exist
+      if (!await charactersDir.exists()) {
+        await charactersDir.create(recursive: true);
+      }
+
+      final fileName =
+          'character_${DateTime.now().millisecondsSinceEpoch}${path.extension(image.path)}';
+      final savedImage =
+          await File(image.path).copy('${charactersDir.path}/$fileName');
+      return savedImage.path;
+    } catch (e) {
+      print('Error saving image: $e');
+      return null;
+    }
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+      if (image != null) {
+        // Save image to local storage
+        final savedPath = await _saveImageToLocal(image);
+        if (savedPath != null) {
+          setState(() {
+            _selectedImagePath = savedPath;
+            _localImagePath = savedPath;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error picking image: $e');
+    }
+  }
+
   Widget _buildImageStep() {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -116,17 +198,48 @@ class _CharacterScreenState extends State<CharacterScreen> {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 20),
-        // TODO: Implement image picker
+        if (_selectedImagePath != null)
+          Container(
+            width: 200,
+            height: 200,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.grey[300]!),
+              image: DecorationImage(
+                image: _localImagePath != null
+                    ? FileImage(File(_localImagePath!)) as ImageProvider
+                    : AssetImage(_selectedImagePath!),
+                fit: BoxFit.cover,
+              ),
+            ),
+          )
+        else
+          Container(
+            width: 200,
+            height: 200,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: const Icon(Icons.person, size: 100, color: Colors.grey),
+          ),
+        const SizedBox(height: 20),
         ElevatedButton.icon(
-          onPressed: () {
-            // TODO: Implement image selection
-            setState(() {
-              _selectedImagePath = 'assets/images/ai_characters/default.png';
-            });
-          },
+          onPressed: _pickImage,
           icon: const Icon(Icons.add_photo_alternate),
-          label: const Text('Choose Photo'),
+          label: const Text('Choose Photo *'),
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          ),
         ),
+        if (_selectedImagePath == null)
+          const Padding(
+            padding: EdgeInsets.only(top: 8.0),
+            child: Text(
+              'Photo is required',
+              style: TextStyle(color: Colors.red, fontSize: 12),
+            ),
+          ),
       ],
     );
   }
@@ -174,10 +287,42 @@ class _CharacterScreenState extends State<CharacterScreen> {
             decoration: const InputDecoration(
               hintText: 'Write a description',
               border: OutlineInputBorder(),
+              labelText: 'Character Description *',
+              helperText: 'Maximum 80 words',
+              counterText: '', // Hide the built-in counter
             ),
             maxLength: 500,
             maxLines: 4,
-            onChanged: (value) => setState(() {}),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter a description';
+              }
+              final wordCount = value.trim().split(RegExp(r'\s+')).length;
+              if (wordCount > 80) {
+                return 'Description should not exceed 80 words';
+              }
+              return null;
+            },
+            onChanged: (value) {
+              final wordCount = value.trim().split(RegExp(r'\s+')).length;
+              setState(() {
+                // This will trigger a rebuild to update the UI
+              });
+            },
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '${_descriptionController.text.trim().split(RegExp(r'\s+')).length}/80 words',
+          style: TextStyle(
+            color: _descriptionController.text
+                        .trim()
+                        .split(RegExp(r'\s+'))
+                        .length >
+                    80
+                ? Colors.red
+                : Colors.grey[600],
+            fontSize: 12,
           ),
         ),
       ],
@@ -315,8 +460,10 @@ Current Progress: Page {PAGE_NUMBER} of {TOTAL_PAGES} ({PROGRESS}% complete)
 Text: {TEXT}""";
   }
 
-  void _createCharacter() {
+  void _createCharacter() async {
     if (_formKey.currentState?.validate() ?? false) {
+      final promptTemplate = _generatePromptTemplate();
+
       final newCharacter = AiCharacter(
         name: _nameController.text,
         imagePath:
@@ -324,14 +471,47 @@ Text: {TEXT}""";
         personality: _descriptionController.text,
         trait: _taglineController.text,
         categories: ['Custom'],
-        promptTemplate: _generatePromptTemplate(),
+        promptTemplate: promptTemplate,
         taskPrompts: {
           'greeting': _greetingController.text,
+          'analyze_text': promptTemplate,
+          'encouragement': promptTemplate,
         },
       );
 
-      // TODO: Save character to storage
-      Navigator.pop(context);
+      try {
+        // Save character using AiCharacterService (Hive storage)
+        final aiCharacterService = getIt<AiCharacterService>();
+        await aiCharacterService.addCustomCharacter(newCharacter);
+
+        // Set as current character
+        aiCharacterService.setSelectedCharacter(newCharacter);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Character created successfully!'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+
+          // Update the character slider directly
+          AiCharacterSlider.globalKey.currentState?.addCharacter(newCharacter);
+
+          // Navigate back
+          Navigator.of(context).pop();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error creating character: ${e.toString()}'),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     }
   }
 
