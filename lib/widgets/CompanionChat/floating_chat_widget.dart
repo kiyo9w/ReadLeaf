@@ -26,6 +26,7 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
   bool _showChat = false;
   final GlobalKey<ChatScreenState> _chatScreenKey =
       GlobalKey<ChatScreenState>();
+  String? _currentCharacter;
 
   double _xPosition = 0;
   double _yPosition = 100;
@@ -35,6 +36,25 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
   double _chatWidth = 320;
   double _chatHeight = 480;
   bool _isResizing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentCharacter = widget.character.name;
+  }
+
+  @override
+  void didUpdateWidget(FloatingChatWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // If character changed, update state
+    if (oldWidget.character.name != widget.character.name) {
+      print(
+          'FloatingChat: Character changed from ${oldWidget.character.name} to ${widget.character.name}');
+      setState(() {
+        _currentCharacter = widget.character.name;
+      });
+    }
+  }
 
   void _toggleChat() {
     setState(() {
@@ -53,12 +73,15 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
 
   // Public method to add a user message
   void addUserMessage(String message) {
+    print('Adding user message for character: ${widget.character.name}');
     if (_chatScreenKey.currentState != null) {
       _chatScreenKey.currentState!.addMessage(
         ChatMessage(
           text: message,
           isUser: true,
           timestamp: DateTime.now(),
+          characterName: widget.character.name,
+          bookId: widget.bookId,
         ),
       );
     }
@@ -66,6 +89,7 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
 
   // Public method to add an AI response
   void addAiResponse(String message) {
+    print('Adding AI response for character: ${widget.character.name}');
     if (_chatScreenKey.currentState != null) {
       _chatScreenKey.currentState!.addMessage(
         ChatMessage(
@@ -73,6 +97,8 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
           isUser: false,
           timestamp: DateTime.now(),
           avatarImagePath: widget.character.imagePath,
+          characterName: widget.character.name,
+          bookId: widget.bookId,
         ),
       );
     }

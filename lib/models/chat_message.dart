@@ -16,10 +16,18 @@ class ChatMessage extends HiveObject {
   @HiveField(3)
   final String? avatarImagePath;
 
+  @HiveField(4)
+  final String? characterName;
+
+  @HiveField(5)
+  final String? bookId;
+
   ChatMessage({
     required this.text,
     required this.isUser,
     required this.timestamp,
     this.avatarImagePath,
+    this.characterName,
+    this.bookId,
   });
 }

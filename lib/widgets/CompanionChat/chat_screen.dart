@@ -29,13 +29,27 @@ class ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
   final ChatService _chatService = GetIt.I<ChatService>();
   List<ChatMessage> _messages = [];
+  String? _currentCharacter;
 
   @override
   void initState() {
     super.initState();
+    _currentCharacter = widget.character.name;
     _loadMessages();
     // Add post-frame callback to scroll to bottom after initial render
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+  }
+
+  @override
+  void didUpdateWidget(ChatScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // If character changed, reload messages
+    if (oldWidget.character.name != widget.character.name) {
+      print(
+          'Character changed from ${oldWidget.character.name} to ${widget.character.name}');
+      _currentCharacter = widget.character.name;
+      _loadMessages();
+    }
   }
 
   @override
@@ -46,10 +60,35 @@ class ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _loadMessages() async {
-    final messages = await _chatService.getMessages(widget.bookId);
-    setState(() {
-      _messages = messages;
-    });
+    print('Loading messages for character: ${widget.character.name}');
+
+    // Load book-specific messages first
+    final bookMessages = await _chatService.getBookMessages(
+      widget.character.name,
+      widget.bookId,
+    );
+
+    // If this is a new book conversation, also get the last few general messages for context
+    if (bookMessages.isEmpty) {
+      final lastMessages =
+          await _chatService.getLastNMessages(widget.character.name, n: 5);
+      if (mounted) {
+        setState(() {
+          _messages = lastMessages;
+        });
+      }
+    } else {
+      if (mounted) {
+        setState(() {
+          _messages = bookMessages;
+        });
+      }
+    }
+
+    // Debug: Print current message state
+    print('Loaded ${_messages.length} messages for ${widget.character.name}');
+    await _chatService.debugPrintBoxes();
+
     // Add post-frame callback to scroll to bottom after messages are loaded
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
   }
@@ -67,6 +106,14 @@ class ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> addMessage(ChatMessage message) async {
+    print('Adding message for character: ${message.characterName}');
+    // Verify character name matches current character
+    if (message.characterName != widget.character.name) {
+      print(
+          'Warning: Message character (${message.characterName}) does not match current character (${widget.character.name})');
+      return;
+    }
+
     // Add message to UI immediately
     setState(() {
       _messages.add(message);
@@ -74,7 +121,8 @@ class ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
 
     // Save to storage asynchronously
-    await _chatService.addMessage(widget.bookId, message);
+    await _chatService.addMessage(message);
+    await _chatService.debugPrintBoxes();
   }
 
   void _handleSubmitted(String text) async {
@@ -86,6 +134,8 @@ class ChatScreenState extends State<ChatScreen> {
       text: text,
       isUser: true,
       timestamp: DateTime.now(),
+      characterName: widget.character.name,
+      bookId: widget.bookId,
     );
 
     setState(() {
@@ -94,7 +144,7 @@ class ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
 
     // Save the message asynchronously
-    await _chatService.addMessage(widget.bookId, message);
+    await _chatService.addMessage(message);
 
     // Call the callback to get AI response
     widget.onSendMessage(text);
@@ -107,7 +157,7 @@ class ChatScreenState extends State<ChatScreen> {
         color: const Color(0xFFF4F4F4),
         borderRadius: BorderRadius.circular(20),
         image: DecorationImage(
-          image: const AssetImage('assets/images/chat_bg_pattern.png'),
+          image: const AssetImage('assets/images/chat/chat_bg_pattern.png'),
           fit: BoxFit.cover,
         ),
       ),

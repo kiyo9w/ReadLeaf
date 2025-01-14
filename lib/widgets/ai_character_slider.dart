@@ -145,11 +145,41 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
   Widget build(BuildContext context) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
       height: _isExpanded
           ? _expandedHeight
           : (_isTextExpanded ? _textExpandedHeight : _collapsedHeight),
-      child: _isExpanded ? _buildExpandedView() : _buildCollapsedView(),
+      onEnd: () {
+        // Only allow description expansion after container animation is complete
+        if (_isTextExpanded) {
+          setState(() {
+            _allowDescriptionExpansion = true;
+          });
+        }
+      },
+      child: SingleChildScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: _isExpanded
+                ? _expandedHeight
+                : (_isTextExpanded ? _textExpandedHeight : _collapsedHeight),
+          ),
+          child: _isExpanded ? _buildExpandedView() : _buildCollapsedView(),
+        ),
+      ),
     );
+  }
+
+  bool _allowDescriptionExpansion = false;
+
+  void setTextExpanded(bool expanded) {
+    setState(() {
+      _isTextExpanded = expanded;
+      if (!expanded) {
+        _allowDescriptionExpansion = false;
+      }
+    });
   }
 
   Widget _buildCollapsedView() {
@@ -183,6 +213,7 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
+              overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 4),
             Text(
@@ -191,23 +222,30 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
                 fontSize: 14,
                 color: Colors.grey[600],
               ),
+              overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: ExpandableDescription(
-                text: characters[_selectedIndex].personality,
-                style: const TextStyle(
-                  fontSize: 13,
-                  height: 1.4,
-                  color: Color(0xFF424242),
-                ),
-                maxLines: 3,
-              ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                return Container(
+                  width: constraints.maxWidth,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F5F5),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: ExpandableDescription(
+                    text: characters[_selectedIndex].personality,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      height: 1.4,
+                      color: Color(0xFF424242),
+                    ),
+                    maxLines: 3,
+                    maxWidth: constraints.maxWidth - 24, // Account for padding
+                  ),
+                );
+              },
             ),
           ],
         ),
@@ -229,15 +267,19 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
         ],
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Choose Character',
-                  style: Theme.of(context).textTheme.titleLarge,
+                Expanded(
+                  child: Text(
+                    'Choose Character',
+                    style: Theme.of(context).textTheme.titleLarge,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 IconButton(
                   onPressed: _collapse,
@@ -246,8 +288,7 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
               ],
             ),
           ),
-          SizedBox(
-            height: 180,
+          Expanded(
             child: ListView.builder(
               controller: _scrollController,
               scrollDirection: Axis.horizontal,
@@ -401,10 +442,12 @@ class ExpandableDescription extends StatefulWidget {
   final String text;
   final TextStyle style;
   final int maxLines;
+  final double maxWidth;
 
   const ExpandableDescription({
     required this.text,
     required this.style,
+    required this.maxWidth,
     this.maxLines = 3,
     Key? key,
   }) : super(key: key);
@@ -415,23 +458,40 @@ class ExpandableDescription extends StatefulWidget {
 
 class _ExpandableDescriptionState extends State<ExpandableDescription> {
   bool _isExpanded = false;
-  bool _isTextExpanded = false;
   late TextPainter _textPainter;
   bool _hasOverflow = false;
+  late int _actualLineCount;
 
   @override
   void initState() {
     super.initState();
-    _checkTextOverflow();
+    _measureText();
   }
 
-  void _checkTextOverflow() {
+  @override
+  void didUpdateWidget(ExpandableDescription oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.text != widget.text ||
+        oldWidget.maxWidth != widget.maxWidth ||
+        oldWidget.style != widget.style) {
+      _measureText();
+    }
+  }
+
+  void _measureText() {
     _textPainter = TextPainter(
       text: TextSpan(text: widget.text, style: widget.style),
-      maxLines: widget.maxLines,
+      maxLines: 1000, // High number to measure actual lines
       textDirection: TextDirection.ltr,
-    )..layout(maxWidth: 300); // Approximate width
+    )..layout(maxWidth: widget.maxWidth);
 
+    // Calculate actual number of lines
+    List<LineMetrics> lines = _textPainter.computeLineMetrics();
+    _actualLineCount = lines.length;
+
+    // Check if text overflows the collapsed state
+    _textPainter.maxLines = widget.maxLines;
+    _textPainter.layout(maxWidth: widget.maxWidth);
     _hasOverflow = _textPainter.didExceedMaxLines;
   }
 
@@ -440,48 +500,55 @@ class _ExpandableDescriptionState extends State<ExpandableDescription> {
     final sliderState =
         context.findAncestorStateOfType<AiCharacterSliderState>();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        TypingText(
-          text: widget.text,
-          style: widget.style,
-          maxLines: _isExpanded ? null : widget.maxLines,
-          typingSpeed: const Duration(milliseconds: 30),
-          overflow: _isExpanded ? null : TextOverflow.ellipsis,
-        ),
-        if (_hasOverflow)
-          GestureDetector(
-            onTap: () {
-              setState(() {
-                _isExpanded = !_isExpanded;
-                if (sliderState != null) {
-                  sliderState.setState(() {
-                    sliderState._isTextExpanded = _isExpanded;
-                  });
-                }
-              });
-            },
-            child: Container(
-              width: double.infinity,
-              height: 36,
-              margin: const EdgeInsets.only(top: 8),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: _isExpanded
-                      ? [Colors.transparent, Colors.grey.withOpacity(0.1)]
-                      : [Colors.grey.withOpacity(0.1), Colors.transparent],
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeInOut,
+      alignment: Alignment.topCenter,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TypingText(
+            text: widget.text,
+            style: widget.style,
+            maxLines: _isExpanded ? _actualLineCount : widget.maxLines,
+            typingSpeed: const Duration(milliseconds: 30),
+            overflow: TextOverflow.ellipsis,
+          ),
+          if (_hasOverflow)
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  _isExpanded = !_isExpanded;
+                  if (_isExpanded) {
+                    sliderState?.setTextExpanded(true);
+                    sliderState?.setState(() {
+                      sliderState._allowDescriptionExpansion = true;
+                    });
+                  } else {
+                    sliderState?.setTextExpanded(false);
+                  }
+                });
+              },
+              child: Container(
+                width: double.infinity,
+                height: 36,
+                margin: const EdgeInsets.only(top: 8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: _isExpanded
+                        ? [Colors.transparent, Colors.grey.withOpacity(0.1)]
+                        : [Colors.grey.withOpacity(0.1), Colors.transparent],
+                  ),
+                  borderRadius: BorderRadius.circular(18),
                 ),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (_isExpanded) ...[
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
                     Text(
-                      'Show less',
+                      _isExpanded ? 'Show less' : 'Read more',
                       style: TextStyle(
                         color: Colors.blue[700],
                         fontWeight: FontWeight.w500,
@@ -490,31 +557,18 @@ class _ExpandableDescriptionState extends State<ExpandableDescription> {
                     ),
                     const SizedBox(width: 4),
                     Icon(
-                      Icons.keyboard_arrow_up,
-                      size: 20,
-                      color: Colors.blue[700],
-                    ),
-                  ] else ...[
-                    Text(
-                      'Read more',
-                      style: TextStyle(
-                        color: Colors.blue[700],
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.keyboard_arrow_down,
+                      _isExpanded
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
                       size: 20,
                       color: Colors.blue[700],
                     ),
                   ],
-                ],
+                ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }
