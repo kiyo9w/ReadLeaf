@@ -495,18 +495,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
     );
   }
 
-  void _handleScroll() {
-    // Hide UI when scrolling
-    final state = context.read<ReaderBloc>().state;
-    if (state is ReaderLoaded && state.showUI) {
-      context.read<ReaderBloc>().add(ToggleUIVisibility());
-    }
-    if (_showSearchPanel) _closeSearchPanel();
-    if (state is ReaderLoaded && state.showSideNav) {
-      _closeSideNav(context);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<ReaderBloc, ReaderState>(
@@ -550,9 +538,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                   child: child,
                 );
               },
-              // This somehow dont works, TODO: fix it
-              onInteractionStart: (_) => _handleScroll(),
-              onInteractionUpdate: (_) => _handleScroll(),
               pagePaintCallbacks: [
                 _textSearcher.pageTextMatchPaintCallback,
               ],
@@ -587,12 +572,11 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                     _handleTap();
                   },
                   onDoubleTapDown: (details) {
+                    //   // Cancel the single tap handler when double tap is detected
                     _handleDoubleTap(details);
                   },
-                  child: Container(
-                    width: size.width,
-                    height: size.height,
-                    color: Colors.transparent,
+                  child: IgnorePointer(
+                    child: SizedBox(width: size.width, height: size.height),
                   ),
                 ),
               ],
