@@ -495,6 +495,18 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
     );
   }
 
+  void _handleScroll() {
+    // Hide UI when scrolling
+    final state = context.read<ReaderBloc>().state;
+    if (state is ReaderLoaded && state.showUI) {
+      context.read<ReaderBloc>().add(ToggleUIVisibility());
+    }
+    if (_showSearchPanel) _closeSearchPanel();
+    if (state is ReaderLoaded && state.showSideNav) {
+      _closeSideNav(context);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<ReaderBloc, ReaderState>(
@@ -538,6 +550,9 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                   child: child,
                 );
               },
+              // This somehow dont works, TODO: fix it
+              onInteractionStart: (_) => _handleScroll(),
+              onInteractionUpdate: (_) => _handleScroll(),
               pagePaintCallbacks: [
                 _textSearcher.pageTextMatchPaintCallback,
               ],
@@ -567,12 +582,17 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
               viewerOverlayBuilder: (context, size, handleLinkTap) => [
                 GestureDetector(
                   behavior: HitTestBehavior.translucent,
-                  onDoubleTapDown: _handleDoubleTap,
                   onTapUp: (details) {
                     handleLinkTap(details.localPosition);
+                    _handleTap();
                   },
-                  child: IgnorePointer(
-                    child: SizedBox(width: size.width, height: size.height),
+                  onDoubleTapDown: (details) {
+                    _handleDoubleTap(details);
+                  },
+                  child: Container(
+                    width: size.width,
+                    height: size.height,
+                    color: Colors.transparent,
                   ),
                 ),
               ],
@@ -588,13 +608,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
             child: Scaffold(
               body: Stack(
                 children: [
-                  GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onTapDown: (details) {
-                      _handleTap();
-                    },
-                    child: pdfViewer,
-                  ),
+                  pdfViewer,
 
                   // Top app bar nav
                   if (showUI)
