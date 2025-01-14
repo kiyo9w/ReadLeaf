@@ -106,7 +106,7 @@ class _TextSearchViewState extends State<TextSearchView> {
                       alignment: Alignment.centerLeft,
                       children: [
                         TextField(
-                          autofocus: true,
+                          autofocus: false,
                           focusNode: focusNode,
                           controller: searchTextController,
                           decoration: const InputDecoration(

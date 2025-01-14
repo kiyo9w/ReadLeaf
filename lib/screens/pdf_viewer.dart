@@ -52,6 +52,13 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NavScreen.globalKey.currentState?.setNavBarVisibility(true);
     });
+    _controller.addListener(() {
+      // Update current page in bloc when page changes
+      if (mounted) {
+        final currentPage = _controller.pageNumber ?? 1;
+        context.read<ReaderBloc>().add(JumpToPage(currentPage));
+      }
+    });
   }
 
   @override
@@ -61,6 +68,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NavScreen.globalKey.currentState?.setNavBarVisibility(false);
     });
+    _controller.removeListener(() {});
     super.dispose();
   }
 
@@ -519,6 +527,10 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
           final showSideNav = state.showSideNav;
           final file = state.file;
 
+          // Get keyboard information
+          final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+          final isKeyboardVisible = keyboardHeight > 0;
+
           Widget pdfViewer = PdfViewer.file(
             file.path,
             controller: _controller,
@@ -590,6 +602,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
               return true;
             },
             child: Scaffold(
+              resizeToAvoidBottomInset: false, // Prevent scaffold from resizing
               body: Stack(
                 children: [
                   pdfViewer,
@@ -663,35 +676,52 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                       right: 0,
                       child: Container(
                         color: const Color(0xffDDDDDD),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 5),
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        height: 65, // Increased height
                         child: Row(
                           children: [
                             Text(
                               '$currentPage',
-                              style: const TextStyle(color: Colors.black),
+                              style: const TextStyle(
+                                color: Colors.black,
+                                fontSize: 16,
+                              ),
                             ),
                             const SizedBox(width: 10),
                             Expanded(
-                              child: Slider(
-                                value: currentPage.toDouble(),
-                                min: 1,
-                                max: totalPages.toDouble(),
-                                activeColor: Colors.pinkAccent,
-                                inactiveColor: Colors.white54,
-                                onChanged: (value) {
-                                  final page = value.toInt();
-                                  context
-                                      .read<ReaderBloc>()
-                                      .add(JumpToPage(page));
-                                  _controller.goToPage(pageNumber: page);
-                                },
+                              child: SliderTheme(
+                                data: SliderThemeData(
+                                  trackHeight: 4,
+                                  thumbShape: const RoundSliderThumbShape(
+                                    enabledThumbRadius: 8,
+                                  ),
+                                  overlayShape: const RoundSliderOverlayShape(
+                                    overlayRadius: 16,
+                                  ),
+                                ),
+                                child: Slider(
+                                  value: currentPage.toDouble(),
+                                  min: 1,
+                                  max: totalPages.toDouble(),
+                                  activeColor: Colors.pinkAccent,
+                                  inactiveColor: Colors.white54,
+                                  onChanged: (value) {
+                                    final page = value.toInt();
+                                    context
+                                        .read<ReaderBloc>()
+                                        .add(JumpToPage(page));
+                                    _controller.goToPage(pageNumber: page);
+                                  },
+                                ),
                               ),
                             ),
                             const SizedBox(width: 10),
                             Text(
                               '$totalPages',
-                              style: const TextStyle(color: Colors.black),
+                              style: const TextStyle(
+                                color: Colors.black,
+                                fontSize: 16,
+                              ),
                             ),
                           ],
                         ),
@@ -775,9 +805,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                       ),
                     ),
 
-                  // Add the floating chat widget
+                  // Floating chat widget with keyboard info
                   FloatingChatWidget(
-                    key: _floatingChatKey,
                     character: _characterService.getSelectedCharacter() ??
                         AiCharacter(
                           name: 'Amelia',
@@ -797,8 +826,11 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                           },
                         ),
                     onSendMessage: _handleChatMessage,
-                    bookId: file.path, // Use file path as unique identifier
+                    bookId: file.path,
                     bookTitle: path.basename(file.path),
+                    keyboardHeight: keyboardHeight,
+                    isKeyboardVisible: isKeyboardVisible,
+                    key: _floatingChatKey,
                   ),
                 ],
               ),

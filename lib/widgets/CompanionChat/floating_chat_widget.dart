@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 import 'package:migrated/widgets/CompanionChat/chat_screen.dart';
 import 'package:migrated/models/chat_message.dart';
 import 'package:migrated/models/ai_character.dart';
@@ -8,6 +9,8 @@ class FloatingChatWidget extends StatefulWidget {
   final Function(String) onSendMessage;
   final String bookId;
   final String bookTitle;
+  final double keyboardHeight;
+  final bool isKeyboardVisible;
 
   const FloatingChatWidget({
     Key? key,
@@ -15,6 +18,8 @@ class FloatingChatWidget extends StatefulWidget {
     required this.onSendMessage,
     required this.bookId,
     required this.bookTitle,
+    required this.keyboardHeight,
+    required this.isKeyboardVisible,
   }) : super(key: key);
 
   @override
@@ -89,19 +94,16 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
         _animateToPosition(_xPosition, validY);
       }
     } else {
-      // When closing, first animate to original position
+    // When closing, first hide the chat
+      if (mounted) {
+            setState(() {
+              _showChat = false;
+            });
+          }
+      // Then animate to original position
       if (_originalX != null && _originalY != null) {
         _animateToPosition(_originalX!, _originalY!);
       }
-
-      // Then hide chat after animation
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted) {
-          setState(() {
-            _showChat = false;
-          });
-        }
-      });
     }
   }
 
@@ -307,16 +309,58 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
+    final isKeyboardVisible = widget.isKeyboardVisible;
+    final keyboardHeight = widget.keyboardHeight;
 
     // Calculate chat position based on chat head position
     double chatY = _yPosition + _chatHeadSize + _minSpacing;
 
-    // Ensure chat stays within screen bounds without using clamp
-    if (chatY + _chatHeight > screenSize.height - _bottomPadding) {
-      chatY = screenSize.height - _chatHeight - _bottomPadding;
+    // Calculate maximum available height considering keyboard
+    final availableHeight = screenSize.height -
+        _bottomPadding -
+        (isKeyboardVisible ? keyboardHeight : 0);
+
+    // Ensure chat head doesn't go too high when keyboard is visible
+    if (isKeyboardVisible && _yPosition < _topPadding) {
+      _yPosition = _topPadding;
     }
-    if (chatY < _topPadding + _chatHeadSize + _minSpacing) {
-      chatY = _topPadding + _chatHeadSize + _minSpacing;
+
+    // Ensure chat stays within screen bounds
+    if (isKeyboardVisible) {
+      if (chatY + _chatHeight > availableHeight) {
+        // First try to move chat head up if possible
+        double newHeadY =
+            availableHeight - _chatHeight - _chatHeadSize - _minSpacing;
+        if (newHeadY >= _topPadding) {
+          _yPosition = newHeadY;
+          chatY = _yPosition + _chatHeadSize + _minSpacing;
+        } else {
+          // If can't move head up, adjust chat height
+          chatY = _topPadding + _chatHeadSize + _minSpacing;
+          _chatHeight = math.max(400.0, availableHeight - chatY);
+        }
+      }
+    }
+
+    // Adjust chat height when keyboard is visible
+    double adjustedChatHeight = _chatHeight;
+    if (isKeyboardVisible) {
+      final maxHeight = availableHeight - chatY;
+      // Ensure we don't go below minimum height
+      if (maxHeight < 400.0) {
+        // Move chat head up if possible
+        double newHeadY = availableHeight - 400.0 - _chatHeadSize - _minSpacing;
+        if (newHeadY >= _topPadding) {
+          _yPosition = newHeadY;
+          chatY = _yPosition + _chatHeadSize + _minSpacing;
+          adjustedChatHeight = 400.0;
+        } else {
+          // If we can't move up, use maximum available space
+          adjustedChatHeight = math.max(400.0, maxHeight);
+        }
+      } else {
+        adjustedChatHeight = math.min(_chatHeight, maxHeight);
+      }
     }
 
     return Stack(
@@ -336,9 +380,10 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
             top: chatY,
             child: Stack(
               children: [
-                SizedBox(
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 100),
                   width: _chatWidth,
-                  height: _chatHeight,
+                  height: adjustedChatHeight,
                   child: ChatScreen(
                     character: widget.character,
                     onClose: _toggleChat,
@@ -349,26 +394,27 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
                   ),
                 ),
                 // Resize handle
-                Positioned(
-                  left: _xPosition < screenSize.width / 2 ? null : 0,
-                  right: _xPosition < screenSize.width / 2 ? 0 : null,
-                  bottom: 0,
-                  child: GestureDetector(
-                    onPanStart: (_) => setState(() => _isResizing = true),
-                    onPanUpdate: _handleResize,
-                    onPanEnd: (_) => setState(() => _isResizing = false),
-                    child: Container(
-                      width: 20,
-                      height: 20,
-                      alignment: Alignment.bottomRight,
-                      child: Icon(
-                        Icons.open_with,
-                        size: 20,
-                        color: Colors.grey[400],
+                if (!isKeyboardVisible)
+                  Positioned(
+                    left: _xPosition < screenSize.width / 2 ? null : 0,
+                    right: _xPosition < screenSize.width / 2 ? 0 : null,
+                    bottom: 0,
+                    child: GestureDetector(
+                      onPanStart: (_) => setState(() => _isResizing = true),
+                      onPanUpdate: _handleResize,
+                      onPanEnd: (_) => setState(() => _isResizing = false),
+                      child: Container(
+                        width: 20,
+                        height: 20,
+                        alignment: Alignment.bottomRight,
+                        child: Icon(
+                          Icons.open_with,
+                          size: 20,
+                          color: Colors.grey[400],
+                        ),
                       ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
