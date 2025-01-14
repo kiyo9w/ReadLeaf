@@ -28,28 +28,44 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
       GlobalKey<ChatScreenState>();
   String? _currentCharacter;
 
+  // Position state
   double _xPosition = 0;
   double _yPosition = 100;
+  double? _originalX;
+  double? _originalY;
   bool _isDragging = false;
+  bool _isAnimating = false;
 
   // Chat window size state
   double _chatWidth = 320;
   double _chatHeight = 480;
   bool _isResizing = false;
 
+  // Constants for positioning
+  static const double _topPadding = 50.0;
+  static const double _bottomPadding = 50.0;
+  static const double _chatHeadSize = 65.0;
+  static const double _minSpacing = 5.0;
+
   @override
   void initState() {
     super.initState();
     _currentCharacter = widget.character.name;
+
+    // Set initial position to be valid
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          _yPosition = _getValidYPosition(_yPosition, context);
+        });
+      }
+    });
   }
 
   @override
   void didUpdateWidget(FloatingChatWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // If character changed, update state
     if (oldWidget.character.name != widget.character.name) {
-      print(
-          'FloatingChat: Character changed from ${oldWidget.character.name} to ${widget.character.name}');
       setState(() {
         _currentCharacter = widget.character.name;
       });
@@ -57,17 +73,120 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
   }
 
   void _toggleChat() {
-    setState(() {
-      _showChat = !_showChat;
-    });
-  }
-
-  // Public method to show the chat
-  void showChat() {
     if (!_showChat) {
+      // Store original position before opening chat
+      _originalX = _xPosition;
+      _originalY = _yPosition;
+
+      // First set showChat to true so position validation considers chat widget
       setState(() {
         _showChat = true;
       });
+
+      // Validate position with chat widget in consideration
+      final validY = _getValidYPosition(_yPosition, context);
+      if (validY != _yPosition) {
+        _animateToPosition(_xPosition, validY);
+      }
+    } else {
+      // When closing, first animate to original position
+      if (_originalX != null && _originalY != null) {
+        _animateToPosition(_originalX!, _originalY!);
+      }
+
+      // Then hide chat after animation
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) {
+          setState(() {
+            _showChat = false;
+          });
+        }
+      });
+    }
+  }
+
+  void _animateToPosition(double targetX, double targetY) {
+    setState(() {
+      _isAnimating = true;
+      _xPosition = targetX;
+      _yPosition = targetY;
+    });
+
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        setState(() {
+          _isAnimating = false;
+        });
+      }
+    });
+  }
+
+  double _getValidYPosition(double y, BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
+    final keyboardHeight = bottomPadding > 0 ? bottomPadding : 0;
+
+    double minY = _topPadding;
+    double maxY =
+        screenSize.height - _chatHeadSize - keyboardHeight - _bottomPadding;
+
+    if (_showChat) {
+      // Calculate maximum chat height based on screen constraints
+      final maxChatHeight = screenSize.height - keyboardHeight - _bottomPadding;
+
+      // Adjust chat height if it's too big
+      if (_chatHeight > maxChatHeight - _topPadding - _minSpacing * 2) {
+        setState(() {
+          _chatHeight = maxChatHeight - _topPadding - _minSpacing * 2;
+        });
+      }
+
+      // When chat is open, ensure there's enough space for the chat widget below
+      maxY = screenSize.height -
+          _chatHeight -
+          _chatHeadSize -
+          _minSpacing -
+          _bottomPadding;
+    }
+
+    return y.clamp(minY, maxY);
+  }
+
+  void _handleDragUpdate(DragUpdateDetails details) {
+    final screenSize = MediaQuery.of(context).size;
+    setState(() {
+      _xPosition = (_xPosition + details.delta.dx)
+          .clamp(0, screenSize.width - _chatHeadSize);
+      _yPosition = _getValidYPosition(_yPosition + details.delta.dy, context);
+    });
+  }
+
+  void _handleDragEnd(DragEndDetails details) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    setState(() {
+      _isDragging = false;
+
+      // Snap X to nearest edge
+      if (_xPosition < screenWidth / 2) {
+        _xPosition = 0;
+      } else {
+        _xPosition = screenWidth - _chatHeadSize;
+      }
+
+      // Ensure Y position is valid and animate to it if needed
+      final validY = _getValidYPosition(_yPosition, context);
+      if (validY != _yPosition) {
+        _animateToPosition(_xPosition, validY);
+      } else {
+        _yPosition = validY;
+      }
+    });
+  }
+
+  void showChat() {
+    if (!_showChat) {
+      _toggleChat();
     }
   }
 
@@ -135,41 +254,53 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
     }
   }
 
-  void _handleDragUpdate(DragUpdateDetails details) {
-    setState(() {
-      _xPosition += details.delta.dx;
-      _yPosition += details.delta.dy;
+  // Add these getter methods for cleaner constraint calculations
+  double _getMaxChatHeight(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    final availableHeight = screenSize.height - keyboardHeight - _bottomPadding;
 
-      // Keep the chat head within screen bounds
-      _xPosition = _xPosition.clamp(0, MediaQuery.of(context).size.width - 60);
-      _yPosition = _yPosition.clamp(0, MediaQuery.of(context).size.height - 60);
-    });
+    // Calculate maximum height based on space below chat head
+    final spaceBelow =
+        availableHeight - (_yPosition + _chatHeadSize + _minSpacing);
+    return spaceBelow.clamp(400.0, double.infinity);
   }
 
-  void _handleDragEnd(DragEndDetails details) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
+  double _getMaxChatWidth(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    return screenSize.width - 32; // 16px padding on each side
+  }
+
+  void _handleResize(DragUpdateDetails details) {
+    final screenSize = MediaQuery.of(context).size;
+    final maxWidth = _getMaxChatWidth(context);
+    final maxHeight = _getMaxChatHeight(context);
 
     setState(() {
-      _isDragging = false;
+      // Handle horizontal resize
+      final horizontalDelta = _xPosition < screenSize.width / 2
+          ? details.delta.dx
+          : -details.delta.dx;
 
-      // Snap to the nearest edge (left or right)
-      if (_xPosition < screenWidth / 2) {
-        // Snap to left edge
-        _xPosition = 0;
-      } else {
-        // Snap to right edge
-        _xPosition = screenWidth - 60;
+      double newWidth = (_chatWidth + horizontalDelta).clamp(280.0, maxWidth);
+      if (newWidth != _chatWidth) {
+        _chatWidth = newWidth;
       }
 
-      // Ensure it stays within vertical bounds
-      _yPosition = _yPosition.clamp(0, screenHeight - 60);
-    });
-  }
-
-  void _handleDragStart(DragStartDetails details) {
-    setState(() {
-      _isDragging = true;
+      // Only allow downward resizing
+      if (details.delta.dy > 0) {
+        // Expanding downward
+        double newHeight =
+            (_chatHeight + details.delta.dy).clamp(400.0, maxHeight);
+        if (newHeight != _chatHeight) {
+          _chatHeight = newHeight;
+        }
+      } else if (details.delta.dy < 0) {
+        // Allow shrinking upward but not beyond minimum height
+        double newHeight =
+            (_chatHeight + details.delta.dy).clamp(400.0, _chatHeight);
+        _chatHeight = newHeight;
+      }
     });
   }
 
@@ -177,17 +308,19 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
 
-    // Calculate chat position based on floating head position
-    double chatY = _yPosition + 70; // 70 = chat head size + small gap
+    // Calculate chat position based on chat head position
+    double chatY = _yPosition + _chatHeadSize + _minSpacing;
 
-    // Ensure chat stays within screen bounds
-    if (chatY + _chatHeight > screenSize.height - 20) {
-      chatY = screenSize.height - _chatHeight - 20;
+    // Ensure chat stays within screen bounds without using clamp
+    if (chatY + _chatHeight > screenSize.height - _bottomPadding) {
+      chatY = screenSize.height - _chatHeight - _bottomPadding;
+    }
+    if (chatY < _topPadding + _chatHeadSize + _minSpacing) {
+      chatY = _topPadding + _chatHeadSize + _minSpacing;
     }
 
     return Stack(
       children: [
-        // Tap outside handler
         if (_showChat)
           Positioned.fill(
             child: GestureDetector(
@@ -196,23 +329,19 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
               child: Container(color: Colors.transparent),
             ),
           ),
-
-        // The chat screen
         if (_showChat)
           Positioned(
-            right:
-                _xPosition < MediaQuery.of(context).size.width / 2 ? null : 16,
-            left:
-                _xPosition < MediaQuery.of(context).size.width / 2 ? 16 : null,
+            right: _xPosition < screenSize.width / 2 ? null : 16,
+            left: _xPosition < screenSize.width / 2 ? 16 : null,
             top: chatY,
             child: Stack(
               children: [
-                Container(
+                SizedBox(
                   width: _chatWidth,
                   height: _chatHeight,
                   child: ChatScreen(
                     character: widget.character,
-                    onClose: () => setState(() => _showChat = false),
+                    onClose: _toggleChat,
                     onSendMessage: widget.onSendMessage,
                     bookId: widget.bookId,
                     bookTitle: widget.bookTitle,
@@ -221,36 +350,20 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
                 ),
                 // Resize handle
                 Positioned(
-                  left: _xPosition < MediaQuery.of(context).size.width / 2
-                      ? null
-                      : 0,
-                  right: _xPosition < MediaQuery.of(context).size.width / 2
-                      ? 0
-                      : null,
+                  left: _xPosition < screenSize.width / 2 ? null : 0,
+                  right: _xPosition < screenSize.width / 2 ? 0 : null,
                   bottom: 0,
                   child: GestureDetector(
                     onPanStart: (_) => setState(() => _isResizing = true),
-                    onPanUpdate: (details) {
-                      setState(() {
-                        // If chat is on the left side, reverse the horizontal resize direction
-                        final horizontalDelta =
-                            _xPosition < MediaQuery.of(context).size.width / 2
-                                ? details.delta.dx
-                                : -details.delta.dx;
-                        _chatWidth = (_chatWidth + horizontalDelta)
-                            .clamp(280.0, screenSize.width - 32);
-                        _chatHeight = (_chatHeight + details.delta.dy)
-                            .clamp(400.0, screenSize.height - 40);
-                      });
-                    },
+                    onPanUpdate: _handleResize,
                     onPanEnd: (_) => setState(() => _isResizing = false),
                     child: Container(
                       width: 20,
                       height: 20,
                       alignment: Alignment.bottomRight,
                       child: Icon(
-                        Icons.drag_handle,
-                        size: 16,
+                        Icons.open_with,
+                        size: 20,
                         color: Colors.grey[400],
                       ),
                     ),
@@ -259,21 +372,19 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
               ],
             ),
           ),
-
-        // The floating chat head
         AnimatedPositioned(
           duration: Duration(milliseconds: _isDragging ? 0 : 300),
           curve: Curves.easeOutQuad,
           left: _xPosition,
           top: _yPosition,
           child: GestureDetector(
-            onPanStart: _handleDragStart,
+            onPanStart: (details) => setState(() => _isDragging = true),
             onPanUpdate: _handleDragUpdate,
             onPanEnd: _handleDragEnd,
-            onTap: () => setState(() => _showChat = !_showChat),
+            onTap: _toggleChat,
             child: Container(
-              width: 65,
-              height: 65,
+              width: _chatHeadSize,
+              height: _chatHeadSize,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Colors.white,

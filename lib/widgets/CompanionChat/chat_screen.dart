@@ -165,7 +165,8 @@ class ChatScreenState extends State<ChatScreen> {
         children: [
           // Chat header
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            height: 55,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: Colors.grey[100],
               borderRadius:
@@ -187,7 +188,9 @@ class ChatScreenState extends State<ChatScreen> {
                 ),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.close),
+                  icon: const Icon(Icons.close, size: 18),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
                   onPressed: widget.onClose,
                 ),
               ],
