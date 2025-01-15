@@ -174,12 +174,17 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
   bool _allowDescriptionExpansion = false;
 
   void setTextExpanded(bool expanded) {
-    setState(() {
-      _isTextExpanded = expanded;
-      if (!expanded) {
+    if (!expanded) {
+      // When collapsing, wait for the description to finish collapsing before shrinking the parent
+      setState(() {
+        _isTextExpanded = false;
         _allowDescriptionExpansion = false;
-      }
-    });
+      });
+    } else {
+      setState(() {
+        _isTextExpanded = true;
+      });
+    }
   }
 
   Widget _buildCollapsedView() {
@@ -504,6 +509,12 @@ class _ExpandableDescriptionState extends State<ExpandableDescription> {
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeInOut,
       alignment: Alignment.topCenter,
+      onEnd: () {
+        // After description collapses, notify parent to shrink if needed
+        if (!_isExpanded) {
+          sliderState?.setTextExpanded(false);
+        }
+      },
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -526,7 +537,8 @@ class _ExpandableDescriptionState extends State<ExpandableDescription> {
                       sliderState._allowDescriptionExpansion = true;
                     });
                   } else {
-                    sliderState?.setTextExpanded(false);
+                    // Only collapse the description first, parent will be notified via onEnd
+                    _isExpanded = false;
                   }
                 });
               },
