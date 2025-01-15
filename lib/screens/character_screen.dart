@@ -47,27 +47,33 @@ class _CharacterScreenState extends State<CharacterScreen> {
   final ImagePicker _picker = ImagePicker();
   String? _localImagePath;
 
+  // Custom colors
+  static const Color primaryColor = Color(0xFF6750A4);
+  static const Color secondaryColor = Color(0xFF9C27B0);
+  static const Color backgroundColor = Color(0xFFF8F9FA);
+  static const Color surfaceColor = Colors.white;
+  static const Color textColor = Color(0xFF1A1A1A);
+
   void _nextStep() {
     bool canProceed = true;
 
-    // Validate current step
     switch (_currentStep) {
-      case 0: // Name
+      case 0:
         canProceed = _nameController.text.isNotEmpty;
         break;
-      case 1: // Photo
+      case 1:
         canProceed = _selectedImagePath != null;
         break;
-      case 2: // Tagline
-        canProceed = true; // Optional
+      case 2:
+        canProceed = true;
         break;
-      case 3: // Description
+      case 3:
         canProceed = _descriptionController.text.isNotEmpty;
         break;
-      case 4: // Greeting
-        canProceed = true; // Optional
+      case 4:
+        canProceed = true;
         break;
-      case 5: // Voice
+      case 5:
         canProceed = _selectedVoice != null;
         break;
     }
@@ -79,13 +85,20 @@ class _CharacterScreenState extends State<CharacterScreen> {
         }
       });
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please fill in all required fields'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      _showErrorSnackBar('Please fill in all required fields');
     }
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.red.shade800,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 
   void _previousStep() {
@@ -97,6 +110,19 @@ class _CharacterScreenState extends State<CharacterScreen> {
   }
 
   Widget _buildStepContent() {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      transitionBuilder: (Widget child, Animation<double> animation) {
+        return FadeTransition(
+          opacity: animation,
+          child: child,
+        );
+      },
+      child: _getStepWidget(),
+    );
+  }
+
+  Widget _getStepWidget() {
     switch (_currentStep) {
       case 0:
         return _buildNameStep();
@@ -118,23 +144,53 @@ class _CharacterScreenState extends State<CharacterScreen> {
   }
 
   Widget _buildNameStep() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Text(
-          'What should we name your character?',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 20),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: TextFormField(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'What should we name your character?',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Choose a memorable name that reflects their personality',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 32),
+          TextFormField(
             controller: _nameController,
-            decoration: const InputDecoration(
+            style: const TextStyle(fontSize: 18),
+            decoration: InputDecoration(
               hintText: 'e.g. Albert Einstein',
-              border: OutlineInputBorder(),
-              labelText: 'Character Name *',
+              labelText: 'Character Name',
+              filled: true,
+              fillColor: surfaceColor,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: Colors.grey.shade200),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: primaryColor, width: 2),
+              ),
+              prefixIcon: const Icon(Icons.person_outline),
+              contentPadding: const EdgeInsets.all(20),
             ),
             validator: (value) {
               if (value == null || value.isEmpty) {
@@ -144,8 +200,8 @@ class _CharacterScreenState extends State<CharacterScreen> {
             },
             onChanged: (value) => setState(() {}),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -153,12 +209,9 @@ class _CharacterScreenState extends State<CharacterScreen> {
     try {
       final directory = await path_provider.getApplicationDocumentsDirectory();
       final charactersDir = Directory('${directory.path}/characters');
-
-      // Create the characters directory if it doesn't exist
       if (!await charactersDir.exists()) {
         await charactersDir.create(recursive: true);
       }
-
       final fileName =
           'character_${DateTime.now().millisecondsSinceEpoch}${path.extension(image.path)}';
       final savedImage =
@@ -172,9 +225,11 @@ class _CharacterScreenState extends State<CharacterScreen> {
 
   Future<void> _pickImage() async {
     try {
-      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+      );
       if (image != null) {
-        // Save image to local storage
         final savedPath = await _saveImageToLocal(image);
         if (savedPath != null) {
           setState(() {
@@ -185,114 +240,197 @@ class _CharacterScreenState extends State<CharacterScreen> {
       }
     } catch (e) {
       print('Error picking image: $e');
+      _showErrorSnackBar('Failed to pick image. Please try again.');
     }
   }
 
   Widget _buildImageStep() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          "Let's give ${_nameController.text} a photo",
-          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 20),
-        if (_selectedImagePath != null)
-          Container(
-            width: 200,
-            height: 200,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.grey[300]!),
-              image: DecorationImage(
-                image: _localImagePath != null
-                    ? FileImage(File(_localImagePath!)) as ImageProvider
-                    : AssetImage(_selectedImagePath!),
-                fit: BoxFit.cover,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Let's give ${_nameController.text} a photo",
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Choose a clear, high-quality photo that represents your character',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 32),
+          Center(
+            child: GestureDetector(
+              onTap: _pickImage,
+              child: Container(
+                width: 200,
+                height: 200,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: surfaceColor,
+                  border: Border.all(color: Colors.grey.shade200, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                  image: _selectedImagePath != null
+                      ? DecorationImage(
+                          image: _localImagePath != null
+                              ? FileImage(File(_localImagePath!))
+                                  as ImageProvider
+                              : AssetImage(_selectedImagePath!),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
+                ),
+                child: _selectedImagePath == null
+                    ? Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(Icons.add_photo_alternate,
+                              size: 48, color: Colors.grey),
+                          SizedBox(height: 8),
+                          Text(
+                            'Add Photo',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ],
+                      )
+                    : null,
               ),
             ),
-          )
-        else
-          Container(
-            width: 200,
-            height: 200,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.grey[300]!),
+          ),
+          const SizedBox(height: 24),
+          if (_selectedImagePath == null)
+            const Center(
+              child: Text(
+                'Photo is required',
+                style: TextStyle(color: Colors.red, fontSize: 14),
+              ),
             ),
-            child: const Icon(Icons.person, size: 100, color: Colors.grey),
-          ),
-        const SizedBox(height: 20),
-        ElevatedButton.icon(
-          onPressed: _pickImage,
-          icon: const Icon(Icons.add_photo_alternate),
-          label: const Text('Choose Photo *'),
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          ),
-        ),
-        if (_selectedImagePath == null)
-          const Padding(
-            padding: EdgeInsets.only(top: 8.0),
-            child: Text(
-              'Photo is required',
-              style: TextStyle(color: Colors.red, fontSize: 12),
-            ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
   Widget _buildTaglineStep() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          "Give ${_nameController.text} a catchy tagline",
-          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 20),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: TextFormField(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Give ${_nameController.text} a catchy tagline",
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Adjectives that captures their essence',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 32),
+          TextFormField(
             controller: _taglineController,
-            decoration: const InputDecoration(
-              hintText: 'Add a short tagline',
-              border: OutlineInputBorder(),
+            style: const TextStyle(fontSize: 18),
+            decoration: InputDecoration(
+              hintText: 'e.g. Curious, Funny, Smart...',
+              filled: true,
+              fillColor: surfaceColor,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: Colors.grey.shade200),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: primaryColor, width: 2),
+              ),
+              contentPadding: const EdgeInsets.all(20),
             ),
             maxLength: 50,
             onChanged: (value) => setState(() {}),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   Widget _buildDescriptionStep() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          "How would ${_nameController.text} describe themselves?",
-          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 20),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: TextFormField(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "How would ${_nameController.text} describe themselves?",
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Write a brief description of their personality and background',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 32),
+          TextFormField(
             controller: _descriptionController,
-            decoration: const InputDecoration(
-              hintText: 'Write a description',
-              border: OutlineInputBorder(),
-              labelText: 'Character Description *',
-              helperText: 'Maximum 80 words',
-              counterText: '', // Hide the built-in counter
+            style: const TextStyle(fontSize: 18),
+            decoration: InputDecoration(
+              hintText: 'Describe your character...',
+              filled: true,
+              fillColor: surfaceColor,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: Colors.grey.shade200),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: primaryColor, width: 2),
+              ),
+              contentPadding: const EdgeInsets.all(20),
             ),
             maxLength: 500,
-            maxLines: 4,
+            maxLines: 5,
             validator: (value) {
               if (value == null || value.isEmpty) {
                 return 'Please enter a description';
@@ -303,113 +441,252 @@ class _CharacterScreenState extends State<CharacterScreen> {
               }
               return null;
             },
-            onChanged: (value) {
-              final wordCount = value.trim().split(RegExp(r'\s+')).length;
-              setState(() {
-                // This will trigger a rebuild to update the UI
-              });
-            },
+            onChanged: (value) => setState(() {}),
           ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '${_descriptionController.text.trim().split(RegExp(r'\s+')).length}/80 words',
-          style: TextStyle(
-            color: _descriptionController.text
-                        .trim()
-                        .split(RegExp(r'\s+'))
-                        .length >
-                    80
-                ? Colors.red
-                : Colors.grey[600],
-            fontSize: 12,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              '${_descriptionController.text.trim().split(RegExp(r'\s+')).length}/80 words',
+              style: TextStyle(
+                color: _descriptionController.text
+                            .trim()
+                            .split(RegExp(r'\s+'))
+                            .length >
+                        80
+                    ? Colors.red
+                    : Colors.grey[600],
+                fontSize: 14,
+              ),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   Widget _buildGreetingStep() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          "How should ${_nameController.text} greet others?",
-          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 20),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: TextFormField(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Almost done...",
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 15),
+          Text(
+            "How should ${_nameController.text} greet others?",
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Write a friendly greeting message',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 32),
+          TextFormField(
             controller: _greetingController,
-            decoration: const InputDecoration(
+            style: const TextStyle(fontSize: 18),
+            decoration: InputDecoration(
               hintText:
                   'e.g. Hello, I am Albert. Ask me anything about science!',
-              border: OutlineInputBorder(),
+              filled: true,
+              fillColor: surfaceColor,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: Colors.grey.shade200),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: primaryColor, width: 2),
+              ),
+              contentPadding: const EdgeInsets.all(20),
             ),
             maxLength: 2048,
             maxLines: 3,
             onChanged: (value) => setState(() {}),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   Widget _buildVoiceStep() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          "Choose ${_nameController.text}'s voice style",
-          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 20),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          alignment: WrapAlignment.center,
-          children: _voiceOptions
-              .map((voice) => ChoiceChip(
-                    label: Text(voice),
-                    selected: _selectedVoice == voice,
-                    onSelected: (selected) {
-                      setState(() {
-                        _selectedVoice = selected ? voice : null;
-                      });
-                    },
-                  ))
-              .toList(),
-        ),
-      ],
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Choose ${_nameController.text}'s voice style",
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Select a voice style that matches their personality',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 32),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: _voiceOptions.map((voice) {
+              final isSelected = _selectedVoice == voice;
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selectedVoice = voice;
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected ? primaryColor : surfaceColor,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isSelected ? primaryColor : Colors.grey.shade200,
+                    ),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: primaryColor.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Text(
+                    voice,
+                    style: TextStyle(
+                      color: isSelected ? Colors.white : textColor,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildValidationStep() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             "Review Your Character",
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+              height: 1.2,
+            ),
           ),
-          const SizedBox(height: 20),
-          _buildReviewItem("Name", _nameController.text),
-          _buildReviewItem("Image", _selectedImagePath ?? "No image selected"),
-          _buildReviewItem("Tagline", _taglineController.text),
-          _buildReviewItem("Description", _descriptionController.text),
-          _buildReviewItem("Greeting", _greetingController.text),
-          _buildReviewItem("Voice Style", _selectedVoice ?? "Not selected"),
-          const SizedBox(height: 20),
-          SwitchListTile(
-            title: const Text("Make this character public"),
-            value: _isPublic,
-            onChanged: (value) => setState(() => _isPublic = value),
+          const SizedBox(height: 12),
+          const Text(
+            'Make sure everything looks good before creating',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 32),
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: surfaceColor,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_selectedImagePath != null)
+                  Center(
+                    child: Container(
+                      width: 120,
+                      height: 120,
+                      margin: const EdgeInsets.only(bottom: 24),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        image: DecorationImage(
+                          image: _localImagePath != null
+                              ? FileImage(File(_localImagePath!))
+                              : AssetImage(_selectedImagePath!)
+                                  as ImageProvider,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                  ),
+                _buildReviewItem("Name", _nameController.text),
+                _buildReviewItem("Tagline", _taglineController.text),
+                _buildReviewItem("Description", _descriptionController.text),
+                _buildReviewItem("Greeting", _greetingController.text),
+                _buildReviewItem(
+                    "Voice Style", _selectedVoice ?? "Not selected"),
+                const SizedBox(height: 16),
+                SwitchListTile(
+                  title: const Text(
+                    "Make this character public",
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 16,
+                    ),
+                  ),
+                  value: _isPublic,
+                  onChanged: (value) => setState(() => _isPublic = value),
+                  activeColor: primaryColor,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -418,20 +695,26 @@ class _CharacterScreenState extends State<CharacterScreen> {
 
   Widget _buildReviewItem(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
             style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
+              color: Colors.grey,
+              fontSize: 14,
             ),
           ),
           const SizedBox(height: 4),
-          Text(value),
-          const Divider(),
+          Text(
+            value.isEmpty ? "Not set" : value,
+            style: TextStyle(
+              fontSize: 16,
+              color: value.isEmpty ? Colors.grey : textColor,
+            ),
+          ),
+          const Divider(height: 24),
         ],
       ),
     );
@@ -480,36 +763,28 @@ Text: {TEXT}""";
       );
 
       try {
-        // Save character using AiCharacterService (Hive storage)
         final aiCharacterService = getIt<AiCharacterService>();
         await aiCharacterService.addCustomCharacter(newCharacter);
-
-        // Set as current character
         aiCharacterService.setSelectedCharacter(newCharacter);
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Character created successfully!'),
+            SnackBar(
+              content: const Text('Character created successfully!'),
               behavior: SnackBarBehavior.floating,
+              backgroundColor: Colors.green,
+              margin: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ),
           );
 
-          // Update the character slider directly
           AiCharacterSlider.globalKey.currentState?.addCharacter(newCharacter);
-
-          // Navigate back
           Navigator.of(context).pop();
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error creating character: ${e.toString()}'),
-              behavior: SnackBarBehavior.floating,
-              backgroundColor: Colors.red,
-            ),
-          );
+          _showErrorSnackBar('Error creating character: ${e.toString()}');
         }
       }
     }
@@ -517,47 +792,160 @@ Text: {TEXT}""";
 
   Widget _buildStepIndicator() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: List.generate(_stepTitles.length, (index) {
+      height: 80,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: _stepTitles.length,
+        itemBuilder: (context, index) {
           final isActive = index == _currentStep;
           final isCompleted = index < _currentStep;
 
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isActive
-                      ? const Color(0xFF6750A4) // Purple color from screenshot
-                      : Colors.grey[300],
-                ),
-                child: Center(
-                  child: Text(
-                    '${index + 1}',
-                    style: TextStyle(
-                      color: isActive ? Colors.white : Colors.grey[600],
-                      fontWeight: FontWeight.bold,
-                    ),
+          return Container(
+            width: 80,
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isActive
+                        ? primaryColor
+                        : isCompleted
+                            ? primaryColor.withOpacity(0.2)
+                            : Colors.grey.shade200,
+                  ),
+                  child: Center(
+                    child: isCompleted
+                        ? const Icon(
+                            Icons.check,
+                            size: 16,
+                            color: primaryColor,
+                          )
+                        : Text(
+                            '${index + 1}',
+                            style: TextStyle(
+                              color: isActive ? Colors.white : Colors.grey,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _stepTitles[index],
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isActive ? const Color(0xFF6750A4) : Colors.grey[600],
-                  fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                const SizedBox(height: 8),
+                Text(
+                  _stepTitles[index],
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isActive ? primaryColor : Colors.grey,
+                    fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildNavigationButtons() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            if (_currentStep > 0)
+              TextButton.icon(
+                onPressed: _previousStep,
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('Back'),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                ),
+              )
+            else
+              const SizedBox(width: 100),
+            if (_currentStep < 6)
+              ElevatedButton(
+                onPressed: _nextStep,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 0,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Text(
+                      'Next',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Icon(Icons.arrow_forward, size: 20, color: Colors.white),
+                  ],
+                ),
+              )
+            else
+              ElevatedButton(
+                onPressed: _createCharacter,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 0,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Text(
+                      'Create',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Icon(Icons.check, size: 20, color: Colors.white),
+                  ],
                 ),
               ),
-            ],
-          );
-        }),
+          ],
+        ),
       ),
     );
   }
@@ -565,75 +953,33 @@ Text: {TEXT}""";
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: backgroundColor,
+      appBar: AppBar(
+        backgroundColor: backgroundColor,
+        elevation: 0,
+        title: Text(
+          'Create Character',
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.of(context).pop(),
+          color: textColor,
+        ),
+      ),
       body: SafeArea(
         child: Form(
           key: _formKey,
           child: Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  'Create Character',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-              ),
               _buildStepIndicator(),
-              const SizedBox(height: 40),
               Expanded(
-                child: SingleChildScrollView(
-                  child: _buildStepContent(),
-                ),
+                child: _buildStepContent(),
               ),
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: Container(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      if (_currentStep > 0)
-                        TextButton(
-                          onPressed: _previousStep,
-                          child: const Text('Back'),
-                        )
-                      else
-                        const SizedBox(width: 80),
-                      if (_currentStep < 6)
-                        ElevatedButton(
-                          onPressed: _nextStep,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF6750A4),
-                            minimumSize: const Size(120, 48),
-                          ),
-                          child: const Text(
-                            'Next',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                            ),
-                          ),
-                        )
-                      else
-                        ElevatedButton(
-                          onPressed: _createCharacter,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            minimumSize: const Size(120, 48),
-                          ),
-                          child: const Text(
-                            'Create',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
+              _buildNavigationButtons(),
             ],
           ),
         ),
