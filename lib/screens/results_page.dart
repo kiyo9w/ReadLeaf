@@ -11,6 +11,7 @@ import 'package:migrated/widgets/page_title_widget.dart';
 import 'package:migrated/widgets/book_info_widget.dart';
 import 'package:migrated/screens/nav_screen.dart';
 import 'package:migrated/services/thumbnail_service.dart';
+import 'package:migrated/utils/file_utils.dart';
 
 class ResultPage extends StatefulWidget {
   final String searchQuery;
@@ -34,7 +35,6 @@ class _ResultPageState extends State<ResultPage> {
     _fileBloc = getIt<FileBloc>();
     annasArchieve = getIt<AnnasArchieve>();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      print("aaaaa");
       NavScreen.globalKey.currentState?.setNavBarVisibility(true);
     });
   }
@@ -205,69 +205,12 @@ class _ResultPageState extends State<ResultPage> {
   }
 
   Future<void> _handleBookClick(String url) async {
-    showDialog(
+    await FileUtils.handleBookClick(
+      url: url,
       context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(),
-      ),
+      searchBloc: _searchBloc,
+      annasArchieve: annasArchieve,
     );
-
-    try {
-      final bookInfo = await annasArchieve.bookInfo(url: url);
-
-      if (mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
-      }
-
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (ctx) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-            child: BookInfoWidget(
-              genre: AnnasArchieve.getGenreFromInfo(bookInfo.info!),
-              thumbnailUrl: bookInfo.thumbnail,
-              author: bookInfo.author,
-              link: bookInfo.link,
-              description: bookInfo.description,
-              fileSize: AnnasArchieve.getFileSizeFromInfo(bookInfo.info!),
-              fileType: AnnasArchieve.getFileTypeFromInfo(bookInfo.info!),
-              title: bookInfo.title,
-              ratings: 4,
-              language: AnnasArchieve.getLanguageFromInfo(bookInfo.info!),
-              onDownload: () async {
-                final mirrorLink = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => WebviewPage(url: bookInfo.link),
-                  ),
-                );
-
-                if (mirrorLink != null && mirrorLink is String) {
-                  _searchBloc.add(DownloadBook(
-                    url: mirrorLink,
-                    fileName: bookInfo.title,
-                  ));
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Failed to get download link')),
-                  );
-                }
-              },
-            ),
-          );
-        },
-      );
-    } catch (e) {
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading book info: $e')),
-      );
-    }
   }
 }
 

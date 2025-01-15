@@ -30,6 +30,7 @@ class FileCard extends StatefulWidget {
   final String? author;
   final String? thumbnailUrl;
   final bool isStarred;
+  final bool canDismiss;
 
   const FileCard({
     required this.filePath,
@@ -45,6 +46,7 @@ class FileCard extends StatefulWidget {
     this.author,
     this.thumbnailUrl,
     this.isStarred = false,
+    this.canDismiss = true,
     Key? key,
   }) : super(key: key);
 
@@ -124,50 +126,56 @@ class _FileCardState extends State<FileCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Dismissible(
-      key: Key(widget.filePath),
-      direction: DismissDirection.horizontal,
-      onDismissed: (direction) {
-        widget.onRemove();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${widget.title} removed')),
-        );
-      },
-      child: GestureDetector(
-        onLongPress: widget.onSelected,
-        onTap: widget.onView,
-        child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
-          padding: const EdgeInsets.all(5),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFAF5F4),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 128.5,
-                height: 190 + 1,
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: Colors.black,
-                    width: 0.5,
-                  ),
+    Widget content = GestureDetector(
+      onLongPress: widget.onSelected,
+      onTap: widget.onView,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+        padding: const EdgeInsets.all(5),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFAF5F4),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 128.5,
+              height: 190 + 1,
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: Colors.black,
+                  width: 0.5,
                 ),
-                clipBehavior: Clip.antiAlias,
-                child: _buildThumbnail(),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: widget.isInternetBook
-                    ? _buildInternetBookInfo(context)
-                    : _buildLocalFileInfo(context),
-              ),
-            ],
-          ),
+              clipBehavior: Clip.antiAlias,
+              child: _buildThumbnail(),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: widget.isInternetBook
+                  ? _buildInternetBookInfo(context)
+                  : _buildLocalFileInfo(context),
+            ),
+          ],
         ),
       ),
     );
+
+    if (widget.canDismiss) {
+      return Dismissible(
+        key: Key(widget.filePath),
+        direction: DismissDirection.horizontal,
+        onDismissed: (direction) {
+          widget.onRemove();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${widget.title} removed')),
+          );
+        },
+        child: content,
+      );
+    }
+
+    return content;
   }
 
   Widget _buildLocalFileInfo(BuildContext context) {

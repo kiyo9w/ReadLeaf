@@ -7,9 +7,14 @@ import 'package:migrated/depeninject/injection.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutter/services.dart';
-// import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
+import 'package:flutter/material.dart';
+import 'package:migrated/blocs/SearchBloc/search_bloc.dart';
+import 'package:migrated/services/annas_archieve.dart';
+import 'package:migrated/widgets/book_info_widget.dart';
+import 'package:migrated/services/webview.dart';
+// import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 class FileUtils {
   static Future<String?> picker() async {
@@ -125,6 +130,81 @@ class FileUtils {
     print(
         'Finished linking PDFs. Successfully linked: ${linkedPaths.length} files');
     return linkedPaths;
+  }
+
+  static Future<void> handleBookClick({
+    required String url,
+    required BuildContext context,
+    required SearchBloc searchBloc,
+    required AnnasArchieve annasArchieve,
+  }) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      final bookInfo = await annasArchieve.bookInfo(url: url);
+
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+
+      if (context.mounted) {
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (ctx) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              child: BookInfoWidget(
+                genre: AnnasArchieve.getGenreFromInfo(bookInfo.info!),
+                thumbnailUrl: bookInfo.thumbnail,
+                author: bookInfo.author,
+                link: bookInfo.link,
+                description: bookInfo.description,
+                fileSize: AnnasArchieve.getFileSizeFromInfo(bookInfo.info!),
+                fileType: AnnasArchieve.getFileTypeFromInfo(bookInfo.info!),
+                title: bookInfo.title,
+                ratings: 4,
+                language: AnnasArchieve.getLanguageFromInfo(bookInfo.info!),
+                onDownload: () async {
+                  final mirrorLink = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => WebviewPage(url: bookInfo.link),
+                    ),
+                  );
+
+                  if (mirrorLink != null && mirrorLink is String) {
+                    searchBloc.add(DownloadBook(
+                      url: mirrorLink,
+                      fileName: bookInfo.title,
+                    ));
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Failed to get download link')),
+                    );
+                  }
+                },
+              ),
+            );
+          },
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading book info: $e')),
+        );
+      }
+    }
   }
 }
 

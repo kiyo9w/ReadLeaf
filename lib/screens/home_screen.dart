@@ -15,6 +15,8 @@ import 'package:migrated/depeninject/injection.dart';
 import 'package:migrated/models/file_info.dart';
 import 'package:migrated/screens/nav_screen.dart';
 import 'package:migrated/services/book_metadata_repository.dart';
+import 'package:migrated/screens/results_page.dart';
+import 'package:migrated/blocs/SearchBloc/search_bloc.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -251,6 +253,7 @@ class HomeScreenState extends State<HomeScreen> {
                                   onStar: () {},
                                   title: FileCard.extractFileName(
                                       lastReadBook.filePath),
+                                  canDismiss: false,
                                 ),
                                 if (_aiMessage != null)
                                   AIMessageCard(
@@ -327,7 +330,14 @@ class HomeScreenState extends State<HomeScreen> {
                             fileSize: 0,
                             isSelected: false,
                             onSelected: () {},
-                            onView: () {},
+                            onView: () {
+                              FileUtils.handleBookClick(
+                                url: _bookOfTheDay!.link,
+                                context: context,
+                                searchBloc: getIt<SearchBloc>(),
+                                annasArchieve: _annasArchieve,
+                              );
+                            },
                             onRemove: () {},
                             onDownload: () {},
                             onStar: () {},
@@ -335,8 +345,10 @@ class HomeScreenState extends State<HomeScreen> {
                             isInternetBook: true,
                             author: _bookOfTheDay!.author,
                             thumbnailUrl: _bookOfTheDay!.thumbnail,
+                            canDismiss: false,
                           ),
                         ),
+                        const SizedBox(height: 80),
                       ],
                     ),
                   ),
