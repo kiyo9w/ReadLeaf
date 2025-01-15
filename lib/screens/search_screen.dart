@@ -30,6 +30,7 @@ class _SearchScreenState extends State<SearchScreen>
   Map<String, List<BookData>>? _topSearches;
   final ScrollController _scrollController = ScrollController();
   bool _isScrollingDown = false;
+  final Map<String, bool> _expandedSections = {};
 
   @override
   void initState() {
@@ -105,8 +106,15 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   void _showFilterModal(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+    });
+
+    _expandedSections['Genre'] = true;
+
     showModalBottomSheet(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF0F4FF),
+      isScrollControlled: true,
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -114,144 +122,302 @@ class _SearchScreenState extends State<SearchScreen>
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            return Padding(
-              padding:
-                  const EdgeInsets.symmetric(vertical: 20.0, horizontal: 20.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Filters",
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+            return DraggableScrollableSheet(
+              initialChildSize: 0.7,
+              minChildSize: 0.3,
+              maxChildSize: 0.80,
+              expand: false,
+              builder: (context, scrollController) {
+                return Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius:
+                        BorderRadius.vertical(top: Radius.circular(20)),
                   ),
-                  const SizedBox(height: 20),
-                  DropdownButtonFormField(
-                    decoration: const InputDecoration(
-                      labelText: 'Type',
-                      labelStyle: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: Colors.grey, width: 2),
-                        borderRadius: BorderRadius.all(Radius.circular(50)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: Colors.black, width: 2),
-                        borderRadius: BorderRadius.all(Radius.circular(50)),
-                      ),
-                    ),
-                    value: selectedType,
-                    items: SearchConstants.typeValues.keys
-                        .map<DropdownMenuItem<String>>((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(
-                          value,
-                          style: const TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.bold),
+                  child: SingleChildScrollView(
+                    controller: scrollController,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Center(
+                          child: Container(
+                            margin: const EdgeInsets.only(top: 12),
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[300],
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
                         ),
-                      );
-                    }).toList(),
-                    onChanged: (String? val) {
-                      setModalState(() {
-                        selectedType = val ?? 'All';
-                      });
-                      setState(() {});
-                    },
-                  ),
-                  const SizedBox(height: 20),
-                  DropdownButtonFormField(
-                    decoration: const InputDecoration(
-                      labelText: 'Sort by',
-                      labelStyle: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: Colors.grey, width: 2),
-                        borderRadius: BorderRadius.all(Radius.circular(50)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: Colors.black, width: 2),
-                        borderRadius: BorderRadius.all(Radius.circular(50)),
-                      ),
-                    ),
-                    value: selectedSort,
-                    items: SearchConstants.sortValues.keys
-                        .map<DropdownMenuItem<String>>((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(
-                          value,
-                          style: const TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.bold),
+                        Padding(
+                          padding: const EdgeInsets.all(20.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "Filter",
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              _buildExpandableSection(
+                                "Genre",
+                                expanded: true,
+                                onExpansionChanged: (isExpanded) {
+                                  setModalState(() {});
+                                },
+                                child: Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: SearchConstants.typeValues.keys
+                                      .map((String type) {
+                                    return _buildFilterChip(
+                                      type,
+                                      selected: selectedType == type,
+                                      onSelected: (selected) {
+                                        setModalState(() {
+                                          selectedType = type;
+                                        });
+                                        setState(() {});
+                                      },
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              _buildExpandableSection(
+                                "Format",
+                                expanded: false,
+                                onExpansionChanged: (isExpanded) {
+                                  setModalState(() {});
+                                },
+                                child: Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: SearchConstants.fileTypes
+                                      .map((String format) {
+                                    return _buildFilterChip(
+                                      format,
+                                      selected: selectedFileType == format,
+                                      onSelected: (selected) {
+                                        setModalState(() {
+                                          selectedFileType = format;
+                                        });
+                                        setState(() {});
+                                      },
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              _buildExpandableSection(
+                                "Sort by",
+                                expanded: false,
+                                onExpansionChanged: (isExpanded) {
+                                  setModalState(() {});
+                                },
+                                child: Column(
+                                  children: SearchConstants.sortValues.keys
+                                      .map((String sort) {
+                                    return _buildRadioTile(
+                                      sort,
+                                      selectedSort == sort,
+                                      onChanged: (selected) {
+                                        if (selected) {
+                                          setModalState(() {
+                                            selectedSort = sort;
+                                          });
+                                          setState(() {});
+                                        }
+                                      },
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              _buildExpandableSection(
+                                "Ratings",
+                                expanded: false,
+                                onExpansionChanged: (isExpanded) {
+                                  setModalState(() {});
+                                },
+                                child: Column(
+                                  children: [
+                                    _buildRatingTile(5),
+                                    _buildRatingTile(4),
+                                    _buildRatingTile(3),
+                                    _buildRatingTile(2),
+                                    _buildRatingTile(1),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              _buildExpandableSection(
+                                "Year Published",
+                                expanded: false,
+                                onExpansionChanged: (isExpanded) {
+                                  setModalState(() {});
+                                },
+                                child: Column(
+                                  children: [
+                                    _buildYearRangeSlider(),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      );
-                    }).toList(),
-                    onChanged: (String? val) {
-                      setModalState(() {
-                        selectedSort = val ?? 'Most Relevant';
-                      });
-                      setState(() {});
-                    },
-                  ),
-                  const SizedBox(height: 20),
-                  DropdownButtonFormField(
-                    decoration: const InputDecoration(
-                      labelText: 'File type',
-                      labelStyle: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: Colors.grey, width: 2),
-                        borderRadius: BorderRadius.all(Radius.circular(50)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: Colors.black, width: 2),
-                        borderRadius: BorderRadius.all(Radius.circular(50)),
-                      ),
-                    ),
-                    value: selectedFileType,
-                    items: SearchConstants.fileTypes
-                        .map<DropdownMenuItem<String>>((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(
-                          value,
-                          style: const TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.bold),
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (String? val) {
-                      setModalState(() {
-                        selectedFileType = val ?? 'All';
-                      });
-                      setState(() {});
-                    },
-                  ),
-                  const SizedBox(height: 20),
-                  Center(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Apply'),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                );
+              },
             );
           },
         );
       },
+    ).whenComplete(() {
+      NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+    });
+  }
+
+  Widget _buildExpandableSection(
+    String title, {
+    required bool expanded,
+    required Widget child,
+    Function(bool)? onExpansionChanged,
+  }) {
+    _expandedSections[title] ??= expanded;
+
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        key: PageStorageKey(title),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.black,
+          ),
+        ),
+        trailing: Icon(
+          _expandedSections[title] == true ? Icons.remove : Icons.add,
+          color: Colors.pink,
+        ),
+        initiallyExpanded: _expandedSections[title] ?? expanded,
+        onExpansionChanged: (isExpanded) {
+          setState(() {
+            _expandedSections[title] = isExpanded;
+          });
+          onExpansionChanged?.call(isExpanded);
+        },
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16.0),
+            child: child,
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool _isExpanded(String title) {
+    return _expandedSections[title] ?? false;
+  }
+
+  Widget _buildFilterChip(String label,
+      {bool selected = false, Function(bool)? onSelected}) {
+    return FilterChip(
+      label: Text(
+        label,
+        style: TextStyle(
+          color: selected ? Colors.white : Colors.black,
+          fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      selected: selected,
+      onSelected: onSelected,
+      backgroundColor: Colors.white,
+      selectedColor: Colors.pink,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: selected ? Colors.pink : Colors.grey.shade300,
+        ),
+      ),
+      showCheckmark: false,
+    );
+  }
+
+  Widget _buildRadioTile(String label, bool isSelected,
+      {Function(bool)? onChanged}) {
+    return RadioListTile<bool>(
+      title: Text(
+        label,
+        style: TextStyle(
+          color: isSelected ? Colors.pink : Colors.black,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      value: true,
+      groupValue: isSelected,
+      onChanged: (bool? value) => onChanged?.call(value ?? false),
+      activeColor: Colors.pink,
+      contentPadding: EdgeInsets.zero,
+    );
+  }
+
+  Widget _buildRatingTile(int rating) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(
+          5,
+          (index) => Icon(
+            index < rating ? Icons.star : Icons.star_border,
+            color: Colors.amber,
+            size: 20,
+          ),
+        ),
+      ),
+      title: Text('$rating Stars'),
+      trailing: Checkbox(
+        value: false,
+        onChanged: (bool? value) {},
+        activeColor: Colors.pink,
+      ),
+    );
+  }
+
+  Widget _buildYearRangeSlider() {
+    return Column(
+      children: [
+        RangeSlider(
+          values: const RangeValues(1990, 2024),
+          min: 1900,
+          max: 2024,
+          divisions: 124,
+          labels: const RangeLabels('1990', '2024'),
+          onChanged: (RangeValues values) {},
+          activeColor: Colors.pink,
+          inactiveColor: Colors.grey.shade200,
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('1900', style: TextStyle(color: Colors.grey[600])),
+              Text('2024', style: TextStyle(color: Colors.grey[600])),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -310,6 +476,7 @@ class _SearchScreenState extends State<SearchScreen>
           SizedBox(
             height: 180,
             child: ListView.builder(
+              key: const PageStorageKey('trending_list'),
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 10),
               itemCount: _trendingBooks!.length,
@@ -318,88 +485,93 @@ class _SearchScreenState extends State<SearchScreen>
                 final books = entry.value;
                 if (books.isEmpty) return const SizedBox();
                 final book = books.first;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 10),
-                  child: GestureDetector(
-                    onTap: () {
-                      _searchBloc.add(SearchBooks(
-                        query: book.title ?? "",
-                        enableFilters: false,
-                      ));
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              ResultPage(searchQuery: book.title ?? ""),
+
+                return RepaintBoundary(
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: GestureDetector(
+                      onTap: () {
+                        _searchBloc.add(SearchBooks(
+                          query: book.title ?? "",
+                          enableFilters: false,
+                        ));
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                ResultPage(searchQuery: book.title ?? ""),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        width: 120,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                      );
-                    },
-                    child: Container(
-                      width: 120,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (book.thumbnail != null)
-                            ClipRRect(
-                              borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(8)),
-                              child: SizedBox(
-                                height: 120,
-                                width: 120,
-                                child: FutureBuilder<ImageProvider>(
-                                  future: ThumbnailService()
-                                      .getNetworkThumbnail(book.thumbnail!),
-                                  builder: (context, snapshot) {
-                                    if (snapshot.connectionState ==
-                                        ConnectionState.waiting) {
-                                      return const Center(
-                                          child: CircularProgressIndicator());
-                                    }
-                                    if (snapshot.hasError ||
-                                        !snapshot.hasData) {
-                                      return Container(
-                                        color: Colors.grey[300],
-                                        child: const Icon(Icons.book),
-                                      );
-                                    }
-                                    return Image(
-                                      image: snapshot.data!,
-                                      fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) {
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (book.thumbnail != null)
+                              ClipRRect(
+                                borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(8)),
+                                child: SizedBox(
+                                  height: 120,
+                                  width: 120,
+                                  child: FutureBuilder<ImageProvider>(
+                                    key: ValueKey(book.thumbnail),
+                                    future: ThumbnailService()
+                                        .getNetworkThumbnail(book.thumbnail!),
+                                    builder: (context, snapshot) {
+                                      if (snapshot.connectionState ==
+                                          ConnectionState.waiting) {
+                                        return const Center(
+                                            child: CircularProgressIndicator());
+                                      }
+                                      if (snapshot.hasError ||
+                                          !snapshot.hasData) {
                                         return Container(
                                           color: Colors.grey[300],
                                           child: const Icon(Icons.book),
                                         );
-                                      },
-                                    );
-                                  },
+                                      }
+                                      return Image(
+                                        key: ValueKey(book.thumbnail),
+                                        image: snapshot.data!,
+                                        fit: BoxFit.cover,
+                                        errorBuilder:
+                                            (context, error, stackTrace) {
+                                          return Container(
+                                            color: Colors.grey[300],
+                                            child: const Icon(Icons.book),
+                                          );
+                                        },
+                                      );
+                                    },
+                                  ),
+                                ),
+                              )
+                            else
+                              Container(
+                                height: 120,
+                                color: Colors.grey[300],
+                                child: const Icon(Icons.book),
+                              ),
+                            Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Text(
+                                book.title ?? "Unknown",
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            )
-                          else
-                            Container(
-                              height: 120,
-                              color: Colors.grey[300],
-                              child: const Icon(Icons.book),
                             ),
-                          Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Text(
-                              book.title ?? "Unknown",
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -478,10 +650,16 @@ class _SearchScreenState extends State<SearchScreen>
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.filter_list),
-                          color: Colors.black54,
-                          onPressed: () => _showFilterModal(context),
-                        ),
+                            icon: const Icon(Icons.filter_list),
+                            color: Colors.black54,
+                            onPressed: () => {
+                                  WidgetsBinding.instance
+                                      .addPostFrameCallback((_) {
+                                    NavScreen.globalKey.currentState
+                                        ?.setNavBarVisibility(true);
+                                  }),
+                                  _showFilterModal(context),
+                                }),
                       ],
                     ),
                   ),
