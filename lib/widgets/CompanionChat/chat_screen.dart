@@ -161,93 +161,98 @@ class ChatScreenState extends State<ChatScreen> {
           fit: BoxFit.cover,
         ),
       ),
-      child: Column(
-        children: [
-          // Chat header
-          Container(
-            height: 55,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(12)),
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundImage: AssetImage(widget.character.imagePath),
-                  radius: 16,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  widget.character.name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+      child: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Column(
+          children: [
+            // Chat header
+            Container(
+              height: 55,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(12)),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundImage: AssetImage(widget.character.imagePath),
+                    radius: 16,
                   ),
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 18),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: widget.onClose,
-                ),
-              ],
-            ),
-          ),
-
-          // Chat messages
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16.0),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                final message = _messages[index];
-                return _buildMessageBubble(message);
-              },
-            ),
-          ),
-
-          // Input field
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border(
-                top: BorderSide(color: Colors.grey[200]!),
-              ),
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(20),
-                bottomRight: Radius.circular(20),
-              ),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _textController,
-                    decoration: const InputDecoration(
-                      hintText: 'Type a message...',
-                      hintStyle: TextStyle(color: Colors.grey),
-                      border: InputBorder.none,
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  const SizedBox(width: 8),
+                  Text(
+                    widget.character.name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
-                    onSubmitted: _handleSubmitted,
                   ),
-                ),
-                IconButton(
-                  icon: Icon(Icons.send, color: Theme.of(context).primaryColor),
-                  onPressed: () => _handleSubmitted(_textController.text),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ],
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: widget.onClose,
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+
+            // Chat messages
+            Expanded(
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.all(16.0),
+                itemCount: _messages.length,
+                itemBuilder: (context, index) {
+                  final message = _messages[index];
+                  return _buildMessageBubble(message);
+                },
+              ),
+            ),
+
+            // Input field
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border(
+                  top: BorderSide(color: Colors.grey[200]!),
+                ),
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
+                ),
+              ),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _textController,
+                      decoration: const InputDecoration(
+                        hintText: 'Type a message...',
+                        hintStyle: TextStyle(color: Colors.grey),
+                        border: InputBorder.none,
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                      onSubmitted: _handleSubmitted,
+                    ),
+                  ),
+                  IconButton(
+                    icon:
+                        Icon(Icons.send, color: Theme.of(context).primaryColor),
+                    onPressed: () => _handleSubmitted(_textController.text),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

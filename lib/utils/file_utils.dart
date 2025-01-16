@@ -14,6 +14,8 @@ import 'package:migrated/blocs/SearchBloc/search_bloc.dart';
 import 'package:migrated/services/annas_archieve.dart';
 import 'package:migrated/widgets/book_info_widget.dart';
 import 'package:migrated/services/webview.dart';
+import 'package:migrated/screens/nav_screen.dart';
+import 'package:migrated/utils/utils.dart';
 // import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 class FileUtils {
@@ -138,6 +140,9 @@ class FileUtils {
     required SearchBloc searchBloc,
     required AnnasArchieve annasArchieve,
   }) async {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NavScreen.globalKey.currentState?.setNavBarVisibility(true);
+    });
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -186,10 +191,7 @@ class FileUtils {
                       fileName: bookInfo.title,
                     ));
                   } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Failed to get download link')),
-                    );
+                    Utils.showErrorSnackBar(context, 'Failed to get download link');
                   }
                 },
               ),

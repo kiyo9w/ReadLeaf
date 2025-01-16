@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart' as path_provider;
 import 'package:path/path.dart' as path;
 import 'package:migrated/widgets/ai_character_slider.dart';
 import 'package:migrated/screens/home_screen.dart';
+import 'package:migrated/utils/utils.dart';
 
 class CharacterScreen extends StatefulWidget {
   const CharacterScreen({super.key});
@@ -85,20 +86,8 @@ class _CharacterScreenState extends State<CharacterScreen> {
         }
       });
     } else {
-      _showErrorSnackBar('Please fill in all required fields');
+      Utils.showErrorSnackBar(context, 'Please fill in all required fields');
     }
-  }
-
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: Colors.red.shade800,
-        margin: const EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
   }
 
   void _previousStep() {
@@ -218,6 +207,7 @@ class _CharacterScreenState extends State<CharacterScreen> {
           await File(image.path).copy('${charactersDir.path}/$fileName');
       return savedImage.path;
     } catch (e) {
+      Utils.showErrorSnackBar(context, 'Error saving image');
       print('Error saving image: $e');
       return null;
     }
@@ -240,7 +230,8 @@ class _CharacterScreenState extends State<CharacterScreen> {
       }
     } catch (e) {
       print('Error picking image: $e');
-      _showErrorSnackBar('Failed to pick image. Please try again.');
+      Utils.showErrorSnackBar(
+          context, 'Failed to pick image. Please try again.');
     }
   }
 
@@ -780,11 +771,24 @@ Text: {TEXT}""";
           );
 
           AiCharacterSlider.globalKey.currentState?.addCharacter(newCharacter);
-          Navigator.of(context).pop();
+
+          // Reset the form for creating another character
+          setState(() {
+            _currentStep = 0;
+            _nameController.clear();
+            _taglineController.clear();
+            _descriptionController.clear();
+            _greetingController.clear();
+            _selectedImagePath = null;
+            _localImagePath = null;
+            _selectedVoice = null;
+            _isPublic = true;
+          });
         }
       } catch (e) {
         if (mounted) {
-          _showErrorSnackBar('Error creating character: ${e.toString()}');
+          Utils.showErrorSnackBar(
+              context, 'Error creating character: ${e.toString()}');
         }
       }
     }
@@ -857,7 +861,6 @@ Text: {TEXT}""";
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: surfaceColor,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -952,35 +955,36 @@ Text: {TEXT}""";
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: backgroundColor,
-      appBar: AppBar(
+    return GestureDetector(
+      onTap: () {
+        // Dismiss keyboard when tapping outside of text fields
+        FocusScope.of(context).unfocus();
+      },
+      child: Scaffold(
         backgroundColor: backgroundColor,
-        elevation: 0,
-        title: Text(
-          'Create Character',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: textColor,
-              ),
+        appBar: AppBar(
+          backgroundColor: backgroundColor,
+          elevation: 0,
+          title: Text(
+            'Create Character',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+          ),
         ),
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => Navigator.of(context).pop(),
-          color: textColor,
-        ),
-      ),
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              _buildStepIndicator(),
-              Expanded(
-                child: _buildStepContent(),
-              ),
-              _buildNavigationButtons(),
-            ],
+        body: SafeArea(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                _buildStepIndicator(),
+                Expanded(
+                  child: _buildStepContent(),
+                ),
+                _buildNavigationButtons(),
+              ],
+            ),
           ),
         ),
       ),

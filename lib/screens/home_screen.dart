@@ -17,6 +17,7 @@ import 'package:migrated/screens/nav_screen.dart';
 import 'package:migrated/services/book_metadata_repository.dart';
 import 'package:migrated/screens/results_page.dart';
 import 'package:migrated/blocs/SearchBloc/search_bloc.dart';
+import 'package:migrated/utils/utils.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -86,6 +87,7 @@ class HomeScreenState extends State<HomeScreen> {
         });
       }
     } catch (e) {
+      Utils.showErrorSnackBar(context, 'Error loading book of the day');
       print('Error loading book of the day: $e');
     }
   }
@@ -128,6 +130,7 @@ class HomeScreenState extends State<HomeScreen> {
         });
       }
     } catch (e) {
+      Utils.showErrorSnackBar(context, 'Error generating AI message');
       print('Error generating AI message: $e');
     }
   }

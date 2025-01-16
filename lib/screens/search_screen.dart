@@ -107,7 +107,7 @@ class _SearchScreenState extends State<SearchScreen>
 
   void _showFilterModal(BuildContext context) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+      NavScreen.globalKey.currentState?.setNavBarVisibility(true);
     });
 
     _expandedSections['Genre'] = true;
@@ -267,6 +267,7 @@ class _SearchScreenState extends State<SearchScreen>
                                   ],
                                 ),
                               ),
+                              const SizedBox(height: 50),
                             ],
                           ),
                         ),
@@ -605,72 +606,82 @@ class _SearchScreenState extends State<SearchScreen>
               ),
             ),
           ),
-          body: SingleChildScrollView(
-            controller: _scrollController,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(15.0),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.pink.shade50,
-                      borderRadius: BorderRadius.circular(50),
-                    ),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          padding: const EdgeInsets.only(right: 5),
-                          color: Colors.black,
-                          icon: const Icon(Icons.search, size: 23),
-                          onPressed: () => onSubmit(context),
-                        ),
-                        Expanded(
-                          child: TextField(
-                            showCursor: true,
-                            cursorColor: Colors.grey,
-                            decoration: const InputDecoration(
-                              contentPadding:
-                                  EdgeInsets.symmetric(vertical: 15),
-                              border: InputBorder.none,
-                              hintText: "Find some books...",
-                              hintStyle: TextStyle(
-                                color: Colors.grey,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            onSubmitted: (_) => onSubmit(context),
-                            style: const TextStyle(
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                            onChanged: (value) =>
-                                setState(() => searchQuery = value),
+          body: GestureDetector(
+            onTap: () {
+              FocusScope.of(context).unfocus();
+            },
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(15.0),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.pink.shade50,
+                        borderRadius: BorderRadius.circular(50),
+                      ),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            padding: const EdgeInsets.only(right: 5),
+                            color: Colors.grey,
+                            icon: const Icon(Icons.search, size: 23),
+                            onPressed: () => onSubmit(context),
                           ),
-                        ),
-                        IconButton(
-                            icon: const Icon(Icons.filter_list),
-                            color: Colors.black54,
-                            onPressed: () => {
-                                  WidgetsBinding.instance
-                                      .addPostFrameCallback((_) {
-                                    NavScreen.globalKey.currentState
-                                        ?.setNavBarVisibility(true);
+                          Expanded(
+                            child: TextField(
+                              onTap: () => {
+                                NavScreen.globalKey.currentState
+                                    ?.setNavBarVisibility(true)
+                              },
+                              autocorrect: false,
+                              showCursor: true,
+                              cursorColor: Colors.grey,
+                              decoration: const InputDecoration(
+                                contentPadding:
+                                    EdgeInsets.symmetric(vertical: 15),
+                                border: InputBorder.none,
+                                hintText: "Find some books...",
+                                hintStyle: TextStyle(
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              onSubmitted: (_) => onSubmit(context),
+                              style: const TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                              onChanged: (value) =>
+                                  setState(() => searchQuery = value),
+                            ),
+                          ),
+                          IconButton(
+                              icon: const Icon(Icons.filter_list),
+                              color: Colors.black54,
+                              onPressed: () => {
+                                    WidgetsBinding.instance
+                                        .addPostFrameCallback((_) {
+                                      NavScreen.globalKey.currentState
+                                          ?.setNavBarVisibility(true);
+                                    }),
+                                    _showFilterModal(context),
                                   }),
-                                  _showFilterModal(context),
-                                }),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                if (_isLoading)
-                  const Center(child: CircularProgressIndicator())
-                else ...[
-                  _buildTopSearches(),
-                  _buildTrending(),
+                  if (_isLoading)
+                    const Center(child: CircularProgressIndicator())
+                  else ...[
+                    _buildTopSearches(),
+                    _buildTrending(),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         );

@@ -76,113 +76,118 @@ class _TextSearchViewState extends State<TextSearchView> {
     return Material(
       elevation: 8,
       child: Container(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        child: Column(
-          children: [
-            AppBar(
-              backgroundColor: Colors.grey.shade200,
-              title: const Text('Search Results'),
-              leading: IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () {
-                  searchTextController.clear();
-                  widget.textSearcher.resetTextSearch();
-                  widget.onClose();
-                },
+        color: Colors.white,
+        child: GestureDetector(
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: Column(
+            children: [
+              AppBar(
+                backgroundColor: Colors.grey.shade200,
+                title: const Text('Search Results'),
+                leading: IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () {
+                    searchTextController.clear();
+                    widget.textSearcher.resetTextSearch();
+                    widget.onClose();
+                  },
+                ),
               ),
-            ),
-            widget.textSearcher.isSearching
-                ? LinearProgressIndicator(
-                    value: widget.textSearcher.searchProgress,
-                    minHeight: 4,
-                  )
-                : const SizedBox(height: 4),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Stack(
-                      alignment: Alignment.centerLeft,
-                      children: [
-                        TextField(
-                          autofocus: false,
-                          focusNode: focusNode,
-                          controller: searchTextController,
-                          decoration: const InputDecoration(
-                            hintText: 'Search in document',
-                            contentPadding: EdgeInsets.only(right: 50),
+              widget.textSearcher.isSearching
+                  ? LinearProgressIndicator(
+                      value: widget.textSearcher.searchProgress,
+                      minHeight: 4,
+                    )
+                  : const SizedBox(height: 4),
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Stack(
+                        alignment: Alignment.centerLeft,
+                        children: [
+                          TextField(
+                            autofocus: false,
+                            focusNode: focusNode,
+                            controller: searchTextController,
+                            decoration: const InputDecoration(
+                              hintText: 'Search in document',
+                              contentPadding: EdgeInsets.only(right: 50),
+                            ),
+                            textInputAction: TextInputAction.search,
                           ),
-                          textInputAction: TextInputAction.search,
-                        ),
-                        if (widget.textSearcher.hasMatches)
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: Text(
-                              '${widget.textSearcher.currentIndex! + 1} / ${widget.textSearcher.matches.length}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey,
+                          if (widget.textSearcher.hasMatches)
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: Text(
+                                '${widget.textSearcher.currentIndex! + 1} / ${widget.textSearcher.matches.length}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
                               ),
                             ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: searchTextController.text.isNotEmpty
-                        ? () {
-                            searchTextController.clear();
-                            widget.textSearcher.resetTextSearch();
-                            focusNode.requestFocus();
-                          }
-                        : null,
-                    icon: const Icon(Icons.close),
-                    iconSize: 20,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 4),
-            Expanded(
-              child: ListView.builder(
-                key: Key(searchTextController.text),
-                controller: scrollController,
-                itemCount: _listIndexToMatchIndex.length,
-                itemBuilder: (context, index) {
-                  final matchIndex = _listIndexToMatchIndex[index];
-                  if (matchIndex >= 0 &&
-                      matchIndex < widget.textSearcher.matches.length) {
-                    final match = widget.textSearcher.matches[matchIndex];
-                    return SearchResultTile(
-                      key: ValueKey(index),
-                      match: match,
-                      onTap: () async {
-                        await widget.textSearcher.goToMatchOfIndex(matchIndex);
-                        if (mounted) setState(() {});
-                      },
-                      pageTextStore: pageTextStore,
-                      height: itemHeight,
-                      isCurrent: matchIndex == widget.textSearcher.currentIndex,
-                    );
-                  } else {
-                    return Container(
-                      height: itemHeight,
-                      alignment: Alignment.bottomLeft,
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Text(
-                        'Page ${-matchIndex}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        ],
                       ),
-                    );
-                  }
-                },
+                    ),
+                    IconButton(
+                      onPressed: searchTextController.text.isNotEmpty
+                          ? () {
+                              searchTextController.clear();
+                              widget.textSearcher.resetTextSearch();
+                              focusNode.requestFocus();
+                            }
+                          : null,
+                      icon: const Icon(Icons.close),
+                      iconSize: 20,
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 4),
+              Expanded(
+                child: ListView.builder(
+                  key: Key(searchTextController.text),
+                  controller: scrollController,
+                  itemCount: _listIndexToMatchIndex.length,
+                  itemBuilder: (context, index) {
+                    final matchIndex = _listIndexToMatchIndex[index];
+                    if (matchIndex >= 0 &&
+                        matchIndex < widget.textSearcher.matches.length) {
+                      final match = widget.textSearcher.matches[matchIndex];
+                      return SearchResultTile(
+                        key: ValueKey(index),
+                        match: match,
+                        onTap: () async {
+                          await widget.textSearcher
+                              .goToMatchOfIndex(matchIndex);
+                          if (mounted) setState(() {});
+                        },
+                        pageTextStore: pageTextStore,
+                        height: itemHeight,
+                        isCurrent:
+                            matchIndex == widget.textSearcher.currentIndex,
+                      );
+                    } else {
+                      return Container(
+                        height: itemHeight,
+                        alignment: Alignment.bottomLeft,
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Text(
+                          'Page ${-matchIndex}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

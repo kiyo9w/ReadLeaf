@@ -12,6 +12,7 @@ import 'package:migrated/widgets/book_info_widget.dart';
 import 'package:migrated/screens/nav_screen.dart';
 import 'package:migrated/services/thumbnail_service.dart';
 import 'package:migrated/utils/file_utils.dart';
+import 'package:migrated/utils/utils.dart';
 
 class ResultPage extends StatefulWidget {
   final String searchQuery;
@@ -122,6 +123,7 @@ class _ResultPageState extends State<ResultPage> {
                 delegate: SliverChildListDelegate(
                   books.map((book) {
                     return FileCard(
+                      canDismiss: false,
                       filePath: book.link,
                       fileSize: 0,
                       isSelected: false,
@@ -144,10 +146,7 @@ class _ResultPageState extends State<ResultPage> {
                             fileName: "${book.title}.pdf",
                           ));
                         } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content: Text('Failed to get download link')),
-                          );
+                          Utils.showErrorSnackBar(context, 'Failed to get download link');
                         }
                       },
                       onStar: () {},

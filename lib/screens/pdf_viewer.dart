@@ -18,6 +18,8 @@ import 'package:migrated/widgets/CompanionChat/floating_chat_widget.dart';
 import 'package:migrated/models/chat_message.dart';
 import 'package:migrated/services/ai_character_service.dart';
 import 'package:migrated/models/ai_character.dart';
+import 'package:migrated/screens/character_screen.dart';
+import 'package:migrated/utils/utils.dart';
 
 class PDFViewerScreen extends StatefulWidget {
   const PDFViewerScreen({Key? key}) : super(key: key);
@@ -210,26 +212,12 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
 
       if (!mounted) return;
 
-      // if (selectedText != null) {
-      //   _floatingChatKey.currentState!
-      //       .addUserMessage('Imported Text: """$selectedText"""');
-
-      //   if (message != null) {
-      //     _floatingChatKey.currentState!.addUserMessage(message);
-      //   }
-      // }
-
       if (_floatingChatKey.currentState != null) {
         _floatingChatKey.currentState!.addAiResponse(response);
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to get AI response'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      Utils.showErrorSnackBar(context, 'Failed to get AI response');
     }
   }
 
@@ -354,45 +342,49 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                       ),
                       const SizedBox(height: 24),
                       Container(
-                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey[300]!),
+                          color: Colors.white,
+                          border: Border(
+                            top: BorderSide(color: Colors.grey[200]!),
+                          ),
+                          borderRadius: const BorderRadius.only(
+                            bottomLeft: Radius.circular(20),
+                            bottomRight: Radius.circular(20),
+                          ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  'Selected Text',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.grey,
-                                  ),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8.0, vertical: 4.0),
+                        child: GestureDetector(
+                          onTap: () => FocusScope.of(context).unfocus(),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Selected Text',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey,
                                 ),
-                                Text(
-                                  '${selectedTextCopy.length} characters',
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            SelectableText(
-                              selectedTextCopy.length > 200
-                                  ? '${selectedTextCopy.substring(0, 197)}...'
-                                  : selectedTextCopy,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                height: 1.5,
                               ),
-                            ),
-                          ],
+                              Text(
+                                '${selectedTextCopy.length} characters',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SelectableText(
+                        selectedTextCopy.length > 200
+                            ? '${selectedTextCopy.substring(0, 197)}...'
+                            : selectedTextCopy,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          height: 1.5,
                         ),
                       ),
                       const SizedBox(height: 24),
