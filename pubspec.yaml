@@ -16,6 +16,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   file_picker: ^8.1.7
   flutter_pdfview: ^1.3.4
+  vocsy_epub_viewer: ^3.0.0
 
   permission_handler: ^11.3.1
   path_provider: ^2.1.5
@@ -78,9 +79,10 @@ dev_dependencies:
   pdfrx:
     git:
       url: https://github.com/espresso3389/pdfrx.git
-      ref: 12d692499c2fce4de53a70d1ab0e6d72aeccec54
+      ref: a450c1eb7d7106a37d039df1736c37b2daf71a1c
 
 dependency_overrides:
+  collection: ^1.19.1
   # pdfrx:
   #   git:
   #     url: https://github.com/espresso3389/pdfrx.git
