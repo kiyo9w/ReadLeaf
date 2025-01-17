@@ -8,7 +8,7 @@ part of 'ai_character_preference.dart';
 
 class AiCharacterPreferenceAdapter extends TypeAdapter<AiCharacterPreference> {
   @override
-  final int typeId = 4;
+  final int typeId = 6;
 
   @override
   AiCharacterPreference read(BinaryReader reader) {

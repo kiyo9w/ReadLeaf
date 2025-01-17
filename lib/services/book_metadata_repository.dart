@@ -11,13 +11,22 @@ class BookMetadataRepository {
   Future<void> init() async {
     await Hive.initFlutter();
 
-    // Register adapters
-    Hive.registerAdapter(BookMetadataAdapter());
-    Hive.registerAdapter(TextHighlightAdapter());
-    Hive.registerAdapter(AiConversationAdapter());
+    if (!Hive.isAdapterRegistered(0)) {
+      Hive.registerAdapter(BookMetadataAdapter());
+    }
+    if (!Hive.isAdapterRegistered(1)) {
+      Hive.registerAdapter(TextHighlightAdapter());
+    }
+    if (!Hive.isAdapterRegistered(2)) {
+      Hive.registerAdapter(AiConversationAdapter());
+    }
 
-    // Open the box
-    _box = await Hive.openBox<BookMetadata>(_boxName);
+    try {
+      _box = await Hive.openBox<BookMetadata>(_boxName);
+    } catch (e) {
+      await Hive.deleteBoxFromDisk(_boxName);
+      _box = await Hive.openBox<BookMetadata>(_boxName);
+    }
   }
 
   // Convert file path to a fixed-length key

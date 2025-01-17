@@ -27,13 +27,14 @@ class BookMetadataAdapter extends TypeAdapter<BookMetadata> {
       isStarred: fields[7] as bool,
       lastReadTime: fields[8] as DateTime,
       readingProgress: fields[9] as double,
+      fileType: fields[10] as String,
     );
   }
 
   @override
   void write(BinaryWriter writer, BookMetadata obj) {
     writer
-      ..writeByte(10)
+      ..writeByte(11)
       ..writeByte(0)
       ..write(obj.filePath)
       ..writeByte(1)
@@ -53,7 +54,9 @@ class BookMetadataAdapter extends TypeAdapter<BookMetadata> {
       ..writeByte(8)
       ..write(obj.lastReadTime)
       ..writeByte(9)
-      ..write(obj.readingProgress);
+      ..write(obj.readingProgress)
+      ..writeByte(10)
+      ..write(obj.fileType);
   }
 
   @override

@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 import 'package:migrated/depeninject/injection.dart';
 import 'package:migrated/models/book_metadata.dart';
 import 'package:migrated/services/book_metadata_repository.dart';
+import 'package:migrated/utils/file_utils.dart';
 import 'package:path/path.dart' as path;
 import 'package:pdfrx/pdfrx.dart';
 
@@ -13,6 +14,7 @@ part 'reader_state.dart';
 class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
   final BookMetadataRepository _metadataRepository =
       getIt<BookMetadataRepository>();
+  final FileParser _fileParser = FileParser();
 
   ReaderBloc() : super(ReaderInitial()) {
     on<OpenReader>(_onOpenReader);
@@ -37,12 +39,15 @@ class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
         return;
       }
 
-      // Get the total pages from the PDF document
+      // Get the total pages from the document
       int totalPages = 100; // Default value
       if (fileType == "pdf") {
         final document = await PdfDocument.openFile(event.filePath);
         totalPages = document.pages.length;
         await document.dispose();
+      } else if (fileType == "epub") {
+        // For EPUB, we'll use a default value since page count isn't readily available
+        totalPages = 1000; // Default value for EPUB
       }
 
       // Get or create metadata
@@ -51,8 +56,9 @@ class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
         metadata = BookMetadata(
           filePath: event.filePath,
           title: path.basename(event.filePath),
-          totalPages: totalPages, // Now using the actual page count
+          totalPages: totalPages,
           lastReadTime: DateTime.now(),
+          fileType: fileType,
         );
         await _metadataRepository.saveMetadata(metadata);
       } else {
@@ -189,6 +195,7 @@ class FileParser {
     if (filePath.endsWith(".pdf")) return "pdf";
     if (filePath.endsWith(".mobi")) return "mobi";
     if (filePath.endsWith(".md")) return "markdown";
+    if (filePath.endsWith(".epub")) return "epub";
     return "unknown";
   }
 

@@ -35,6 +35,9 @@ class BookMetadata extends Equatable {
   @HiveField(9)
   final double readingProgress; // 0.0 to 1.0
 
+  @HiveField(10)
+  final String fileType;
+
   const BookMetadata({
     required this.filePath,
     required this.title,
@@ -46,6 +49,7 @@ class BookMetadata extends Equatable {
     this.isStarred = false,
     required this.lastReadTime,
     this.readingProgress = 0.0,
+    required this.fileType,
   });
 
   BookMetadata copyWith({
@@ -59,6 +63,7 @@ class BookMetadata extends Equatable {
     bool? isStarred,
     DateTime? lastReadTime,
     double? readingProgress,
+    String? fileType,
   }) {
     return BookMetadata(
       filePath: filePath ?? this.filePath,
@@ -71,6 +76,7 @@ class BookMetadata extends Equatable {
       isStarred: isStarred ?? this.isStarred,
       lastReadTime: lastReadTime ?? this.lastReadTime,
       readingProgress: readingProgress ?? this.readingProgress,
+      fileType: fileType ?? this.fileType,
     );
   }
 
@@ -86,6 +92,7 @@ class BookMetadata extends Equatable {
         isStarred,
         lastReadTime,
         readingProgress,
+        fileType,
       ];
 }
 
