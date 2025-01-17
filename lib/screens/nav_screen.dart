@@ -7,10 +7,11 @@ import 'package:migrated/screens/search_screen.dart';
 import 'package:migrated/screens/my_library_screen.dart';
 import 'package:migrated/screens/settings_screen.dart';
 import 'package:migrated/screens/character_screen.dart';
-import 'package:migrated/utils/file_utils.dart';
+import 'package:migrated/utils/file_utils.dart' show FileParser;
+import 'package:migrated/utils/utils.dart';
 import 'package:migrated/depeninject/injection.dart';
 import 'package:migrated/blocs/FileBloc/file_bloc.dart';
-import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
+import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart' hide FileParser;
 
 class NavScreen extends StatefulWidget {
   const NavScreen({super.key});
@@ -44,7 +45,19 @@ class _NavScreenState extends State<NavScreen> {
           context.read<ReaderBloc>().add(
                 OpenReader('', file: file, filePath: state.filePath),
               );
-          Navigator.pushNamed(context, '/viewer');
+
+          // Navigate to the appropriate viewer based on file type
+          final fileType = FileParser.determineFileType(state.filePath);
+          switch (fileType) {
+            case 'pdf':
+              Navigator.pushNamed(context, '/pdf_viewer');
+              break;
+            case 'epub':
+              Navigator.pushNamed(context, '/epub_viewer');
+              break;
+            default:
+              Utils.showErrorSnackBar(context, 'Unsupported file format');
+          }
         }
       },
       child: Scaffold(

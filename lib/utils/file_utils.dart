@@ -23,7 +23,7 @@ class FileUtils {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf'],
+        allowedExtensions: ['pdf', 'epub'],
       );
 
       if (result != null && result.files.isNotEmpty) {
@@ -256,5 +256,40 @@ class FileRepository {
     } else {
       return [];
     }
+  }
+}
+
+class FileParser {
+  static String determineFileType(String filePath) {
+    final extension = path.extension(filePath).toLowerCase();
+    switch (extension) {
+      case '.pdf':
+        return "pdf";
+      case '.epub':
+        return "epub";
+      case '.mobi':
+        return "mobi";
+      case '.md':
+        return "markdown";
+      default:
+        return "unknown";
+    }
+  }
+
+  static Future<dynamic> parseFile(File file) async {
+    final fileType = determineFileType(file.path);
+    dynamic content;
+    switch (fileType) {
+      case "pdf":
+        // Existing PDF parsing logic
+        break;
+      case "epub":
+        // EPUB files are handled directly by the viewer
+        content = file.path;
+        break;
+      default:
+        content = "Unsupported format";
+    }
+    return content;
   }
 }
