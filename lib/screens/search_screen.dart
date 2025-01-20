@@ -106,6 +106,9 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   void _showFilterModal(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NavScreen.globalKey.currentState?.setNavBarVisibility(true);
     });
@@ -113,7 +116,7 @@ class _SearchScreenState extends State<SearchScreen>
     _expandedSections['Genre'] = true;
 
     showModalBottomSheet(
-      backgroundColor: const Color(0xFFF0F4FF),
+      backgroundColor: theme.scaffoldBackgroundColor,
       isScrollControlled: true,
       context: context,
       shape: const RoundedRectangleBorder(
@@ -129,10 +132,10 @@ class _SearchScreenState extends State<SearchScreen>
               expand: false,
               builder: (context, scrollController) {
                 return Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
+                  decoration: BoxDecoration(
+                    color: theme.scaffoldBackgroundColor,
                     borderRadius:
-                        BorderRadius.vertical(top: Radius.circular(20)),
+                        const BorderRadius.vertical(top: Radius.circular(20)),
                   ),
                   child: SingleChildScrollView(
                     controller: scrollController,
@@ -145,7 +148,8 @@ class _SearchScreenState extends State<SearchScreen>
                             width: 40,
                             height: 4,
                             decoration: BoxDecoration(
-                              color: Colors.grey[300],
+                              color:
+                                  isDark ? Colors.grey[700] : Colors.grey[300],
                               borderRadius: BorderRadius.circular(2),
                             ),
                           ),
@@ -155,12 +159,9 @@ class _SearchScreenState extends State<SearchScreen>
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
+                              Text(
                                 "Filter",
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                style: theme.textTheme.displayMedium,
                               ),
                               const SizedBox(height: 8),
                               _buildExpandableSection(
@@ -237,36 +238,6 @@ class _SearchScreenState extends State<SearchScreen>
                                   }).toList(),
                                 ),
                               ),
-                              const SizedBox(height: 16),
-                              _buildExpandableSection(
-                                "Ratings",
-                                expanded: false,
-                                onExpansionChanged: (isExpanded) {
-                                  setModalState(() {});
-                                },
-                                child: Column(
-                                  children: [
-                                    _buildRatingTile(5),
-                                    _buildRatingTile(4),
-                                    _buildRatingTile(3),
-                                    _buildRatingTile(2),
-                                    _buildRatingTile(1),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              _buildExpandableSection(
-                                "Year Published",
-                                expanded: false,
-                                onExpansionChanged: (isExpanded) {
-                                  setModalState(() {});
-                                },
-                                child: Column(
-                                  children: [
-                                    _buildYearRangeSlider(),
-                                  ],
-                                ),
-                              ),
                               const SizedBox(height: 50),
                             ],
                           ),
@@ -291,23 +262,20 @@ class _SearchScreenState extends State<SearchScreen>
     required Widget child,
     Function(bool)? onExpansionChanged,
   }) {
+    final theme = Theme.of(context);
     _expandedSections[title] ??= expanded;
 
     return Theme(
-      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      data: theme.copyWith(dividerColor: Colors.transparent),
       child: ExpansionTile(
         key: PageStorageKey(title),
         title: Text(
           title,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-          ),
+          style: theme.textTheme.titleLarge,
         ),
         trailing: Icon(
           _expandedSections[title] == true ? Icons.remove : Icons.add,
-          color: Colors.pink,
+          color: theme.primaryColor,
         ),
         initiallyExpanded: _expandedSections[title] ?? expanded,
         onExpansionChanged: (isExpanded) {
@@ -326,111 +294,66 @@ class _SearchScreenState extends State<SearchScreen>
     );
   }
 
-  bool _isExpanded(String title) {
-    return _expandedSections[title] ?? false;
-  }
+  Widget _buildFilterChip(
+    String label, {
+    required bool selected,
+    required Function(bool) onSelected,
+  }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
-  Widget _buildFilterChip(String label,
-      {bool selected = false, Function(bool)? onSelected}) {
     return FilterChip(
-      label: Text(
-        label,
-        style: TextStyle(
-          color: selected ? Colors.white : Colors.black,
-          fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-        ),
-      ),
+      label: Text(label),
       selected: selected,
       onSelected: onSelected,
-      backgroundColor: Colors.white,
-      selectedColor: Colors.pink,
+      selectedColor: theme.primaryColor.withOpacity(0.2),
+      backgroundColor: isDark ? theme.cardColor : Colors.grey[100],
+      labelStyle: TextStyle(
+        color: selected
+            ? theme.primaryColor
+            : (isDark ? Colors.white : Colors.black87),
+      ),
+      checkmarkColor: theme.primaryColor,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: selected ? Colors.pink : Colors.grey.shade300,
-        ),
+        side:
+            selected ? BorderSide(color: theme.primaryColor) : BorderSide.none,
       ),
-      showCheckmark: false,
     );
   }
 
-  Widget _buildRadioTile(String label, bool isSelected,
-      {Function(bool)? onChanged}) {
-    return RadioListTile<bool>(
-      title: Text(
-        label,
-        style: TextStyle(
-          color: isSelected ? Colors.pink : Colors.black,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-        ),
-      ),
-      value: true,
-      groupValue: isSelected,
-      onChanged: (bool? value) => onChanged?.call(value ?? false),
-      activeColor: Colors.pink,
-      contentPadding: EdgeInsets.zero,
-    );
-  }
+  Widget _buildRadioTile(
+    String title,
+    bool isSelected, {
+    required Function(bool) onChanged,
+  }) {
+    final theme = Theme.of(context);
 
-  Widget _buildRatingTile(int rating) {
     return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: List.generate(
-          5,
-          (index) => Icon(
-            index < rating ? Icons.star : Icons.star_border,
-            color: Colors.amber,
-            size: 20,
-          ),
-        ),
+      title: Text(
+        title,
+        style: theme.textTheme.bodyLarge,
       ),
-      title: Text('$rating Stars'),
-      trailing: Checkbox(
-        value: false,
-        onChanged: (bool? value) {},
-        activeColor: Colors.pink,
+      leading: Radio<bool>(
+        value: true,
+        groupValue: isSelected,
+        onChanged: (value) => onChanged(value ?? false),
+        activeColor: theme.primaryColor,
       ),
-    );
-  }
-
-  Widget _buildYearRangeSlider() {
-    return Column(
-      children: [
-        RangeSlider(
-          values: const RangeValues(1990, 2024),
-          min: 1900,
-          max: 2024,
-          divisions: 124,
-          labels: const RangeLabels('1990', '2024'),
-          onChanged: (RangeValues values) {},
-          activeColor: Colors.pink,
-          inactiveColor: Colors.grey.shade200,
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('1900', style: TextStyle(color: Colors.grey[600])),
-              Text('2024', style: TextStyle(color: Colors.grey[600])),
-            ],
-          ),
-        ),
-      ],
+      onTap: () => onChanged(!isSelected),
     );
   }
 
   Widget _buildTopSearches() {
+    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 10.0, vertical: 20.0),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 20.0),
           child: Text(
             'Top searches',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: theme.textTheme.titleLarge,
           ),
         ),
         if (_topSearches != null) ...[
@@ -441,8 +364,14 @@ class _SearchScreenState extends State<SearchScreen>
               return const SizedBox();
             }
             return ListTile(
-              title: Text(books.first.title ?? query),
-              subtitle: Text(books.first.author ?? 'Unknown author'),
+              title: Text(
+                books.first.title ?? query,
+                style: theme.textTheme.titleMedium,
+              ),
+              subtitle: Text(
+                books.first.author ?? 'Unknown author',
+                style: theme.textTheme.bodyMedium,
+              ),
               onTap: () {
                 _searchBloc.add(SearchBooks(
                   query: query,
@@ -463,14 +392,17 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   Widget _buildTrending() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 10.0, vertical: 20.0),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 20.0),
           child: Text(
             'Trending',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: theme.textTheme.titleLarge,
           ),
         ),
         if (_trendingBooks != null)
@@ -507,8 +439,15 @@ class _SearchScreenState extends State<SearchScreen>
                       child: Container(
                         width: 120,
                         decoration: BoxDecoration(
-                          color: Colors.grey[200],
+                          color: theme.cardColor,
                           borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: isDark ? Colors.black26 : Colors.black12,
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -527,14 +466,24 @@ class _SearchScreenState extends State<SearchScreen>
                                     builder: (context, snapshot) {
                                       if (snapshot.connectionState ==
                                           ConnectionState.waiting) {
-                                        return const Center(
-                                            child: CircularProgressIndicator());
+                                        return Center(
+                                          child: CircularProgressIndicator(
+                                            color: theme.primaryColor,
+                                          ),
+                                        );
                                       }
                                       if (snapshot.hasError ||
                                           !snapshot.hasData) {
                                         return Container(
-                                          color: Colors.grey[300],
-                                          child: const Icon(Icons.book),
+                                          color: isDark
+                                              ? Colors.grey[800]
+                                              : Colors.grey[300],
+                                          child: Icon(
+                                            Icons.book,
+                                            color: isDark
+                                                ? Colors.white54
+                                                : Colors.black54,
+                                          ),
                                         );
                                       }
                                       return Image(
@@ -544,8 +493,15 @@ class _SearchScreenState extends State<SearchScreen>
                                         errorBuilder:
                                             (context, error, stackTrace) {
                                           return Container(
-                                            color: Colors.grey[300],
-                                            child: const Icon(Icons.book),
+                                            color: isDark
+                                                ? Colors.grey[800]
+                                                : Colors.grey[300],
+                                            child: Icon(
+                                              Icons.book,
+                                              color: isDark
+                                                  ? Colors.white54
+                                                  : Colors.black54,
+                                            ),
                                           );
                                         },
                                       );
@@ -556,8 +512,14 @@ class _SearchScreenState extends State<SearchScreen>
                             else
                               Container(
                                 height: 120,
-                                color: Colors.grey[300],
-                                child: const Icon(Icons.book),
+                                color: isDark
+                                    ? Colors.grey[800]
+                                    : Colors.grey[300],
+                                child: Icon(
+                                  Icons.book,
+                                  color:
+                                      isDark ? Colors.white54 : Colors.black54,
+                                ),
                               ),
                             Padding(
                               padding: const EdgeInsets.all(8.0),
@@ -565,10 +527,7 @@ class _SearchScreenState extends State<SearchScreen>
                                 book.title ?? "Unknown",
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                style: theme.textTheme.labelLarge,
                               ),
                             ),
                           ],
@@ -586,6 +545,9 @@ class _SearchScreenState extends State<SearchScreen>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return BlocConsumer<SearchBloc, SearchState>(
       bloc: _searchBloc,
       listener: (context, state) {
@@ -595,15 +557,13 @@ class _SearchScreenState extends State<SearchScreen>
       },
       builder: (context, state) {
         return Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: theme.scaffoldBackgroundColor,
           appBar: AppBar(
-            backgroundColor: Colors.white,
+            backgroundColor: theme.scaffoldBackgroundColor,
             centerTitle: false,
-            title: const Text(
+            title: Text(
               'Search',
-              style: TextStyle(
-                fontSize: 42.0,
-              ),
+              style: theme.textTheme.displayLarge,
             ),
           ),
           body: GestureDetector(
@@ -619,14 +579,14 @@ class _SearchScreenState extends State<SearchScreen>
                     padding: const EdgeInsets.all(15.0),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.pink.shade50,
+                        color: isDark ? theme.cardColor : Colors.white54,
                         borderRadius: BorderRadius.circular(50),
                       ),
                       child: Row(
                         children: [
                           IconButton(
                             padding: const EdgeInsets.only(right: 5),
-                            color: Colors.grey,
+                            color: isDark ? Colors.white54 : Colors.grey,
                             icon: const Icon(Icons.search, size: 23),
                             onPressed: () => onSubmit(context),
                           ),
@@ -638,20 +598,21 @@ class _SearchScreenState extends State<SearchScreen>
                               },
                               autocorrect: false,
                               showCursor: true,
-                              cursorColor: Colors.grey,
-                              decoration: const InputDecoration(
+                              cursorColor:
+                                  isDark ? Colors.white70 : Colors.grey,
+                              decoration: InputDecoration(
                                 contentPadding:
-                                    EdgeInsets.symmetric(vertical: 15),
+                                    const EdgeInsets.symmetric(vertical: 15),
                                 border: InputBorder.none,
-                                hintText: "Find some books...",
+                                hintText: "    Find some books...",
                                 hintStyle: TextStyle(
-                                  color: Colors.grey,
+                                  color: isDark ? Colors.white54 : Colors.grey,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               onSubmitted: (_) => onSubmit(context),
-                              style: const TextStyle(
-                                color: Colors.black,
+                              style: TextStyle(
+                                color: isDark ? Colors.white : Colors.black,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14,
                               ),
@@ -660,16 +621,16 @@ class _SearchScreenState extends State<SearchScreen>
                             ),
                           ),
                           IconButton(
-                              icon: const Icon(Icons.filter_list),
-                              color: Colors.black54,
-                              onPressed: () => {
-                                    WidgetsBinding.instance
-                                        .addPostFrameCallback((_) {
-                                      NavScreen.globalKey.currentState
-                                          ?.setNavBarVisibility(true);
-                                    }),
-                                    _showFilterModal(context),
-                                  }),
+                            icon: const Icon(Icons.filter_list),
+                            color: isDark ? Colors.white54 : Colors.grey,
+                            onPressed: () => {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                NavScreen.globalKey.currentState
+                                    ?.setNavBarVisibility(true);
+                              }),
+                              _showFilterModal(context),
+                            },
+                          ),
                         ],
                       ),
                     ),
