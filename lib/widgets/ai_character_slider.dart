@@ -135,7 +135,12 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
       // Trigger a new AI message in the HomeScreen
       if (context.mounted) {
         final homeScreen = context.findAncestorStateOfType<HomeScreenState>();
-        homeScreen?.generateNewAIMessage();
+        if (homeScreen != null) {
+          // Ensure the character switch is complete before generating new message
+          Future.microtask(() {
+            homeScreen.generateNewAIMessage();
+          });
+        }
       }
     }
     _collapse();
@@ -143,6 +148,7 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
@@ -188,13 +194,14 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
   }
 
   Widget _buildCollapsedView() {
+    final theme = Theme.of(context);
     return GestureDetector(
       onTap: _expand,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
         margin: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.cardColor,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
@@ -214,19 +221,13 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
             const SizedBox(height: 12),
             Text(
               characters[_selectedIndex].name,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: theme.textTheme.titleMedium,
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 4),
             Text(
               characters[_selectedIndex].trait,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
+              style: theme.textTheme.bodySmall,
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 12),
@@ -236,18 +237,18 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
                   width: constraints.maxWidth,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF5F5F5),
+                    color: theme.cardColor,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: ExpandableDescription(
                     text: characters[_selectedIndex].personality,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       height: 1.4,
-                      color: Color(0xFF424242),
+                      color: theme.textTheme.bodyMedium?.color,
                     ),
                     maxLines: 3,
-                    maxWidth: constraints.maxWidth - 24, // Account for padding
+                    maxWidth: constraints.maxWidth - 24,
                   ),
                 );
               },
@@ -259,9 +260,10 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
   }
 
   Widget _buildExpandedView() {
+    final theme = Theme.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -282,13 +284,13 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
                 Expanded(
                   child: Text(
                     'Choose Character',
-                    style: Theme.of(context).textTheme.titleLarge,
+                    style: theme.textTheme.titleLarge,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 IconButton(
                   onPressed: _collapse,
-                  icon: const Icon(Icons.close),
+                  icon: Icon(Icons.close, color: theme.iconTheme.color),
                 ),
               ],
             ),
@@ -312,6 +314,7 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
     final character = characters[index];
     final isSelected = index == _selectedIndex;
     final isCustom = character.categories.contains('Custom');
+    final theme = Theme.of(context);
 
     return GestureDetector(
       onTap: () => _onCharacterTap(index),
@@ -320,10 +323,12 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
         margin: const EdgeInsets.symmetric(horizontal: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFE3F2FD) : Colors.white,
+          color: isSelected
+              ? theme.primaryColor.withOpacity(0.1)
+              : theme.cardColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? Colors.blue : Colors.grey[200]!,
+            color: isSelected ? theme.primaryColor : theme.dividerColor,
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -338,18 +343,12 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
                 const SizedBox(height: 8),
                 Text(
                   character.name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: theme.textTheme.titleMedium,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   character.trait,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
+                  style: theme.textTheme.bodySmall,
                 ),
               ],
             ),
@@ -380,13 +379,15 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
   }
 
   Widget _buildCharacterAvatar(int index, {bool large = false}) {
+    final theme = Theme.of(context);
     return Container(
       width: large ? 100 : 80,
       height: large ? 100 : 80,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(
-          color: index == _selectedIndex ? Colors.blue : Colors.transparent,
+          color:
+              index == _selectedIndex ? theme.primaryColor : Colors.transparent,
           width: 2,
         ),
         boxShadow: [

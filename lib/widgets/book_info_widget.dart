@@ -37,13 +37,18 @@ class BookInfoWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     bool hasRatings = ratings != null;
 
     return Container(
       padding: const EdgeInsets.all(20.0),
       decoration: BoxDecoration(
-        color: const Color(0xffEBE6E0),
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: theme.dividerColor,
+          width: 1,
+        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -65,15 +70,20 @@ class BookInfoWidget extends StatelessWidget {
                             ? loadingProgress.cumulativeBytesLoaded /
                                 loadingProgress.expectedTotalBytes!
                             : null,
+                        color: theme.primaryColor,
                       ),
                     ),
                   );
                 },
                 errorBuilder: (context, error, stackTrace) {
-                  return const SizedBox(
+                  return SizedBox(
                     height: 200,
                     child: Center(
-                      child: Icon(Icons.error_outline, size: 40),
+                      child: Icon(
+                        Icons.error_outline,
+                        size: 40,
+                        color: theme.colorScheme.error,
+                      ),
                     ),
                   );
                 },
@@ -82,17 +92,15 @@ class BookInfoWidget extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             title ?? 'No Title',
-            style: const TextStyle(
-              fontSize: 18,
+            style: theme.textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.bold,
-              color: Colors.black87,
             ),
+            textAlign: TextAlign.center,
           ),
           const SizedBox(height: 5),
           Text(
             author ?? 'Unknown Author',
-            style: const TextStyle(
-              fontSize: 16,
+            style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -100,61 +108,50 @@ class BookInfoWidget extends StatelessWidget {
           if (description != null)
             Text(
               description!,
-              style: const TextStyle(fontSize: 14),
+              style: theme.textTheme.bodyMedium,
               textAlign: TextAlign.center,
               maxLines: 6,
               overflow: TextOverflow.ellipsis,
             ),
           const SizedBox(height: 10),
-          // if (hasRatings)
-          // Row(
-          //   mainAxisAlignment: MainAxisAlignment.center,
-          //   children: [
-          //     Text('${ratings} ★', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-          //     const SizedBox(width: 10),
-          //   ],
-          // )
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _buildChip(language ?? 'Unknown Language', Icons.language),
+              _buildChip(
+                  context, language ?? 'Unknown Language', Icons.language),
               const SizedBox(width: 8),
-              _buildChip(_formatFileSize(fileSize), Icons.file_present),
+              _buildChip(
+                  context, _formatFileSize(fileSize), Icons.file_present),
               const SizedBox(width: 8),
-              _buildChip(fileType ?? 'Unknown Language', Icons.language),
+              _buildChip(
+                  context, fileType ?? 'Unknown Type', Icons.description),
             ],
           ),
           const SizedBox(height: 20),
-          TextButton.icon(
-            onPressed: () {
-              onDownload();
-            },
-            style: ButtonStyle(
-              padding: MaterialStateProperty.all(
-                const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-              ),
-              backgroundColor:
-                  MaterialStateProperty.all(const Color(0xFFF4F1EE)),
-              shape: MaterialStateProperty.all(
-                RoundedRectangleBorder(
-                  borderRadius:
-                      BorderRadius.circular(20), // Adjust for rounded edges
-                ),
-              ),
-              overlayColor: MaterialStateProperty.all(
-                Colors.black12,
+          FilledButton.icon(
+            onPressed: onDownload,
+            style: FilledButton.styleFrom(
+              backgroundColor: theme.brightness == Brightness.dark
+                  ? Colors.white12
+                  : Colors.black87,
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
               ),
             ),
-            icon: const Icon(
+            icon: Icon(
               Icons.download,
-              color: Colors.black,
+              color: theme.brightness == Brightness.dark
+                  ? Colors.white
+                  : Colors.white,
               size: 24,
             ),
-            label: const Text(
+            label: Text(
               'Download',
-              style: TextStyle(
-                color: Colors.black,
-                fontSize: 20,
+              style: theme.textTheme.titleLarge?.copyWith(
+                color: theme.brightness == Brightness.dark
+                    ? Colors.white
+                    : Colors.white,
                 fontWeight: FontWeight.w400,
               ),
             ),
@@ -169,12 +166,25 @@ class BookInfoWidget extends StatelessWidget {
     return '${sizeInMB.toStringAsFixed(1)} MB';
   }
 
-  Widget _buildChip(String label, IconData icon) {
+  Widget _buildChip(BuildContext context, String label, IconData icon) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Chip(
-      avatar: Icon(icon, size: 16, color: Colors.white),
-      label: Text(label),
-      backgroundColor: Colors.black87,
-      labelStyle: const TextStyle(color: Colors.white),
+      avatar: Icon(
+        icon,
+        size: 16,
+        color: Colors.white,
+      ),
+      label: Text(
+        label,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: Colors.white,
+        ),
+      ),
+      backgroundColor: isDark ? Colors.white12 : Colors.black87,
+      side: BorderSide.none,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
     );
   }
 }
