@@ -345,7 +345,7 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
                   character.name,
                   style: theme.textTheme.titleMedium,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Text(
                   character.trait,
                   style: theme.textTheme.bodySmall,
