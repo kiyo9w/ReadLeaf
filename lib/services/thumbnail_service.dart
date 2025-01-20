@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:path/path.dart' as path;
 import 'package:screenshot/screenshot.dart';
+import 'package:epubx/epubx.dart' hide Image;
 
 class ThumbnailService {
   static final ThumbnailService _instance = ThumbnailService._internal();
@@ -35,6 +36,116 @@ class ThumbnailService {
     final cacheDir = await getTemporaryDirectory();
     final fileName = path.basename(originalPath);
     return path.join(cacheDir.path, 'thumbnails', '${fileName}_thumb.jpg');
+  }
+
+  Future<ImageProvider> getFileThumbnail(String filePath) async {
+    final fileType = path.extension(filePath).toLowerCase();
+    if (fileType == '.pdf') {
+      return getPdfThumbnail(filePath);
+    } else if (fileType == '.epub') {
+      return getEpubThumbnail(filePath);
+    }
+    return const AssetImage('assets/images/pdf_placeholder.png');
+  }
+
+  Future<ImageProvider> getEpubThumbnail(String filePath) async {
+    final fileName = path.basename(filePath);
+
+    // Check memory cache first
+    if (_memoryCache.containsKey(filePath)) {
+      return _memoryCache[filePath]!;
+    }
+
+    // Check disk cache
+    final thumbnailPath = await _getThumbnailPath(filePath);
+    final thumbnailFile = File(thumbnailPath);
+
+    if (await thumbnailFile.exists()) {
+      final provider = FileImage(thumbnailFile);
+      _addToMemoryCache(filePath, provider);
+      return provider;
+    }
+
+    // Generate new thumbnail
+    try {
+      final file = File(filePath);
+      final bytes = await file.readAsBytes();
+      final book = await EpubReader.readBook(bytes);
+
+      Uint8List? coverBytes;
+
+      // Try to get cover image
+      if (book.Content?.Images?.isNotEmpty == true) {
+        final possibleCoverImages = book.Content!.Images!.entries
+            .where((e) => e.key.toLowerCase().contains('cover'))
+            .toList();
+        if (possibleCoverImages.isNotEmpty) {
+          coverBytes =
+              Uint8List.fromList(possibleCoverImages.first.value.Content ?? []);
+        }
+      }
+
+      if (coverBytes != null && coverBytes.isNotEmpty) {
+        await thumbnailFile.parent.create(recursive: true);
+        await thumbnailFile.writeAsBytes(coverBytes);
+
+        final provider = MemoryImage(coverBytes);
+        _addToMemoryCache(filePath, provider);
+        return provider;
+      }
+
+      // If no cover image found, generate a default one with title
+      final widget = Directionality(
+        textDirection: TextDirection.ltr,
+        child: MediaQuery(
+          data: const MediaQueryData(),
+          child: Container(
+            width: thumbnailWidth * 2,
+            height: thumbnailHeight * 2,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Colors.blue.shade200, Colors.blue.shade400],
+              ),
+            ),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  book.Title ?? path.basenameWithoutExtension(fileName),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final defaultBytes = await _screenshotController.captureFromWidget(
+        widget,
+        delay: const Duration(milliseconds: 200),
+        pixelRatio: 2.0,
+        targetSize: Size(thumbnailWidth * 2, thumbnailHeight * 2),
+      );
+
+      await thumbnailFile.parent.create(recursive: true);
+      await thumbnailFile.writeAsBytes(defaultBytes);
+
+      final provider = MemoryImage(defaultBytes);
+      _addToMemoryCache(filePath, provider);
+      return provider;
+    } catch (e) {
+      print('Error generating EPUB thumbnail: $e');
+      return const AssetImage('assets/images/pdf_placeholder.png');
+    }
   }
 
   Future<ImageProvider> getPdfThumbnail(String filePath) async {

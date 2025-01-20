@@ -15,7 +15,8 @@ import 'package:migrated/depeninject/injection.dart';
 import 'package:migrated/models/file_info.dart';
 import 'package:migrated/screens/nav_screen.dart';
 import 'package:migrated/services/book_metadata_repository.dart';
-import 'package:migrated/screens/results_page.dart';
+import 'package:migrated/models/book_metadata.dart';
+import 'package:path/path.dart' as path;
 import 'package:migrated/blocs/SearchBloc/search_bloc.dart';
 import 'package:migrated/utils/utils.dart';
 
@@ -34,21 +35,30 @@ class HomeScreenState extends State<HomeScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _isScrollingDown = false;
 
-  Future<void> _refreshScreen() async {
-    setState(() {
-      // This will trigger a rebuild of the entire screen
-      // including the AiCharacterSlider
-    });
-  }
-
   @override
   void initState() {
     super.initState();
     _geminiService = GeminiService();
     _annasArchieve = getIt<AnnasArchieve>();
-    _loadBookOfTheDay();
-    _generateAIMessage();
-    _scrollController.addListener(_scrollListener);
+    _initializeScreen();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // This will be called when returning from other screens
+    generateNewAIMessage();
+  }
+
+  Future<void> _initializeScreen() async {
+    await _loadBookOfTheDay();
+    // Wait for next frame to ensure FileBloc state is ready
+    await Future.microtask(() async {
+      if (mounted) {
+        await _generateAIMessage();
+        _scrollController.addListener(_scrollListener);
+      }
+    });
   }
 
   @override
@@ -112,6 +122,20 @@ class HomeScreenState extends State<HomeScreen> {
         if (metadata != null) {
           currentPage = metadata.lastOpenedPage;
           totalPages = metadata.totalPages;
+        } else {
+          // If no metadata exists, create it with default values
+          final fileType = path
+              .extension(lastReadBook.filePath)
+              .toLowerCase()
+              .replaceAll('.', '');
+          final newMetadata = BookMetadata(
+            filePath: lastReadBook.filePath,
+            title: bookTitle,
+            totalPages: 1,
+            lastReadTime: DateTime.now(),
+            fileType: fileType,
+          );
+          await bookMetadataRepo.saveMetadata(newMetadata);
         }
       }
 
@@ -136,8 +160,23 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   // Make this method public so it can be called from the character slider
-  void generateNewAIMessage() {
-    _generateAIMessage();
+  Future<void> generateNewAIMessage() async {
+    if (mounted) {
+      // Clear existing message first to trigger UI update
+      setState(() {
+        _aiMessage = null;
+      });
+      // Generate new message after a short delay
+      await Future.delayed(const Duration(milliseconds: 100));
+      await _generateAIMessage();
+    }
+  }
+
+  Future<void> _refreshScreen() async {
+    setState(() {
+      // This will trigger a rebuild of the entire screen
+      // including the AiCharacterSlider
+    });
   }
 
   @override
@@ -160,7 +199,8 @@ class HomeScreenState extends State<HomeScreen> {
               slivers: [
                 SliverAppBar(
                   floating: true,
-                  backgroundColor: Colors.white,
+                  backgroundColor:
+                      Theme.of(context).appBarTheme.backgroundColor,
                   title: Row(
                     children: [
                       Image.asset(
@@ -169,13 +209,9 @@ class HomeScreenState extends State<HomeScreen> {
                         height: 32,
                       ),
                       const SizedBox(width: 8),
-                      const Text(
+                      Text(
                         'Leafy reader',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 24,
-                          fontWeight: FontWeight.w500,
-                        ),
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
                     ],
                   ),
@@ -183,8 +219,8 @@ class HomeScreenState extends State<HomeScreen> {
                     Stack(
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.card_giftcard,
-                              color: Colors.black),
+                          icon: Icon(Icons.card_giftcard,
+                              color: Theme.of(context).iconTheme.color),
                           onPressed: () {},
                         ),
                         Positioned(
@@ -192,8 +228,8 @@ class HomeScreenState extends State<HomeScreen> {
                           top: 8,
                           child: Container(
                             padding: const EdgeInsets.all(4),
-                            decoration: const BoxDecoration(
-                              color: Colors.blue,
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).primaryColor,
                               shape: BoxShape.circle,
                             ),
                             child: const Text(
@@ -208,7 +244,8 @@ class HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                     IconButton(
-                      icon: const Icon(Icons.more_vert, color: Colors.black),
+                      icon: Icon(Icons.more_vert,
+                          color: Theme.of(context).iconTheme.color),
                       onPressed: () {},
                     ),
                   ],
@@ -226,17 +263,14 @@ class HomeScreenState extends State<HomeScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Last read',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: Theme.of(context).textTheme.titleLarge,
                           ),
                           const SizedBox(height: 12),
                           Container(
                             decoration: BoxDecoration(
-                              color: const Color(0xFFFAF5F4),
+                              color: Theme.of(context).cardColor,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Column(
@@ -351,7 +385,7 @@ class HomeScreenState extends State<HomeScreen> {
                             canDismiss: false,
                           ),
                         ),
-                        const SizedBox(height: 80),
+                        const SizedBox(height: 100),
                       ],
                     ),
                   ),

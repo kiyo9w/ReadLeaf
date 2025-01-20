@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:migrated/services/ai_character_service.dart';
 import 'package:migrated/depeninject/injection.dart';
 import 'package:migrated/widgets/typing_text.dart';
+import 'package:migrated/themes/custom_theme_extension.dart';
 
 class AIMessageCard extends StatelessWidget {
   final String message;
@@ -15,6 +16,8 @@ class AIMessageCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final customTheme = theme.extension<CustomThemeExtension>();
     final character = getIt<AiCharacterService>().getSelectedCharacter();
     final characterName = character?.name ?? 'Leafy AI';
     final characterImage =
@@ -25,7 +28,10 @@ class AIMessageCard extends StatelessWidget {
       child: Stack(
         children: [
           CustomPaint(
-            painter: MessageBubblePainter(),
+            painter: MessageBubblePainter(
+              color:
+                  customTheme?.aiMessageBackground ?? const Color.fromARGB(255, 21, 3, 44),
+            ),
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 48),
@@ -42,9 +48,10 @@ class AIMessageCard extends StatelessWidget {
                       const SizedBox(width: 8),
                       Text(
                         '$characterName has been waiting:',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
+                          color: customTheme?.aiMessageText ?? Colors.white,
                         ),
                       ),
                     ],
@@ -52,9 +59,10 @@ class AIMessageCard extends StatelessWidget {
                   const SizedBox(height: 12),
                   TypingText(
                     text: message,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       height: 1.4,
+                      color: customTheme?.aiMessageText ?? Colors.white,
                     ),
                     typingSpeed: const Duration(milliseconds: 30),
                   ),
@@ -70,26 +78,26 @@ class AIMessageCard extends StatelessWidget {
               style: TextButton.styleFrom(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                backgroundColor: Colors.white,
+                backgroundColor: theme.cardColor,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
-                  side: BorderSide(color: Colors.grey[300]!),
+                  side: BorderSide(color: theme.dividerColor),
                 ),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     'Continue reading...',
                     style: TextStyle(
-                      color: Colors.brown,
+                      color: theme.primaryColor,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  SizedBox(width: 4),
+                  const SizedBox(width: 4),
                   Icon(
                     Icons.arrow_forward,
-                    color: Colors.brown,
+                    color: theme.primaryColor,
                     size: 18,
                   ),
                 ],
@@ -103,10 +111,14 @@ class AIMessageCard extends StatelessWidget {
 }
 
 class MessageBubblePainter extends CustomPainter {
+  final Color color;
+
+  MessageBubblePainter({this.color = const Color.fromARGB(255, 21, 3, 44)});
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFFE8F5E9)
+      ..color = color
       ..style = PaintingStyle.fill;
 
     final path = Path()

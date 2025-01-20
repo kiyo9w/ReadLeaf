@@ -1,5 +1,6 @@
 import 'dart:io';
-import 'package:flutter/material.dart';
+import 'dart:typed_data';
+import 'package:flutter/material.dart' hide Image;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:migrated/blocs/FileBloc/file_bloc.dart';
 import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
@@ -14,6 +15,9 @@ import 'package:path/path.dart' as path;
 import 'package:epubx/epubx.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+import 'package:migrated/services/book_metadata_repository.dart';
+import 'package:migrated/models/book_metadata.dart';
+import 'package:migrated/services/thumbnail_service.dart';
 
 class EPUBViewerScreen extends StatefulWidget {
   const EPUBViewerScreen({super.key});
@@ -25,6 +29,8 @@ class EPUBViewerScreen extends StatefulWidget {
 class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
   late final _geminiService = GetIt.I<GeminiService>();
   late final _characterService = GetIt.I<AiCharacterService>();
+  late final _metadataRepository = GetIt.I<BookMetadataRepository>();
+  late final _thumbnailService = GetIt.I<ThumbnailService>();
   final GlobalKey<FloatingChatWidgetState> _floatingChatKey = GlobalKey();
   final ItemScrollController _scrollController = ItemScrollController();
   final ItemPositionsListener _positionsListener =
@@ -36,42 +42,75 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
   String? _selectedText;
   bool _isLoading = true;
   bool _showChapters = false;
+  ImageProvider? _coverImage;
+  BookMetadata? _metadata;
+  bool _isDisposed = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      NavScreen.globalKey.currentState?.setNavBarVisibility(true);
-      _loadEpub();
-    });
+    _initializeReader();
+  }
 
+  Future<void> _initializeReader() async {
+    await Future.delayed(Duration.zero); // Wait for widget to be mounted
+    if (!mounted) return;
+
+    NavScreen.globalKey.currentState?.setNavBarVisibility(true);
     _positionsListener.itemPositions.addListener(_onScroll);
+    await _loadEpub();
   }
 
   @override
   void dispose() {
+    _isDisposed = true;
     _positionsListener.itemPositions.removeListener(_onScroll);
     super.dispose();
   }
 
   void _onScroll() {
+    if (_isDisposed) return;
+
     final positions = _positionsListener.itemPositions.value;
     if (positions.isEmpty) return;
 
     final firstIndex = positions.first.index;
     if (firstIndex != _currentChapterIndex) {
-      setState(() {
-        _currentChapterIndex = firstIndex;
-      });
+      if (!_isDisposed) {
+        setState(() {
+          _currentChapterIndex = firstIndex;
+        });
+      }
 
-      // Update the current page in the bloc
+      // Update the current page in the bloc and metadata
       if (mounted) {
-        context.read<ReaderBloc>().add(JumpToPage(_currentChapterIndex + 1));
+        final page = _currentChapterIndex + 1;
+        context.read<ReaderBloc>().add(JumpToPage(page));
+        _updateMetadata(page);
       }
     }
   }
 
+  Future<void> _updateMetadata(int currentPage) async {
+    if (_metadata == null || _isDisposed) return;
+
+    final updatedMetadata = _metadata!.copyWith(
+      lastOpenedPage: currentPage,
+      lastReadTime: DateTime.now(),
+      readingProgress: currentPage / _metadata!.totalPages,
+    );
+
+    await _metadataRepository.saveMetadata(updatedMetadata);
+    if (!_isDisposed) {
+      setState(() {
+        _metadata = updatedMetadata;
+      });
+    }
+  }
+
   Future<void> _loadEpub() async {
+    if (_isDisposed) return;
+
     final state = context.read<ReaderBloc>().state;
     if (state is! ReaderLoaded) return;
 
@@ -82,15 +121,68 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
       // Flatten chapters for easier navigation
       final chapters = _flattenChapters(book.Chapters ?? []);
 
-      setState(() {
-        _epubBook = book;
-        _flatChapters = chapters;
-        _isLoading = false;
-      });
+      // Get or create metadata
+      BookMetadata? metadata = _metadataRepository.getMetadata(state.file.path);
+      if (metadata == null) {
+        metadata = BookMetadata(
+          filePath: state.file.path,
+          title: book.Title ?? path.basename(state.file.path),
+          author: book.Author,
+          totalPages: chapters.length,
+          lastReadTime: DateTime.now(),
+          fileType: 'epub',
+        );
+        await _metadataRepository.saveMetadata(metadata);
+      }
+
+      // Get cover image using thumbnail service
+      final coverImage =
+          await _thumbnailService.getFileThumbnail(state.file.path);
+
+      if (!_isDisposed) {
+        setState(() {
+          _epubBook = book;
+          _flatChapters = chapters;
+          _metadata = metadata;
+          _coverImage = coverImage;
+          _currentChapterIndex = metadata?.lastOpenedPage != null
+              ? metadata!.lastOpenedPage - 1
+              : 0;
+          _isLoading = false;
+        });
+      }
+
+      // Scroll to last read position
+      if (_currentChapterIndex > 0 &&
+          _scrollController.isAttached &&
+          !_isDisposed) {
+        await _scrollController.scrollTo(
+          index: _currentChapterIndex,
+          duration: const Duration(milliseconds: 300),
+        );
+      }
     } catch (e) {
-      if (mounted) {
+      if (!_isDisposed && mounted) {
         Utils.showErrorSnackBar(context, 'Error loading EPUB: $e');
       }
+    }
+  }
+
+  Future<bool> _handleBackPress() async {
+    try {
+      // Save current progress before popping
+      if (_metadata != null) {
+        await _updateMetadata(_currentChapterIndex + 1);
+      }
+      if (mounted) {
+        context.read<ReaderBloc>().add(CloseReader());
+        context.read<FileBloc>().add(CloseViewer());
+        Navigator.of(context).pop();
+      }
+      return true;
+    } catch (e) {
+      print('Error handling back press: $e');
+      return false;
     }
   }
 
@@ -155,28 +247,34 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
         final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
         final isKeyboardVisible = keyboardHeight > 0;
 
-        return PopScope(
-          canPop: false,
-          onPopInvoked: (didPop) {
-            context.read<ReaderBloc>().add(CloseReader());
-            context.read<FileBloc>().add(CloseViewer());
-            Navigator.pop(context);
-          },
+        return WillPopScope(
+          onWillPop: _handleBackPress,
           child: Scaffold(
             resizeToAvoidBottomInset: false,
             appBar: AppBar(
               backgroundColor: const Color(0xffDDDDDD),
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back),
-                onPressed: () {
-                  context.read<ReaderBloc>().add(CloseReader());
-                  context.read<FileBloc>().add(CloseViewer());
-                  Navigator.pop(context);
-                },
+                onPressed: _handleBackPress,
               ),
-              title: Text(
-                _epubBook?.Title ?? 'Reading',
-                style: const TextStyle(fontSize: 20, color: Colors.black),
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _epubBook?.Title ?? 'Reading',
+                    style: const TextStyle(fontSize: 18, color: Colors.black),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (_epubBook?.Author != null)
+                    Text(
+                      _epubBook!.Author!,
+                      style:
+                          const TextStyle(fontSize: 14, color: Colors.black54),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
               ),
               actions: [
                 IconButton(
@@ -214,32 +312,57 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
                       Container(
                         width: 280,
                         color: Colors.grey.shade100,
-                        child: ListView.builder(
-                          itemCount: _flatChapters.length,
-                          itemBuilder: (context, index) {
-                            final chapter = _flatChapters[index];
-                            return ListTile(
-                              title: Text(
-                                chapter.Title ?? 'Chapter ${index + 1}',
-                                style: TextStyle(
-                                  color: _currentChapterIndex == index
-                                      ? Theme.of(context).primaryColor
-                                      : null,
+                        child: Column(
+                          children: [
+                            if (_coverImage != null)
+                              Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Container(
+                                    height: 200,
+                                    decoration: BoxDecoration(
+                                      image: DecorationImage(
+                                        image: _coverImage!,
+                                        fit: BoxFit.contain,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
-                              onTap: () {
-                                _scrollController.scrollTo(
-                                  index: index,
-                                  duration: const Duration(milliseconds: 300),
-                                );
-                                if (MediaQuery.of(context).size.width < 600) {
-                                  setState(() {
-                                    _showChapters = false;
-                                  });
-                                }
-                              },
-                            );
-                          },
+                            Expanded(
+                              child: ListView.builder(
+                                itemCount: _flatChapters.length,
+                                itemBuilder: (context, index) {
+                                  final chapter = _flatChapters[index];
+                                  return ListTile(
+                                    title: Text(
+                                      chapter.Title ?? 'Chapter ${index + 1}',
+                                      style: TextStyle(
+                                        color: _currentChapterIndex == index
+                                            ? Theme.of(context).primaryColor
+                                            : null,
+                                      ),
+                                    ),
+                                    onTap: () async {
+                                      await _scrollController.scrollTo(
+                                        index: index,
+                                        duration:
+                                            const Duration(milliseconds: 300),
+                                      );
+                                      if (MediaQuery.of(context).size.width <
+                                              600 &&
+                                          mounted) {
+                                        setState(() {
+                                          _showChapters = false;
+                                        });
+                                      }
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     Expanded(
@@ -251,9 +374,11 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
                             focusNode: FocusNode(),
                             selectionControls: MaterialTextSelectionControls(),
                             onSelectionChanged: (selection) {
-                              setState(() {
-                                _selectedText = selection?.plainText;
-                              });
+                              if (!_isDisposed) {
+                                setState(() {
+                                  _selectedText = selection?.plainText;
+                                });
+                              }
                             },
                             child: Padding(
                               padding: const EdgeInsets.all(16.0),
@@ -268,9 +393,13 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
                                   const SizedBox(height: 16),
                                   HtmlWidget(
                                     chapter.HtmlContent ?? '',
-                                    textStyle: const TextStyle(
+                                    textStyle: TextStyle(
                                       fontSize: 16,
                                       height: 1.6,
+                                      color: state is ReaderLoaded &&
+                                              state.isNightMode
+                                          ? Colors.white
+                                          : Colors.black,
                                     ),
                                   ),
                                 ],

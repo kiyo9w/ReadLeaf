@@ -11,6 +11,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:migrated/models/ai_character_preference.dart';
 import 'package:migrated/services/ai_character_service.dart';
 import 'package:migrated/models/book_metadata.dart';
+import 'package:provider/provider.dart';
+import 'package:migrated/providers/theme_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,7 +30,12 @@ void main() async {
   final aiCharacterService = getIt<AiCharacterService>();
   await aiCharacterService.init();
 
-  runApp(const MyApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => ThemeProvider(),
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -48,24 +55,18 @@ class MyApp extends StatelessWidget {
           create: (context) => getIt<ReaderBloc>(),
         ),
       ],
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        routes: {
-          '/pdf_viewer': (context) => const PDFViewerScreen(),
-          '/epub_viewer': (context) => const EPUBViewerScreen(),
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            routes: {
+              '/pdf_viewer': (context) => const PDFViewerScreen(),
+              '/epub_viewer': (context) => const EPUBViewerScreen(),
+            },
+            theme: themeProvider.theme,
+            home: NavScreen(key: NavScreen.globalKey),
+          );
         },
-        theme: ThemeData(
-          scaffoldBackgroundColor: Colors.white,
-          fontFamily: 'Lato',
-          textTheme: const TextTheme(
-            bodyLarge: TextStyle(fontSize: 16.0),
-            bodyMedium: TextStyle(fontSize: 14.0),
-            headlineLarge:
-                TextStyle(fontSize: 24.0, fontWeight: FontWeight.bold),
-            titleLarge: TextStyle(fontSize: 20.0, fontWeight: FontWeight.w600),
-          ),
-        ),
-        home: NavScreen(key: NavScreen.globalKey),
       ),
     );
   }
