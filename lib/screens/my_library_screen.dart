@@ -51,93 +51,10 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
     }
   }
 
-  Widget _buildCategoryHeader({
-    required String title,
-    required int count,
-    required bool isExpanded,
-    required VoidCallback onTap,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-      child: GestureDetector(
-        onTap: onTap,
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-            ),
-            // Count badge
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: (count > 10)
-                    ? Color(0xffC5AA17)
-                    : (count > 5)
-                        ? Color(0xffEBD766)
-                        : (count > 0)
-                            ? Color(0xffFCF6D6)
-                            : Colors.white,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                '$count',
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.black,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Icon(
-              isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-              color: Colors.black,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  List<Widget> _buildBookCards(List<FileInfo> books) {
-    return books.map((book) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: FileCard(
-          filePath: book.filePath,
-          fileSize: book.fileSize,
-          isSelected: book.isSelected,
-          onSelected: () {
-            context.read<FileBloc>().add(SelectFile(book.filePath));
-          },
-          onView: () {
-            context.read<FileBloc>().add(ViewFile(book.filePath));
-          },
-          onRemove: () {
-            context.read<FileBloc>().add(RemoveFile(book.filePath));
-          },
-          onDownload: () {},
-          onStar: () {
-            context.read<FileBloc>().add(ToggleStarred(book.filePath));
-          },
-          title: FileCard.extractFileName(book.filePath),
-          isInternetBook: book.isInternetBook,
-          author: book.author ?? 'Unknown',
-          thumbnailUrl: book.thumbnailUrl,
-          isStarred: book.isStarred,
-        ),
-      );
-    }).toList();
-  }
-
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return BlocBuilder<FileBloc, FileState>(
       builder: (context, state) {
         if (state is FileLoaded) {
@@ -148,13 +65,11 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
 
           return Scaffold(
             appBar: AppBar(
-              backgroundColor: Colors.white,
+              backgroundColor: theme.scaffoldBackgroundColor,
               centerTitle: false,
-              title: const Text(
+              title: Text(
                 'My Library',
-                style: TextStyle(
-                  fontSize: 42.0,
-                ),
+                style: theme.textTheme.displayLarge,
               ),
             ),
             body: SingleChildScrollView(
@@ -196,12 +111,83 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
             ),
           );
         }
-        return const Scaffold(
+        return Scaffold(
           body: Center(
-            child: CircularProgressIndicator(),
+            child: CircularProgressIndicator(
+              color: theme.primaryColor,
+            ),
           ),
         );
       },
     );
+  }
+
+  Widget _buildCategoryHeader({
+    required String title,
+    required int count,
+    required bool isExpanded,
+    required VoidCallback onTap,
+  }) {
+    final theme = Theme.of(context);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              title,
+              style: theme.textTheme.titleLarge,
+            ),
+            Row(
+              children: [
+                Text(
+                  count.toString(),
+                  style: theme.textTheme.bodyMedium,
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  isExpanded ? Icons.expand_less : Icons.expand_more,
+                  color: theme.iconTheme.color,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildBookCards(List<FileInfo> books) {
+    return books.map((book) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: FileCard(
+          filePath: book.filePath,
+          fileSize: book.fileSize,
+          isSelected: book.isSelected,
+          onSelected: () {
+            context.read<FileBloc>().add(SelectFile(book.filePath));
+          },
+          onView: () {
+            context.read<FileBloc>().add(ViewFile(book.filePath));
+          },
+          onRemove: () {
+            context.read<FileBloc>().add(RemoveFile(book.filePath));
+          },
+          onDownload: () {},
+          onStar: () {
+            context.read<FileBloc>().add(ToggleStarred(book.filePath));
+          },
+          title: FileCard.extractFileName(book.filePath),
+          isInternetBook: book.isInternetBook,
+          author: book.author ?? 'Unknown',
+          thumbnailUrl: book.thumbnailUrl,
+          isStarred: book.isStarred,
+        ),
+      );
+    }).toList();
   }
 }

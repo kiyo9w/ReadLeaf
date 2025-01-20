@@ -67,7 +67,7 @@ class _ResultPageState extends State<ResultPage> {
           appBar: PreferredSize(
             preferredSize: const Size.fromHeight(80),
             child: AppBar(
-              backgroundColor: Colors.white,
+              backgroundColor: Theme.of(context).scaffoldBackgroundColor,
               centerTitle: false,
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back),
