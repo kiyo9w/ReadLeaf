@@ -15,6 +15,7 @@ import 'package:migrated/services/ai_character_service.dart';
 import 'package:migrated/services/thumbnail_service.dart';
 import 'package:migrated/services/thumbnail_service.dart';
 import 'package:get_it/get_it.dart';
+import 'package:migrated/themes/custom_theme_extension.dart';
 
 class FileCard extends StatefulWidget {
   final String filePath;
@@ -126,6 +127,9 @@ class _FileCardState extends State<FileCard> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final customTheme = theme.extension<CustomThemeExtension>();
+
     Widget content = GestureDetector(
       onLongPress: widget.onSelected,
       onTap: widget.onView,
@@ -133,7 +137,7 @@ class _FileCardState extends State<FileCard> {
         margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
         padding: const EdgeInsets.all(5),
         decoration: BoxDecoration(
-          color: const Color(0xFFFAF5F4),
+          color: customTheme?.fileCardBackground ?? theme.cardColor,
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -143,7 +147,7 @@ class _FileCardState extends State<FileCard> {
               height: 190 + 1,
               decoration: BoxDecoration(
                 border: Border.all(
-                  color: Colors.black,
+                  color: theme.dividerColor,
                   width: 0.5,
                 ),
               ),
@@ -179,7 +183,8 @@ class _FileCardState extends State<FileCard> {
   }
 
   Widget _buildLocalFileInfo(BuildContext context) {
-    final hardCodedAuthor = "Yuval Noah Harari";
+    final theme = Theme.of(context);
+    final customTheme = theme.extension<CustomThemeExtension>();
     final progress = _getReadingProgress();
 
     return Column(
@@ -191,10 +196,10 @@ class _FileCardState extends State<FileCard> {
             Expanded(
               child: Text(
                 widget.title,
-                style: TextStyle(
-                  fontSize: 18.0,
-                  fontWeight: FontWeight.normal,
-                  color: widget.isSelected ? Colors.grey[600] : Colors.black,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: widget.isSelected
+                      ? theme.disabledColor
+                      : customTheme?.fileCardText,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -204,18 +209,16 @@ class _FileCardState extends State<FileCard> {
             if (widget.isSelected)
               Icon(
                 Icons.check_box,
-                color: Colors.blue,
+                color: theme.primaryColor,
                 size: 24.0,
               ),
           ],
         ),
         const SizedBox(height: 4),
         Text(
-          hardCodedAuthor,
-          style: const TextStyle(
-            fontSize: 14.0,
-            fontWeight: FontWeight.normal,
-            color: Colors.black,
+          widget.author ?? "Unknown Author",
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: customTheme?.fileCardText,
           ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -223,9 +226,10 @@ class _FileCardState extends State<FileCard> {
         const SizedBox(height: 4),
         Text(
           "PDF, ${formatFileSize(widget.fileSize)}",
-          style: TextStyle(
-            fontSize: 14.0,
-            color: widget.isSelected ? Colors.grey[600] : Colors.grey[800],
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: widget.isSelected
+                ? theme.disabledColor
+                : customTheme?.fileCardText?.withOpacity(0.7),
           ),
         ),
         const SizedBox(height: 62),
@@ -233,14 +237,14 @@ class _FileCardState extends State<FileCard> {
           padding: const EdgeInsets.symmetric(horizontal: 0),
           lineHeight: 4.0,
           percent: progress,
-          backgroundColor: Colors.brown.shade100,
-          progressColor: Colors.brown.shade300,
+          backgroundColor: theme.primaryColor.withOpacity(0.2),
+          progressColor: theme.primaryColor,
           barRadius: const Radius.circular(1),
           center: Text(
             _getProgressText(),
             style: TextStyle(
               fontSize: 10,
-              color: Colors.brown.shade300,
+              color: theme.primaryColor,
             ),
           ),
         ),
@@ -249,39 +253,36 @@ class _FileCardState extends State<FileCard> {
           _getProgressText(),
           textAlign: TextAlign.right,
           style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-              color: Colors.brown.shade300),
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
+            color: theme.primaryColor,
+          ),
         ),
-        // Icons at the bottom (Star and a check icon)
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             IconButton(
               icon: Icon(
                 widget.isStarred ? Icons.star : Icons.star_border_outlined,
-                color: widget.isStarred ? Colors.amber : Colors.black87,
+                color:
+                    widget.isStarred ? Colors.amber : customTheme?.fileCardText,
                 size: 24.0,
               ),
-              onPressed: () {
-                widget.onStar();
-              },
+              onPressed: widget.onStar,
             ),
             const SizedBox(width: 36.0),
             IconButton(
               icon: Icon(
                 FontAwesome5.check,
-                color: Colors.black87,
+                color: customTheme?.fileCardText,
                 size: 20.0,
               ),
-              onPressed: () {
-                widget.onRemove();
-              },
+              onPressed: widget.onRemove,
             ),
             const SizedBox(width: 22.0),
             Icon(
               Icons.more_vert,
-              color: Colors.black87,
+              color: customTheme?.fileCardText,
               size: 30.0,
             ),
           ],
@@ -302,6 +303,9 @@ class _FileCardState extends State<FileCard> {
   }
 
   Widget _buildInternetBookInfo(BuildContext context) {
+    final theme = Theme.of(context);
+    final customTheme = theme.extension<CustomThemeExtension>();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -311,10 +315,10 @@ class _FileCardState extends State<FileCard> {
             Expanded(
               child: Text(
                 widget.title,
-                style: TextStyle(
-                  fontSize: 18.0,
-                  fontWeight: FontWeight.normal,
-                  color: widget.isSelected ? Colors.grey[600] : Colors.black,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: widget.isSelected
+                      ? theme.disabledColor
+                      : customTheme?.fileCardText,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -324,7 +328,7 @@ class _FileCardState extends State<FileCard> {
             if (widget.isSelected)
               Icon(
                 Icons.check_box,
-                color: Colors.blue,
+                color: theme.primaryColor,
                 size: 24.0,
               ),
           ],
@@ -333,10 +337,8 @@ class _FileCardState extends State<FileCard> {
         if (widget.author != null && widget.author!.isNotEmpty)
           Text(
             widget.author!,
-            style: const TextStyle(
-              fontSize: 14.0,
-              fontWeight: FontWeight.normal,
-              color: Colors.black,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: customTheme?.fileCardText,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -348,20 +350,19 @@ class _FileCardState extends State<FileCard> {
           children: [
             Icon(
               Icons.star_border_outlined,
-              color: Colors.black87,
+              color: customTheme?.fileCardText,
               size: 24.0,
               semanticLabel: 'Star',
             ),
             const SizedBox(width: 22.0),
             IconButton(
-                onPressed: () {
-                  widget.onDownload();
-                },
-                icon: Icon(
-                  Icons.download,
-                  color: Colors.black87,
-                  size: 30.0,
-                )),
+              onPressed: widget.onDownload,
+              icon: Icon(
+                Icons.download,
+                color: customTheme?.fileCardText,
+                size: 30.0,
+              ),
+            ),
           ],
         ),
       ],

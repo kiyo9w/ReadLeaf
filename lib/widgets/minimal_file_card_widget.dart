@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:migrated/services/book_metadata_repository.dart';
 import 'package:get_it/get_it.dart';
+import 'package:migrated/themes/custom_theme_extension.dart';
 
 class MinimalFileCard extends StatefulWidget {
   final String filePath;
@@ -68,39 +69,10 @@ class _MinimalFileCardState extends State<MinimalFileCard> {
     return '${(progress * 100).toInt()}%';
   }
 
-  Widget _buildThumbnail() {
-    return FutureBuilder<ImageProvider>(
-      future: _thumbnailFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError || !snapshot.hasData) {
-          return Center(
-            child: Icon(
-              widget.isInternetBook ? Icons.book : Icons.picture_as_pdf,
-              size: 40,
-              color: Colors.black26,
-            ),
-          );
-        }
-        return Image(
-          image: snapshot.data!,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) => Center(
-            child: Icon(
-              widget.isInternetBook ? Icons.book : Icons.picture_as_pdf,
-              size: 40,
-              color: Colors.black26,
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final customTheme = theme.extension<CustomThemeExtension>();
     final progress = _getReadingProgress();
 
     return GestureDetector(
@@ -116,8 +88,9 @@ class _MinimalFileCardState extends State<MinimalFileCard> {
                 Container(
                   height: 160,
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.black12, width: 0.5),
-                    color: Colors.grey[100],
+                    border: Border.all(color: theme.dividerColor, width: 0.5),
+                    color: customTheme?.minimalFileCardBackground ??
+                        theme.cardColor,
                   ),
                   clipBehavior: Clip.antiAlias,
                   child: _buildThumbnail(),
@@ -127,9 +100,8 @@ class _MinimalFileCardState extends State<MinimalFileCard> {
                   widget.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: customTheme?.minimalFileCardText,
                   ),
                 ),
                 if (widget.author != null) ...[
@@ -138,9 +110,8 @@ class _MinimalFileCardState extends State<MinimalFileCard> {
                     widget.author!,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: customTheme?.minimalFileCardText?.withOpacity(0.7),
                     ),
                   ),
                 ],
@@ -153,7 +124,7 @@ class _MinimalFileCardState extends State<MinimalFileCard> {
                 color: Colors.transparent,
                 child: IconButton(
                   icon: const Icon(Icons.close, size: 18),
-                  color: Colors.black54,
+                  color: customTheme?.minimalFileCardText?.withOpacity(0.7),
                   onPressed: () {
                     context.read<FileBloc>().add(RemoveFile(widget.filePath));
                   },
@@ -168,14 +139,14 @@ class _MinimalFileCardState extends State<MinimalFileCard> {
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 lineHeight: 4.0,
                 percent: progress,
-                backgroundColor: Colors.brown.shade100,
-                progressColor: Colors.brown.shade300,
+                backgroundColor: theme.primaryColor.withOpacity(0.2),
+                progressColor: theme.primaryColor,
                 barRadius: const Radius.circular(1),
                 center: Text(
                   _getProgressText(),
                   style: TextStyle(
                     fontSize: 8,
-                    color: Colors.brown.shade300,
+                    color: theme.primaryColor,
                   ),
                 ),
               ),
@@ -183,6 +154,44 @@ class _MinimalFileCardState extends State<MinimalFileCard> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildThumbnail() {
+    final theme = Theme.of(context);
+    final customTheme = theme.extension<CustomThemeExtension>();
+
+    return FutureBuilder<ImageProvider>(
+      future: _thumbnailFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(
+            child: CircularProgressIndicator(
+              color: theme.primaryColor,
+            ),
+          );
+        }
+        if (snapshot.hasError || !snapshot.hasData) {
+          return Center(
+            child: Icon(
+              widget.isInternetBook ? Icons.book : Icons.picture_as_pdf,
+              size: 40,
+              color: customTheme?.minimalFileCardText?.withOpacity(0.3),
+            ),
+          );
+        }
+        return Image(
+          image: snapshot.data!,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => Center(
+            child: Icon(
+              widget.isInternetBook ? Icons.book : Icons.picture_as_pdf,
+              size: 40,
+              color: customTheme?.minimalFileCardText?.withOpacity(0.3),
+            ),
+          ),
+        );
+      },
     );
   }
 }
