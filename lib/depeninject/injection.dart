@@ -13,6 +13,7 @@ import 'package:migrated/services/ai_character_service.dart';
 import 'package:migrated/services/chat_service.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:migrated/models/chat_message.dart';
+import 'package:migrated/providers/theme_provider.dart';
 
 final GetIt getIt = GetIt.instance;
 
@@ -44,6 +45,10 @@ Future<void> configureDependencies() async {
   final bookMetadataRepository = BookMetadataRepository();
   await bookMetadataRepository.init();
   getIt.registerSingleton<BookMetadataRepository>(bookMetadataRepository);
+
+  // Initialize ThemeProvider
+  final themeProvider = ThemeProvider();
+  getIt.registerSingleton<ThemeProvider>(themeProvider);
 
   getIt.registerSingleton<FileRepository>(fileRepository);
   getIt.registerLazySingleton<Dio>(() {
