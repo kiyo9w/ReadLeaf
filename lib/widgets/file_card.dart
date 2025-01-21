@@ -240,13 +240,6 @@ class _FileCardState extends State<FileCard> {
           backgroundColor: theme.primaryColor.withOpacity(0.2),
           progressColor: theme.primaryColor,
           barRadius: const Radius.circular(1),
-          center: Text(
-            _getProgressText(),
-            style: TextStyle(
-              fontSize: 10,
-              color: theme.primaryColor,
-            ),
-          ),
         ),
         const SizedBox(height: 6),
         Text(
