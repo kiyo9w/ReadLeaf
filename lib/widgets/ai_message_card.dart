@@ -29,12 +29,12 @@ class AIMessageCard extends StatelessWidget {
         children: [
           CustomPaint(
             painter: MessageBubblePainter(
-              color:
-                  customTheme?.aiMessageBackground ?? const Color.fromARGB(255, 21, 3, 44),
+              color: customTheme?.aiMessageBackground ??
+                  const Color.fromARGB(255, 21, 3, 44),
             ),
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 48),
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 72),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -71,36 +71,43 @@ class AIMessageCard extends StatelessWidget {
             ),
           ),
           Positioned(
-            bottom: 8,
-            right: 16,
-            child: TextButton(
-              onPressed: onContinue,
-              style: TextButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                backgroundColor: theme.cardColor,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  side: BorderSide(color: theme.dividerColor),
-                ),
+            bottom: 0,
+            right: 24,
+            child: Container(
+              decoration: BoxDecoration(
+                color: theme.cardColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: theme.dividerColor),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Continue reading...',
-                    style: TextStyle(
-                      color: theme.primaryColor,
-                      fontWeight: FontWeight.w500,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onContinue,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Continue reading...',
+                          style: TextStyle(
+                            color: theme.primaryColor,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.arrow_forward,
+                          color: theme.primaryColor,
+                          size: 16,
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    Icons.arrow_forward,
-                    color: theme.primaryColor,
-                    size: 18,
-                  ),
-                ],
+                ),
               ),
             ),
           ),
@@ -121,30 +128,12 @@ class MessageBubblePainter extends CustomPainter {
       ..color = color
       ..style = PaintingStyle.fill;
 
-    final path = Path()
-      ..moveTo(0, 12)
-      ..lineTo(0, size.height - 12)
-      ..arcToPoint(
-        Offset(12, size.height),
-        radius: const Radius.circular(12),
-      )
-      ..lineTo(size.width - 12, size.height)
-      ..arcToPoint(
-        Offset(size.width, size.height - 12),
-        radius: const Radius.circular(12),
-      )
-      ..lineTo(size.width, 12)
-      ..arcToPoint(
-        Offset(size.width - 12, 0),
-        radius: const Radius.circular(12),
-      )
-      ..lineTo(12, 0)
-      ..arcToPoint(
-        const Offset(0, 12),
-        radius: const Radius.circular(12),
-      );
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      const Radius.circular(16),
+    );
 
-    canvas.drawPath(path, paint);
+    canvas.drawRRect(rect, paint);
   }
 
   @override

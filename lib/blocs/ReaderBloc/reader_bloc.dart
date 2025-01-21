@@ -133,7 +133,13 @@ class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
     }
   }
 
-  void _onCloseReader(CloseReader event, Emitter<ReaderState> emit) {
+  void _onCloseReader(CloseReader event, Emitter<ReaderState> emit) async {
+    if (state is ReaderLoaded) {
+      final s = state as ReaderLoaded;
+      // Save any final state if needed
+      await _metadataRepository.updateLastOpenedPage(
+          s.file.path, s.currentPage);
+    }
     emit(ReaderInitial());
   }
 

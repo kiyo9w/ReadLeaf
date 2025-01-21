@@ -1,21 +1,20 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:persistent_bottom_nav_bar_v2/persistent_bottom_nav_bar_v2.dart';
 import 'package:migrated/screens/home_screen.dart';
 import 'package:migrated/screens/search_screen.dart';
 import 'package:migrated/screens/my_library_screen.dart';
 import 'package:migrated/screens/settings_screen.dart';
 import 'package:migrated/screens/character_screen.dart';
-import 'package:migrated/utils/file_utils.dart' show FileParser;
-import 'package:migrated/utils/utils.dart';
+import 'package:migrated/utils/file_utils.dart';
 import 'package:migrated/depeninject/injection.dart';
 import 'package:migrated/blocs/FileBloc/file_bloc.dart';
-import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart' hide FileParser;
-import 'package:provider/provider.dart';
-import 'package:migrated/providers/theme_provider.dart';
+import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
 
 class NavScreen extends StatefulWidget {
   const NavScreen({super.key});
+  final double iconsize = 28;
   static final GlobalKey<_NavScreenState> globalKey =
       GlobalKey<_NavScreenState>();
 
@@ -25,15 +24,6 @@ class NavScreen extends StatefulWidget {
 
 class _NavScreenState extends State<NavScreen> {
   final ValueNotifier<bool> _hideNavBarNotifier = ValueNotifier<bool>(false);
-  int _selectedIndex = 0;
-
-  final List<Widget> _screens = [
-    HomeScreen(),
-    const SearchScreen(),
-    const CharacterScreen(),
-    const MyLibraryScreen(),
-    const SettingsScreen(),
-  ];
 
   void setNavBarVisibility(bool hide) {
     _hideNavBarNotifier.value = hide;
@@ -47,8 +37,11 @@ class _NavScreenState extends State<NavScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final isDark = themeProvider.isDarkMode;
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final activeColor = isDarkMode ? Colors.white : Colors.black;
+    final inactiveColor = isDarkMode
+        ? Colors.white.withOpacity(0.5)
+        : Colors.black.withOpacity(0.5);
 
     return BlocListener<FileBloc, FileState>(
       listener: (context, state) {
@@ -57,76 +50,80 @@ class _NavScreenState extends State<NavScreen> {
           context.read<ReaderBloc>().add(
                 OpenReader('', file: file, filePath: state.filePath),
               );
-
-          // Navigate to the appropriate viewer based on file type
-          final fileType = FileParser.determineFileType(state.filePath);
-          switch (fileType) {
-            case 'pdf':
-              Navigator.pushNamed(context, '/pdf_viewer');
-              break;
-            case 'epub':
-              Navigator.pushNamed(context, '/epub_viewer');
-              break;
-            default:
-              Utils.showErrorSnackBar(context, 'Unsupported file format');
-          }
+          Navigator.pushNamed(context, '/pdf_viewer');
         }
       },
       child: Scaffold(
-        backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
         body: ValueListenableBuilder<bool>(
           valueListenable: _hideNavBarNotifier,
           builder: (context, hideNavBar, child) {
-            return IndexedStack(
-              index: _selectedIndex,
-              children: _screens,
-            );
-          },
-        ),
-        bottomNavigationBar: ValueListenableBuilder<bool>(
-          valueListenable: _hideNavBarNotifier,
-          builder: (context, hideNavBar, child) {
-            if (hideNavBar) return const SizedBox.shrink();
-            return NavigationBar(
-              backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-              selectedIndex: _selectedIndex,
-              onDestinationSelected: (index) {
-                setState(() {
-                  _selectedIndex = index;
-                });
-              },
-              destinations: [
-                NavigationDestination(
-                  icon: const Icon(Icons.home_filled),
-                  label: 'Home',
-                  selectedIcon: Icon(Icons.home_filled,
-                      color: Theme.of(context).primaryColor),
+            return PersistentTabView(
+              backgroundColor: Theme.of(context).colorScheme.surface,
+              hideNavigationBar: hideNavBar,
+              tabs: [
+                PersistentTabConfig(
+                  screen: HomeScreen(),
+                  item: ItemConfig(
+                    icon: const Icon(Icons.home),
+                    inactiveIcon: const Icon(Icons.home_outlined),
+                    iconSize: widget.iconsize,
+                    title: "Home",
+                    activeForegroundColor: activeColor,
+                    inactiveForegroundColor: inactiveColor,
+                  ),
                 ),
-                NavigationDestination(
-                  icon: const Icon(Icons.search),
-                  label: 'Search',
-                  selectedIcon:
-                      Icon(Icons.search, color: Theme.of(context).primaryColor),
+                PersistentTabConfig(
+                  screen: const SearchScreen(),
+                  item: ItemConfig(
+                    icon: const Icon(Icons.search),
+                    inactiveIcon: const Icon(Icons.search_outlined),
+                    iconSize: widget.iconsize,
+                    title: "Search",
+                    activeForegroundColor: activeColor,
+                    inactiveForegroundColor: inactiveColor,
+                  ),
                 ),
-                NavigationDestination(
-                  icon: const Icon(Icons.person),
-                  label: 'Character',
-                  selectedIcon:
-                      Icon(Icons.person, color: Theme.of(context).primaryColor),
+                PersistentTabConfig(
+                  screen: const CharacterScreen(),
+                  item: ItemConfig(
+                    icon: const Icon(Icons.person),
+                    inactiveIcon: const Icon(Icons.person_outline),
+                    iconSize: widget.iconsize,
+                    title: "Character",
+                    activeForegroundColor: activeColor,
+                    inactiveForegroundColor: inactiveColor,
+                  ),
                 ),
-                NavigationDestination(
-                  icon: const Icon(Icons.collections_bookmark),
-                  label: 'Bookmark',
-                  selectedIcon: Icon(Icons.collections_bookmark,
-                      color: Theme.of(context).primaryColor),
+                PersistentTabConfig(
+                  screen: const MyLibraryScreen(),
+                  item: ItemConfig(
+                    icon: const Icon(Icons.collections_bookmark),
+                    inactiveIcon:
+                        const Icon(Icons.collections_bookmark_outlined),
+                    iconSize: widget.iconsize,
+                    title: "Bookmark",
+                    activeForegroundColor: activeColor,
+                    inactiveForegroundColor: inactiveColor,
+                  ),
                 ),
-                NavigationDestination(
-                  icon: const Icon(Icons.settings),
-                  label: 'Settings',
-                  selectedIcon: Icon(Icons.settings,
-                      color: Theme.of(context).primaryColor),
+                PersistentTabConfig(
+                  screen: const SettingsScreen(),
+                  item: ItemConfig(
+                    icon: const Icon(Icons.settings),
+                    inactiveIcon: const Icon(Icons.settings_outlined),
+                    iconSize: widget.iconsize,
+                    title: "Settings",
+                    activeForegroundColor: activeColor,
+                    inactiveForegroundColor: inactiveColor,
+                  ),
                 ),
               ],
+              navBarBuilder: (navBarConfig) => Style1BottomNavBar(
+                navBarConfig: navBarConfig,
+                navBarDecoration: NavBarDecoration(
+                  color: Theme.of(context).appBarTheme.backgroundColor!,
+                ),
+              ),
             );
           },
         ),
