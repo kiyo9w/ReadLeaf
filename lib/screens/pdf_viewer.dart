@@ -54,13 +54,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NavScreen.globalKey.currentState?.setNavBarVisibility(true);
     });
-    _controller.addListener(() {
-      // Update current page in bloc when page changes
-      if (mounted) {
-        final currentPage = _controller.pageNumber ?? 1;
-        context.read<ReaderBloc>().add(JumpToPage(currentPage));
-      }
-    });
   }
 
   @override
@@ -70,7 +63,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NavScreen.globalKey.currentState?.setNavBarVisibility(false);
     });
-    _controller.removeListener(() {});
     super.dispose();
   }
 
@@ -656,6 +648,11 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
             initialPageNumber: currentPage,
             params: PdfViewerParams(
               enableTextSelection: true,
+              onPageChanged: (page) {
+                if (mounted && page != null) {
+                  context.read<ReaderBloc>().add(JumpToPage(page));
+                }
+              },
               onTextSelectionChange: _handleTextSelectionChange,
               selectableRegionInjector: (context, child) {
                 return SelectionArea(
@@ -826,9 +823,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                                   inactiveColor: Colors.white54,
                                   onChanged: (value) {
                                     final page = value.toInt();
-                                    context
-                                        .read<ReaderBloc>()
-                                        .add(JumpToPage(page));
                                     _controller.goToPage(pageNumber: page);
                                   },
                                 ),
