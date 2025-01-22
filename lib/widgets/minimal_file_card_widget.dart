@@ -180,14 +180,20 @@ class _MinimalFileCardState extends State<MinimalFileCard> {
             ),
           );
         }
-        return Image(
-          image: snapshot.data!,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) => Center(
-            child: Icon(
-              widget.isInternetBook ? Icons.book : Icons.picture_as_pdf,
-              size: 40,
-              color: customTheme?.minimalFileCardText?.withOpacity(0.3),
+        return Container(
+          width: double.infinity,
+          height: double.infinity,
+          child: Image(
+            image: snapshot.data!,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            errorBuilder: (context, error, stackTrace) => Center(
+              child: Icon(
+                widget.isInternetBook ? Icons.book : Icons.picture_as_pdf,
+                size: 40,
+                color: customTheme?.minimalFileCardText?.withOpacity(0.3),
+              ),
             ),
           ),
         );
