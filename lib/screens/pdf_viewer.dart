@@ -823,14 +823,16 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
             ),
           );
 
-          return WillPopScope(
-            onWillPop: () async {
-              context.read<ReaderBloc>().add(CloseReader());
-              context.read<FileBloc>().add(CloseViewer());
-              return true;
+          return PopScope(
+            canPop: true,
+            onPopInvoked: (didPop) {
+              if (didPop) {
+                context.read<ReaderBloc>().add(CloseReader());
+                context.read<FileBloc>().add(CloseViewer());
+              }
             },
             child: Scaffold(
-              resizeToAvoidBottomInset: false, // Prevent scaffold from resizing
+              resizeToAvoidBottomInset: false,
               body: Stack(
                 children: [
                   pdfViewer,

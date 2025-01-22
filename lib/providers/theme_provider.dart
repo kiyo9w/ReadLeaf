@@ -37,6 +37,14 @@ class ThemeProvider extends ChangeNotifier {
     primaryColor: Colors.blue,
     scaffoldBackgroundColor: Colors.white,
 
+    // Add page transitions theme
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+      },
+    ),
+
     // AppBar theme
     appBarTheme: const AppBarTheme(
       backgroundColor: Colors.white,
@@ -142,6 +150,14 @@ class ThemeProvider extends ChangeNotifier {
     brightness: Brightness.dark,
     primaryColor: Color(0xFF9C27B0), // Mystic purple for AI character
     scaffoldBackgroundColor: Color(0xFF121212), // Deep dark background
+
+    // Add page transitions theme
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+      },
+    ),
 
     // AppBar theme
     appBarTheme: const AppBarTheme(
