@@ -10,7 +10,7 @@ class Marker {
   Marker(this.color, this.ranges);
 }
 
-class MarkersView extends StatefulWidget {
+class MarkersView extends StatelessWidget {
   const MarkersView({
     super.key,
     required this.markers,
@@ -23,85 +23,152 @@ class MarkersView extends StatefulWidget {
   final void Function(Marker ranges)? onDeleteTap;
 
   @override
-  State<MarkersView> createState() => _MarkersViewState();
-}
-
-class _MarkersViewState extends State<MarkersView> {
-  @override
   Widget build(BuildContext context) {
-    if (widget.markers.isEmpty) {
-      return const Center(
-        child: Text(
-          'No bookmarks yet\nHighlight text to add bookmarks',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white70),
+    if (markers.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.bookmark_border,
+              size: 48,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF8E8E93)
+                  : const Color(0xFF6E6E73),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No highlights or notes',
+              style: TextStyle(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFFF2F2F7)
+                    : const Color(0xFF1C1C1E),
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Select text and tap the highlight button to add',
+              style: TextStyle(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF8E8E93)
+                    : const Color(0xFF6E6E73),
+                fontSize: 14,
+              ),
+            ),
+          ],
         ),
       );
     }
 
-    return ListView.builder(
-      itemBuilder: (context, index) {
-        final marker = widget.markers[index];
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Stack(
-            children: [
-              Material(
-                color: marker.color.withAlpha(100),
-                borderRadius: BorderRadius.circular(8),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: () {
-                    widget.onTap?.call(marker);
-                    // Update bloc state with the page number
-                    context
-                        .read<ReaderBloc>()
-                        .add(JumpToPage(marker.ranges.pageNumber));
-                    // Close the side nav after jumping to the bookmark
-                    context.read<ReaderBloc>().add(ToggleSideNav());
-                  },
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Page ${marker.ranges.pageNumber}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          marker.ranges.text,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
+    // Sort markers by page number
+    final sortedMarkers = List<Marker>.from(markers)
+      ..sort((a, b) => a.ranges.pageNumber.compareTo(b.ranges.pageNumber));
+
+    return BlocBuilder<ReaderBloc, ReaderState>(
+      builder: (context, state) {
+        final currentPage = state is ReaderLoaded ? state.currentPage : 1;
+
+        return ListView.builder(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          itemCount: sortedMarkers.length,
+          itemBuilder: (context, index) {
+            final marker = sortedMarkers[index];
+            final isCurrentPage = marker.ranges.pageNumber == currentPage;
+
+            // Find the closest marker to current page for highlighting
+            final closestMarkerToCurrentPage = sortedMarkers
+                .where((m) => m.ranges.pageNumber <= currentPage)
+                .lastOrNull;
+            final shouldHighlight = marker == closestMarkerToCurrentPage;
+
+            return InkWell(
+              onTap: () {
+                onTap?.call(marker);
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                color: shouldHighlight
+                    ? (Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF2C2C2E)
+                        : const Color(0xFFF8F1F1))
+                    : Colors.transparent,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 4,
+                      height: 40,
+                      margin: const EdgeInsets.only(right: 12),
+                      decoration: BoxDecoration(
+                        color: marker.color.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
-                  ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Page ${marker.ranges.pageNumber}',
+                                style: TextStyle(
+                                  color: Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? const Color(0xFF8E8E93)
+                                      : const Color(0xFF6E6E73),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const Spacer(),
+                              IconButton(
+                                icon: Icon(
+                                  Icons.delete_outline,
+                                  color: Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? const Color(0xFF8E8E93)
+                                      : const Color(0xFF6E6E73),
+                                  size: 16,
+                                ),
+                                onPressed: () => onDeleteTap?.call(marker),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 24,
+                                  minHeight: 24,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            marker.ranges.text,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? const Color(0xFFF2F2F7)
+                                  : const Color(0xFF1C1C1E),
+                              fontSize: 13,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              Positioned(
-                right: 0,
-                top: 0,
-                bottom: 0,
-                child: IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.white70),
-                  onPressed: () => widget.onDeleteTap?.call(marker),
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
-      itemCount: widget.markers.length,
     );
   }
 }
