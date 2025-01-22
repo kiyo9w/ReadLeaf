@@ -5,6 +5,7 @@ import 'package:migrated/models/ai_character.dart';
 import 'package:migrated/constants/ui_constants.dart';
 import 'package:migrated/widgets/typing_text.dart';
 import 'package:migrated/screens/home_screen.dart';
+import 'dart:async';
 
 class AiCharacterSlider extends StatefulWidget {
   static final globalKey = GlobalKey<AiCharacterSliderState>();
@@ -28,51 +29,14 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
   // Distance in pixels between each character's "center"
   final double _spacing = UIConstants.characterSpacing;
 
-  // Calculate height based on content
-  double _calculateHeight(BuildContext context) {
-    if (_isExpanded) {
-      return 280.0; // Height for character selection view
-    }
-
-    // Get text painter to measure text height
-    final TextPainter textPainter = TextPainter(
-      text: TextSpan(
-        text: characters[_selectedIndex].personality,
-        style: TextStyle(
-          fontSize: 13,
-          height: 1.4,
-          color: Theme.of(context).textTheme.bodyMedium?.color,
-        ),
-      ),
-      maxLines: 3,
-      textDirection: TextDirection.ltr,
-    );
-
-    // Calculate available width for text
-    final double availableWidth = MediaQuery.of(context).size.width - 64;
-    textPainter.layout(maxWidth: availableWidth);
-
-    // Check if text needs expansion
-    final bool needsExpansion = textPainter.didExceedMaxLines;
-
-    // Base height for avatar and header (increased from 160 to 180)
-    double baseHeight = 180.0;
-
-    // Add height for text container with more padding
-    baseHeight += textPainter.height + 44; // Increased padding from 24 to 44
-
-    // Add height for expansion button if needed
-    if (needsExpansion) {
-      baseHeight += _isTextExpanded
-          ? 120.0
-          : 45.0; // Increased from 40 to 45 for non-expanded state
-    }
-
-    // Add extra safety padding
-    baseHeight += 20.0;
-
-    return baseHeight;
-  }
+  // Fixed dimensions for consistent layout
+  final double _avatarHeight = 100.0;
+  final double _headerSpacing = 16.0;
+  final double _nameHeight = 24.0;
+  final double _traitHeight = 20.0;
+  final double _textContainerPadding = 12.0;
+  final double _buttonHeight = 40.0;
+  final double _buttonMargin = 8.0;
 
   late final AiCharacterService _characterService;
 
@@ -192,19 +156,30 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-      height: _calculateHeight(context),
-      child: SingleChildScrollView(
-        physics: const NeverScrollableScrollPhysics(),
-        child: Container(
-          constraints: BoxConstraints(
-            maxHeight: _calculateHeight(context),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final height = _calculateHeight(context);
+        return Container(
+          height: height,
+          margin: const EdgeInsets.symmetric(horizontal: 8),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            decoration: BoxDecoration(
+              color: theme.cardColor,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: _isExpanded ? _buildExpandedView() : _buildCollapsedView(),
           ),
-          child: _isExpanded ? _buildExpandedView() : _buildCollapsedView(),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -226,66 +201,97 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
 
   Widget _buildCollapsedView() {
     final theme = Theme.of(context);
-    return GestureDetector(
-      onTap: _expand,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-        margin: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: _buildCharacterAvatar(_selectedIndex, large: true),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              characters[_selectedIndex].name,
-              style: theme.textTheme.titleMedium,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              characters[_selectedIndex].trait,
-              style: theme.textTheme.bodySmall,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 12),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                return Container(
-                  width: constraints.maxWidth,
-                  padding: const EdgeInsets.all(12),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Stack(
+        children: [
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GestureDetector(
+                onTap: _expand,
+                child: Center(
+                  child: _buildCharacterAvatar(_selectedIndex, large: true),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                characters[_selectedIndex].name,
+                style: theme.textTheme.titleMedium,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                characters[_selectedIndex].trait,
+                style: theme.textTheme.bodySmall,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.cardColor,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: ExpandableDescription(
+                  text: characters[_selectedIndex].personality,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.4,
+                    color: theme.textTheme.bodyMedium?.color,
+                  ),
+                  maxLines: 3,
+                  maxWidth: MediaQuery.of(context).size.width - 80,
+                ),
+              ),
+            ],
+          ),
+          Positioned(
+            top: 0,
+            right: 0,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _expand,
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: theme.cardColor,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  child: ExpandableDescription(
-                    text: characters[_selectedIndex].personality,
-                    style: TextStyle(
-                      fontSize: 13,
-                      height: 1.4,
-                      color: theme.textTheme.bodyMedium?.color,
-                    ),
-                    maxLines: 3,
-                    maxWidth: constraints.maxWidth - 24,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.swap_horiz_rounded,
+                        size: 20,
+                        color: theme.primaryColor,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Switch',
+                        style: TextStyle(
+                          color: theme.primaryColor,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
-                );
-              },
+                ),
+              ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -473,6 +479,62 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
       });
     }
   }
+
+  // Calculate height based on content
+  double _calculateHeight(BuildContext context) {
+    if (_isExpanded) {
+      return 280.0; // Height for character selection view
+    }
+
+    // Get text painter to measure text height
+    final TextPainter textPainter = TextPainter(
+      text: TextSpan(
+        text: characters[_selectedIndex].personality,
+        style: TextStyle(
+          fontSize: 13,
+          height: 1.4,
+          color: Theme.of(context).textTheme.bodyMedium?.color,
+        ),
+      ),
+      maxLines: _isTextExpanded ? null : 3,
+      textDirection: TextDirection.ltr,
+    );
+
+    // Calculate available width for text
+    final double availableWidth = MediaQuery.of(context).size.width - 80;
+    textPainter.layout(maxWidth: availableWidth);
+
+    // Check if text actually needs expansion
+    bool needsExpansion = false;
+    if (!_isTextExpanded) {
+      textPainter.maxLines = 3;
+      textPainter.layout(maxWidth: availableWidth);
+      needsExpansion = textPainter.didExceedMaxLines;
+    }
+
+    // Base height calculation
+    double height = 16.0; // Top padding
+    height += _avatarHeight; // Avatar
+    height += 12.0; // Spacing after avatar
+    height += 24.0; // Name height
+    height += 4.0; // Spacing between name and trait
+    height += 20.0; // Trait height
+    height += 12.0; // Spacing before text container
+    height += 24.0; // Text container padding
+    height += textPainter.height; // Text height
+
+    // Add height for button only if text actually overflows
+    if (needsExpansion || _isTextExpanded) {
+      height += 8.0; // Button margin
+      height += 40.0; // Button height
+      height += 5.0; // Extra space to prevent overflow
+    }
+
+    height += 5.0; // Bottom padding
+
+    // Remove any fractional pixels to prevent overflow
+    return height.ceilToDouble();
+  }
 }
 
 class ExpandableDescription extends StatefulWidget {
@@ -495,14 +557,23 @@ class ExpandableDescription extends StatefulWidget {
 
 class _ExpandableDescriptionState extends State<ExpandableDescription> {
   bool _isExpanded = false;
+  bool _showReadMore = false;
   late TextPainter _textPainter;
   bool _hasOverflow = false;
   late int _actualLineCount;
+  Timer? _readMoreTimer;
 
   @override
   void initState() {
     super.initState();
     _measureText();
+    _scheduleReadMoreButton();
+  }
+
+  @override
+  void dispose() {
+    _readMoreTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -512,21 +583,32 @@ class _ExpandableDescriptionState extends State<ExpandableDescription> {
         oldWidget.maxWidth != widget.maxWidth ||
         oldWidget.style != widget.style) {
       _measureText();
+      _showReadMore = false;
+      _scheduleReadMoreButton();
     }
+  }
+
+  void _scheduleReadMoreButton() {
+    _readMoreTimer?.cancel();
+    _readMoreTimer = Timer(const Duration(milliseconds: 2200), () {
+      if (mounted) {
+        setState(() {
+          _showReadMore = true;
+        });
+      }
+    });
   }
 
   void _measureText() {
     _textPainter = TextPainter(
       text: TextSpan(text: widget.text, style: widget.style),
-      maxLines: 1000, // High number to measure actual lines
+      maxLines: 1000,
       textDirection: TextDirection.ltr,
     )..layout(maxWidth: widget.maxWidth);
 
-    // Calculate actual number of lines
     List<LineMetrics> lines = _textPainter.computeLineMetrics();
     _actualLineCount = lines.length;
 
-    // Check if text overflows the collapsed state
     _textPainter.maxLines = widget.maxLines;
     _textPainter.layout(maxWidth: widget.maxWidth);
     _hasOverflow = _textPainter.didExceedMaxLines;
@@ -542,7 +624,6 @@ class _ExpandableDescriptionState extends State<ExpandableDescription> {
       curve: Curves.easeInOut,
       alignment: Alignment.topCenter,
       onEnd: () {
-        // After description collapses, notify parent to shrink if needed
         if (!_isExpanded) {
           sliderState?.setTextExpanded(false);
         }
@@ -555,29 +636,25 @@ class _ExpandableDescriptionState extends State<ExpandableDescription> {
             text: widget.text,
             style: widget.style,
             maxLines: _isExpanded ? _actualLineCount : widget.maxLines,
-            typingSpeed: const Duration(milliseconds: 30),
+            typingSpeed: const Duration(milliseconds: 15),
             overflow: TextOverflow.ellipsis,
           ),
-          if (_hasOverflow)
+          if (_hasOverflow && _showReadMore)
             GestureDetector(
               onTap: () {
                 setState(() {
                   _isExpanded = !_isExpanded;
                   if (_isExpanded) {
                     sliderState?.setTextExpanded(true);
-                    sliderState?.setState(() {
-                      sliderState._allowDescriptionExpansion = true;
-                    });
                   } else {
-                    // Only collapse the description first, parent will be notified via onEnd
                     _isExpanded = false;
                   }
                 });
               },
               child: Container(
                 width: double.infinity,
-                height: 36,
-                margin: const EdgeInsets.only(top: 8),
+                height: 40,
+                margin: const EdgeInsets.only(top: 4), // Reduced from 12 to 4
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,

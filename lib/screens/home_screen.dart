@@ -252,10 +252,7 @@ class HomeScreenState extends State<HomeScreen> {
                 ),
                 SliverToBoxAdapter(
                   child: Container(
-                    padding: EdgeInsets.fromLTRB(0, 8, 0, 0),
-                    constraints: BoxConstraints(
-                      maxHeight: MediaQuery.of(context).size.height * 0.4,
-                    ),
+                    padding: EdgeInsets.fromLTRB(0, 8, 0, 8),
                     child: AiCharacterSlider(),
                   ),
                 ),
