@@ -23,6 +23,9 @@ class AIMessageCard extends StatelessWidget {
     final characterImage =
         character?.imagePath ?? 'assets/images/leafy_icon.png';
 
+    // Sanitize the message to prevent UTF-16 errors
+    final sanitizedMessage = message.replaceAll(RegExp(r'[^\x00-\x7F]+'), '');
+
     return Container(
       margin: const EdgeInsets.only(top: 12),
       child: Stack(
@@ -58,7 +61,7 @@ class AIMessageCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   TypingText(
-                    text: message,
+                    text: sanitizedMessage,
                     style: TextStyle(
                       fontSize: 15,
                       height: 1.4,
