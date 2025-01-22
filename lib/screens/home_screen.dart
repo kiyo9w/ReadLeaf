@@ -251,15 +251,18 @@ class HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.only(top: 16, bottom: 8),
+                  child: Container(
+                    padding: EdgeInsets.fromLTRB(0, 8, 0, 0),
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.4,
+                    ),
                     child: AiCharacterSlider(),
                   ),
                 ),
                 if (lastReadBook != null)
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [

@@ -27,9 +27,52 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
 
   // Distance in pixels between each character's "center"
   final double _spacing = UIConstants.characterSpacing;
-  final double _expandedHeight = 280.0;
-  final double _collapsedHeight = 330.0;
-  final double _textExpandedHeight = 401.0;
+
+  // Calculate height based on content
+  double _calculateHeight(BuildContext context) {
+    if (_isExpanded) {
+      return 280.0; // Height for character selection view
+    }
+
+    // Get text painter to measure text height
+    final TextPainter textPainter = TextPainter(
+      text: TextSpan(
+        text: characters[_selectedIndex].personality,
+        style: TextStyle(
+          fontSize: 13,
+          height: 1.4,
+          color: Theme.of(context).textTheme.bodyMedium?.color,
+        ),
+      ),
+      maxLines: 3,
+      textDirection: TextDirection.ltr,
+    );
+
+    // Calculate available width for text
+    final double availableWidth = MediaQuery.of(context).size.width - 64;
+    textPainter.layout(maxWidth: availableWidth);
+
+    // Check if text needs expansion
+    final bool needsExpansion = textPainter.didExceedMaxLines;
+
+    // Base height for avatar and header (increased from 160 to 180)
+    double baseHeight = 180.0;
+
+    // Add height for text container with more padding
+    baseHeight += textPainter.height + 44; // Increased padding from 24 to 44
+
+    // Add height for expansion button if needed
+    if (needsExpansion) {
+      baseHeight += _isTextExpanded
+          ? 120.0
+          : 45.0; // Increased from 40 to 45 for non-expanded state
+    }
+
+    // Add extra safety padding
+    baseHeight += 20.0;
+
+    return baseHeight;
+  }
 
   late final AiCharacterService _characterService;
 
@@ -152,24 +195,12 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
-      height: _isExpanded
-          ? _expandedHeight
-          : (_isTextExpanded ? _textExpandedHeight : _collapsedHeight),
-      onEnd: () {
-        // Only allow description expansion after container animation is complete
-        if (_isTextExpanded) {
-          setState(() {
-            _allowDescriptionExpansion = true;
-          });
-        }
-      },
+      height: _calculateHeight(context),
       child: SingleChildScrollView(
         physics: const NeverScrollableScrollPhysics(),
         child: Container(
           constraints: BoxConstraints(
-            maxHeight: _isExpanded
-                ? _expandedHeight
-                : (_isTextExpanded ? _textExpandedHeight : _collapsedHeight),
+            maxHeight: _calculateHeight(context),
           ),
           child: _isExpanded ? _buildExpandedView() : _buildCollapsedView(),
         ),
@@ -199,7 +230,7 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
       onTap: _expand,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-        margin: const EdgeInsets.symmetric(horizontal: 16),
+        margin: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
           color: theme.cardColor,
           borderRadius: BorderRadius.circular(20),
