@@ -51,7 +51,6 @@ dependencies:
   flutter_inappwebview: ^6.1.5
 
   get_it: ^8.0.3
-  persistent_bottom_nav_bar_v2: ^5.3.1
 
   # AI Integration
   google_generative_ai: ^0.4.6
@@ -71,6 +70,7 @@ dependencies:
   epubx: ^4.0.0
   flutter_widget_from_html: ^0.15.3
   scrollable_positioned_list: ^0.3.8
+  persistent_bottom_nav_bar_v2: ^5.3.1
 
 dev_dependencies:
   flutter_test:
@@ -96,12 +96,7 @@ flutter:
     - assets/images/leafy_icon.png
 
     # default ai characters
-    - assets/images/ai_characters/professor.png
-    - assets/images/ai_characters/student.png
-    - assets/images/ai_characters/librarian.png
-    - assets/images/ai_characters/artist.png
-    - assets/images/ai_characters/scientist.png
-    - assets/images/ai_characters/default.png
+    - assets/images/ai_characters/
 
     # default books
     - assets/pdfs/atomic_habits.pdf

@@ -20,6 +20,9 @@ import 'package:migrated/services/ai_character_service.dart';
 import 'package:migrated/models/ai_character.dart';
 import 'package:migrated/screens/character_screen.dart';
 import 'package:migrated/utils/utils.dart';
+import 'package:migrated/widgets/pdf_viewer/markers_view.dart';
+import 'package:migrated/widgets/pdf_viewer/outline_view.dart';
+import 'package:migrated/widgets/pdf_viewer/thumbnails_view.dart';
 
 class PDFViewerScreen extends StatefulWidget {
   const PDFViewerScreen({Key? key}) : super(key: key);
@@ -41,6 +44,10 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
   String? _selectedText;
   double _scaleFactor = 1.0;
   double _baseScaleFactor = 1.0;
+  final _markers = <int, List<Marker>>{};
+  List<PdfTextRanges>? _textSelections;
+  final outline = ValueNotifier<List<PdfOutlineNode>?>(null);
+  final documentRef = ValueNotifier<PdfDocumentRef?>(null);
 
   void _update() {
     if (mounted) {
@@ -60,6 +67,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
   void dispose() {
     _textSearcher.removeListener(_update);
     _textSearcher.dispose();
+    outline.dispose();
+    documentRef.dispose();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NavScreen.globalKey.currentState?.setNavBarVisibility(false);
     });
@@ -173,12 +182,51 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
       setState(() {
         _selectedText = selectedText;
         _showAskAiButton = selectedText.isNotEmpty;
+        _textSelections = selections;
       });
     } else {
       setState(() {
         _selectedText = null;
         _showAskAiButton = false;
+        _textSelections = null;
       });
+    }
+  }
+
+  void _addCurrentSelectionToMarkers(Color color) {
+    if (_controller.isReady && _textSelections != null) {
+      for (final selectedText in _textSelections!) {
+        _markers
+            .putIfAbsent(selectedText.pageNumber, () => [])
+            .add(Marker(color, selectedText));
+      }
+      setState(() {});
+    }
+  }
+
+  void _paintMarkers(Canvas canvas, Rect pageRect, PdfPage page) {
+    final markers = _markers[page.pageNumber];
+    if (markers == null) {
+      return;
+    }
+    for (final marker in markers) {
+      final paint = Paint()
+        ..color = marker.color.withAlpha(100)
+        ..style = PaintingStyle.fill;
+
+      for (final range in marker.ranges.ranges) {
+        final f = PdfTextRangeWithFragments.fromTextRange(
+          marker.ranges.pageText,
+          range.start,
+          range.end,
+        );
+        if (f != null) {
+          canvas.drawRect(
+            f.bounds.toRectInPageRect(page: page, pageRect: pageRect),
+            paint,
+          );
+        }
+      }
     }
   }
 
@@ -428,6 +476,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                                               child: SelectableText(
                                                 selectedTextCopy,
                                                 style: const TextStyle(
+                                                  color: Colors.black,
                                                   fontSize: 14,
                                                   height: 1.5,
                                                 ),
@@ -642,7 +691,20 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
               },
               pagePaintCallbacks: [
                 _textSearcher.pageTextMatchPaintCallback,
+                _paintMarkers,
               ],
+              onDocumentChanged: (document) async {
+                if (document == null) {
+                  documentRef.value = null;
+                  outline.value = null;
+                  _textSelections = null;
+                  _markers.clear();
+                }
+              },
+              onViewerReady: (document, controller) async {
+                documentRef.value = controller.documentRef;
+                outline.value = await document.loadOutline();
+              },
               linkHandlerParams: PdfLinkHandlerParams(
                 onLinkTap: _handleLink,
                 linkColor: Colors.blue.withOpacity(0.15),
@@ -833,6 +895,18 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                             automaticallyImplyLeading: false,
                             actions: [
                               IconButton(
+                                icon:
+                                    const Icon(Icons.circle, color: Colors.red),
+                                onPressed: () =>
+                                    _addCurrentSelectionToMarkers(Colors.red),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.circle,
+                                    color: Colors.green),
+                                onPressed: () =>
+                                    _addCurrentSelectionToMarkers(Colors.green),
+                              ),
+                              IconButton(
                                 icon: const Icon(Icons.close),
                                 onPressed: () {
                                   context
@@ -843,17 +917,71 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                             ],
                           ),
                           Expanded(
-                            child: ListView(
-                              padding: const EdgeInsets.all(8),
-                              children: [
-                                _buildChapterItem('Layout widgets', 55),
-                                _buildChapterItem('Navigation widgets', 55),
-                                _buildChapterItem('Other widgets', 56),
-                                _buildChapterItem(
-                                    'How to create your own stateless...', 65),
-                                _buildChapterItem('Conclusion', 69),
-                                _buildChapterItem('Chapter 7: Index', 85),
-                              ],
+                            child: DefaultTabController(
+                              length: 3,
+                              child: Column(
+                                children: [
+                                  const TabBar(
+                                    tabs: [
+                                      Tab(
+                                          icon: Icon(Icons.menu_book),
+                                          text: 'Chapters'),
+                                      Tab(
+                                          icon: Icon(Icons.bookmark),
+                                          text: 'Bookmarks'),
+                                      Tab(
+                                          icon: Icon(Icons.image),
+                                          text: 'Pages'),
+                                    ],
+                                    labelColor: Colors.white,
+                                    unselectedLabelColor: Colors.white70,
+                                  ),
+                                  Expanded(
+                                    child: TabBarView(
+                                      children: [
+                                        ValueListenableBuilder(
+                                          valueListenable: outline,
+                                          builder: (context, outline, child) =>
+                                              OutlineView(
+                                            outline: outline,
+                                            controller: _controller,
+                                          ),
+                                        ),
+                                        MarkersView(
+                                          markers: _markers.values
+                                              .expand((e) => e)
+                                              .toList(),
+                                          onTap: (marker) {
+                                            final rect = _controller
+                                                .calcRectForRectInsidePage(
+                                              pageNumber: marker
+                                                  .ranges.pageText.pageNumber,
+                                              rect: marker.ranges.bounds,
+                                            );
+                                            _controller.ensureVisible(rect);
+                                            context
+                                                .read<ReaderBloc>()
+                                                .add(ToggleSideNav());
+                                          },
+                                          onDeleteTap: (marker) {
+                                            _markers[marker.ranges.pageNumber]!
+                                                .remove(marker);
+                                            setState(() {});
+                                          },
+                                        ),
+                                        ValueListenableBuilder(
+                                          valueListenable: documentRef,
+                                          builder: (context, docRef, child) =>
+                                              ThumbnailsView(
+                                            documentRef: docRef,
+                                            controller: _controller,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],
@@ -926,28 +1054,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
 
         return Scaffold(
           body: Center(child: Text('${state.toString()}')),
-        );
-      },
-    );
-  }
-
-  Widget _buildChapterItem(String title, int page) {
-    return BlocBuilder<ReaderBloc, ReaderState>(
-      builder: (context, state) {
-        return ListTile(
-          title: Text(
-            title,
-            style: const TextStyle(color: Colors.white),
-          ),
-          trailing: Text(
-            '$page',
-            style: const TextStyle(color: Colors.white70),
-          ),
-          onTap: () {
-            context.read<ReaderBloc>().add(JumpToPage(page));
-            _controller.goToPage(pageNumber: page);
-            context.read<ReaderBloc>().add(ToggleSideNav());
-          },
         );
       },
     );
