@@ -31,11 +31,13 @@ class PDFViewerScreen extends StatefulWidget {
   State<PDFViewerScreen> createState() => _PDFViewerScreenState();
 }
 
-class _PDFViewerScreenState extends State<PDFViewerScreen> {
+class _PDFViewerScreenState extends State<PDFViewerScreen>
+    with SingleTickerProviderStateMixin {
   final _controller = PdfViewerController();
   late final _textSearcher = PdfTextSearcher(_controller)..addListener(_update);
   late final _geminiService = GetIt.I<GeminiService>();
   late final _characterService = GetIt.I<AiCharacterService>();
+  late final TabController _tabController;
   final GlobalKey<FloatingChatWidgetState> _floatingChatKey = GlobalKey();
   bool _showSearchPanel = false;
   bool _isZoomedIn = false;
@@ -49,6 +51,19 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
   final outline = ValueNotifier<List<PdfOutlineNode>?>(null);
   final documentRef = ValueNotifier<PdfDocumentRef?>(null);
 
+  String get _currentTitle {
+    switch (_tabController.index) {
+      case 0:
+        return 'Table of Contents';
+      case 1:
+        return 'Highlights and Notes';
+      case 2:
+        return 'Thumbnails';
+      default:
+        return 'Table of Contents';
+    }
+  }
+
   void _update() {
     if (mounted) {
       setState(() {});
@@ -58,6 +73,10 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NavScreen.globalKey.currentState?.setNavBarVisibility(true);
     });
@@ -65,6 +84,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
 
   @override
   void dispose() {
+    _tabController.dispose();
     _textSearcher.removeListener(_update);
     _textSearcher.dispose();
     outline.dispose();
@@ -306,328 +326,385 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
 
     showDialog(
       context: context,
+      barrierDismissible: true,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) {
-          return Material(
-            color: Colors.transparent,
-            child: Dialog(
-              alignment: Alignment.bottomCenter,
-              insetPadding: EdgeInsets.zero,
-              child: Container(
-                width: MediaQuery.of(context).size.width,
-                constraints: BoxConstraints(
-                  maxHeight: 600,
-                  maxWidth: 500,
-                ),
-                margin: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 16,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(
-                      child: SingleChildScrollView(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: isLoading
-                              ? const Center(
+          return GestureDetector(
+            onTap: () => Navigator.pop(dialogContext),
+            child: Material(
+              color: Colors.transparent,
+              child: GestureDetector(
+                onTap:
+                    () {}, // Prevent tap from propagating to outer GestureDetector
+                child: Dialog(
+                  alignment: Alignment.bottomCenter,
+                  insetPadding: EdgeInsets.zero,
+                  backgroundColor:
+                      Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF251B2F)
+                          : Colors.white,
+                  child: GestureDetector(
+                    onTap: () => FocusScope.of(context).unfocus(),
+                    child: Container(
+                      width: MediaQuery.of(context).size.width,
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 0.8,
+                        maxWidth: 500,
+                      ),
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 16),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final keyboardVisible =
+                              MediaQuery.of(context).viewInsets.bottom > 0;
+                          final availableHeight = constraints.maxHeight;
+                          final contentHeight = keyboardVisible
+                              ? availableHeight - 180
+                              : availableHeight;
+
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Header - Always visible
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Ask AI Assistant',
+                                    style: TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.close),
+                                    onPressed: () =>
+                                        Navigator.pop(dialogContext),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Scrollable content
+                              Flexible(
+                                child: SingleChildScrollView(
+                                  physics: const ClampingScrollPhysics(),
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      CircularProgressIndicator(),
-                                      SizedBox(height: 16),
-                                      Text('Asking AI...'),
-                                    ],
-                                  ),
-                                )
-                              : Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // Header
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        const Text(
-                                          'Ask AI Assistant',
-                                          style: TextStyle(
-                                            fontSize: 24,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.close),
-                                          onPressed: () =>
-                                              Navigator.pop(dialogContext),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 16),
-
-                                    // Book info card
-                                    Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(context)
-                                            .primaryColor
-                                            .withOpacity(0.08),
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: Theme.of(context)
-                                              .primaryColor
-                                              .withOpacity(0.1),
-                                        ),
-                                      ),
-                                      child: Row(
+                                      // Book info - Minimal design
+                                      Row(
                                         children: [
                                           Icon(
-                                            Icons.book_outlined,
-                                            color:
-                                                Theme.of(context).primaryColor,
-                                            size: 20,
+                                            Icons.description_outlined,
+                                            size: 16,
+                                            color: Colors.grey[600],
                                           ),
-                                          const SizedBox(width: 12),
+                                          const SizedBox(width: 8),
                                           Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  bookTitle.length > 40
-                                                      ? '${bookTitle.substring(0, 37)}...'
-                                                      : bookTitle,
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.w600,
-                                                    fontSize: 14,
-                                                  ),
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                                Text(
-                                                  'Page $currentPage of $totalPages',
-                                                  style: TextStyle(
-                                                    color: Colors.grey[600],
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                              ],
+                                            child: Text(
+                                              bookTitle.length > 30
+                                                  ? '${bookTitle.substring(0, 27)}...'
+                                                  : bookTitle,
+                                              style: TextStyle(
+                                                color: Colors.grey[600],
+                                                fontSize: 13,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(height: 20),
-
-                                    // Selected text section with dynamic height
-                                    AnimatedContainer(
-                                      duration:
-                                          const Duration(milliseconds: 150),
-                                      height: 200,
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey[50],
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                            color: Colors.grey[200]!),
-                                      ),
-                                      child: Column(
-                                        children: [
-                                          Padding(
-                                            padding: const EdgeInsets.all(12),
-                                            child: Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment
-                                                      .spaceBetween,
-                                              children: [
-                                                Row(
-                                                  children: [
-                                                    Icon(Icons.text_fields,
-                                                        size: 18,
-                                                        color:
-                                                            Colors.grey[600]),
-                                                    const SizedBox(width: 8),
-                                                    const Text(
-                                                      'Selected Text',
-                                                      style: TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                        fontSize: 14,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                Text(
-                                                  '${selectedTextCopy.length} characters',
-                                                  style: TextStyle(
-                                                    color: Colors.grey[600],
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                              ],
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Theme.of(context)
+                                                          .brightness ==
+                                                      Brightness.dark
+                                                  ? const Color(0xFF352A3B)
+                                                      .withOpacity(0.5)
+                                                  : Colors.grey[100],
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
                                             ),
-                                          ),
-                                          Expanded(
-                                            child: SingleChildScrollView(
-                                              padding:
-                                                  const EdgeInsets.fromLTRB(
-                                                      12, 0, 12, 12),
-                                              child: SelectableText(
-                                                selectedTextCopy,
-                                                style: const TextStyle(
-                                                  color: Colors.black,
-                                                  fontSize: 14,
-                                                  height: 1.5,
-                                                ),
+                                            child: Text(
+                                              '$currentPage/$totalPages',
+                                              style: TextStyle(
+                                                color: Colors.grey[600],
+                                                fontSize: 12,
                                               ),
                                             ),
                                           ),
                                         ],
                                       ),
-                                    ),
-                                    const SizedBox(height: 20),
+                                      const SizedBox(height: 16),
 
-                                    // Custom instructions section
-                                    const Text(
-                                      'Custom Instructions',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    TextField(
-                                      controller: promptController,
-                                      maxLines: 3,
-                                      decoration: InputDecoration(
-                                        hintText:
-                                            'Example: Explain this in simple terms\nOr: Translate this to French',
-                                        hintStyle:
-                                            TextStyle(color: Colors.grey[400]),
-                                        filled: true,
-                                        fillColor: Colors.grey[50],
-                                        border: OutlineInputBorder(
+                                      // Selected text section
+                                      Container(
+                                        height: keyboardVisible
+                                            ? 60
+                                            : contentHeight * 0.3,
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(context).brightness ==
+                                                  Brightness.dark
+                                              ? const Color(0xFF352A3B)
+                                                  .withOpacity(0.3)
+                                              : Colors.grey[50],
                                           borderRadius:
                                               BorderRadius.circular(12),
-                                          borderSide: BorderSide(
-                                              color: Colors.grey[300]!),
-                                        ),
-                                        enabledBorder: OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                          borderSide: BorderSide(
-                                              color: Colors.grey[300]!),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                          borderSide: BorderSide(
+                                          border: Border.all(
                                             color:
-                                                Theme.of(context).primaryColor,
-                                            width: 2,
+                                                Theme.of(context).brightness ==
+                                                        Brightness.dark
+                                                    ? const Color(0xFF352A3B)
+                                                    : Colors.grey[200]!,
                                           ),
                                         ),
-                                        contentPadding:
-                                            const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 12,
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Padding(
+                                              padding: const EdgeInsets.all(12),
+                                              child: Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment
+                                                        .spaceBetween,
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      Icon(Icons.text_fields,
+                                                          size: 18,
+                                                          color:
+                                                              Colors.grey[600]),
+                                                      const SizedBox(width: 8),
+                                                      const Text(
+                                                        'Selected Text',
+                                                        style: TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                          fontSize: 14,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  if (!keyboardVisible)
+                                                    Text(
+                                                      '${selectedTextCopy.length} characters',
+                                                      style: TextStyle(
+                                                        color: Colors.grey[600],
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                            if (!keyboardVisible)
+                                              Expanded(
+                                                child: SingleChildScrollView(
+                                                  padding:
+                                                      const EdgeInsets.fromLTRB(
+                                                          12, 0, 12, 12),
+                                                  child: SelectableText(
+                                                    selectedTextCopy,
+                                                    style: TextStyle(
+                                                      color: Theme.of(context)
+                                                                  .brightness ==
+                                                              Brightness.dark
+                                                          ? Colors.white
+                                                          : Colors.black,
+                                                      fontSize: 14,
+                                                      height: 1.5,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
                                         ),
                                       ),
-                                      onChanged: (value) {
-                                        customPrompt =
-                                            value.isNotEmpty ? value : null;
-                                      },
-                                    ),
+                                      const SizedBox(height: 16),
 
-                                    // Action buttons
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.end,
-                                      children: [
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.pop(dialogContext),
-                                          style: TextButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 24,
-                                              vertical: 12,
+                                      // Custom instructions section
+                                      const Text(
+                                        'Custom Instructions',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      TextField(
+                                        controller: promptController,
+                                        maxLines: keyboardVisible ? 2 : 3,
+                                        decoration: InputDecoration(
+                                          hintText:
+                                              'Example: Explain this in simple terms\nOr: Translate this to French',
+                                          hintStyle: TextStyle(
+                                              color: Colors.grey[400]),
+                                          filled: true,
+                                          fillColor:
+                                              Theme.of(context).brightness ==
+                                                      Brightness.dark
+                                                  ? const Color(0xFF352A3B)
+                                                      .withOpacity(0.3)
+                                                  : Colors.grey[50],
+                                          border: OutlineInputBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                            borderSide: BorderSide(
+                                              color: Theme.of(context)
+                                                          .brightness ==
+                                                      Brightness.dark
+                                                  ? const Color(0xFF352A3B)
+                                                  : Colors.grey[300]!,
                                             ),
                                           ),
-                                          child: Text(
-                                            'Cancel',
-                                            style: TextStyle(
-                                              color: Colors.grey[600],
+                                          enabledBorder: OutlineInputBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                            borderSide: BorderSide(
+                                              color: Theme.of(context)
+                                                          .brightness ==
+                                                      Brightness.dark
+                                                  ? const Color(0xFF352A3B)
+                                                  : Colors.grey[300]!,
                                             ),
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                            borderSide: BorderSide(
+                                              color: Theme.of(context)
+                                                          .brightness ==
+                                                      Brightness.dark
+                                                  ? const Color(0xFFAA96B6)
+                                                  : Theme.of(context)
+                                                      .primaryColor,
+                                              width: 2,
+                                            ),
+                                          ),
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 12,
                                           ),
                                         ),
-                                        const SizedBox(width: 12),
-                                        ElevatedButton(
-                                          onPressed: () async {
-                                            if (selectedTextCopy.isEmpty)
-                                              return;
+                                        onChanged: (value) {
+                                          customPrompt =
+                                              value.isNotEmpty ? value : null;
+                                        },
+                                      ),
 
-                                            setDialogState(
-                                                () => isLoading = true);
-                                            Navigator.pop(dialogContext);
-                                            _floatingChatKey.currentState
-                                                ?.showChat();
+                                      const SizedBox(height: 16),
 
-                                            await Future.delayed(const Duration(
-                                                milliseconds: 100));
+                                      // Action buttons
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.end,
+                                        children: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(dialogContext),
+                                            style: TextButton.styleFrom(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 24,
+                                                vertical: 12,
+                                              ),
+                                              foregroundColor: Theme.of(context)
+                                                          .brightness ==
+                                                      Brightness.dark
+                                                  ? const Color(0xFF8E8E93)
+                                                  : Colors.grey[600],
+                                            ),
+                                            child: Text(
+                                              'Cancel',
+                                              style: TextStyle(
+                                                color: Colors.grey[600],
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          ElevatedButton(
+                                            onPressed: () async {
+                                              if (selectedTextCopy.isEmpty)
+                                                return;
 
-                                            if (!mounted) return;
+                                              setDialogState(
+                                                  () => isLoading = true);
+                                              Navigator.pop(dialogContext);
+                                              _floatingChatKey.currentState
+                                                  ?.showChat();
 
-                                            if (selectedTextCopy.isNotEmpty) {
-                                              _floatingChatKey.currentState!
-                                                  .addUserMessage(
-                                                      'Imported Text: """$selectedTextCopy"""');
+                                              await Future.delayed(
+                                                  const Duration(
+                                                      milliseconds: 100));
 
-                                              if (customPrompt != null &&
-                                                  customPrompt!.isNotEmpty) {
+                                              if (!mounted) return;
+
+                                              if (selectedTextCopy.isNotEmpty) {
                                                 _floatingChatKey.currentState!
                                                     .addUserMessage(
-                                                        customPrompt!);
-                                              }
-                                            }
+                                                        'Imported Text: """$selectedTextCopy"""');
 
-                                            _handleChatMessage(
-                                              customPrompt,
-                                              selectedText: selectedTextCopy,
-                                            );
-                                          },
-                                          style: ElevatedButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 24,
-                                              vertical: 12,
+                                                if (customPrompt != null &&
+                                                    customPrompt!.isNotEmpty) {
+                                                  _floatingChatKey.currentState!
+                                                      .addUserMessage(
+                                                          customPrompt!);
+                                                }
+                                              }
+
+                                              _handleChatMessage(
+                                                customPrompt,
+                                                selectedText: selectedTextCopy,
+                                              );
+                                            },
+                                            style: ElevatedButton.styleFrom(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 24,
+                                                vertical: 12,
+                                              ),
+                                              backgroundColor: Theme.of(context)
+                                                          .brightness ==
+                                                      Brightness.dark
+                                                  ? const Color(0xFFAA96B6)
+                                                  : Theme.of(context)
+                                                      .primaryColor,
+                                              foregroundColor: Colors.white,
+                                              elevation: 0,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
                                             ),
-                                            backgroundColor:
-                                                Theme.of(context).primaryColor,
-                                            foregroundColor: Colors.white,
-                                            elevation: 0,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.chat_bubble_outline,
+                                                    size: 18,
+                                                    color: Colors.white),
+                                                const SizedBox(width: 8),
+                                                const Text('Ask AI'),
+                                              ],
                                             ),
                                           ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(Icons.chat_bubble_outline,
-                                                  size: 18,
-                                                  color: Colors.white),
-                                              const SizedBox(width: 8),
-                                              const Text('Ask AI'),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
+                                        ],
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                        ),
+                              ),
+                            ],
+                          );
+                        },
                       ),
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -765,34 +842,76 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                       left: 0,
                       right: 0,
                       child: AppBar(
-                        backgroundColor: const Color(0xffDDDDDD),
+                        backgroundColor:
+                            Theme.of(context).brightness == Brightness.dark
+                                ? const Color(0xFF251B2F).withOpacity(0.95)
+                                : const Color(0xFFFAF9F7).withOpacity(0.95),
+                        elevation: 0,
                         leading: IconButton(
-                          icon: const Icon(Icons.arrow_back),
+                          icon: Icon(
+                            Icons.arrow_back,
+                            color:
+                                Theme.of(context).brightness == Brightness.dark
+                                    ? const Color(0xFFF2F2F7)
+                                    : const Color(0xFF1C1C1E),
+                          ),
                           onPressed: () {
                             context.read<ReaderBloc>().add(CloseReader());
                             context.read<FileBloc>().add(CloseViewer());
                             Navigator.pop(context);
                           },
                         ),
-                        title: const Text(
-                          'Reading',
-                          style: TextStyle(fontSize: 20, color: Colors.black),
+                        title: Text(
+                          path.basename(state.file.path),
+                          style: TextStyle(
+                            fontSize: 16,
+                            color:
+                                Theme.of(context).brightness == Brightness.dark
+                                    ? const Color(0xFFF2F2F7)
+                                    : const Color(0xFF1C1C1E),
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                         actions: [
                           IconButton(
-                            icon: const Icon(Icons.search),
+                            icon: Icon(
+                              Icons.search,
+                              color: Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? const Color(0xFFF2F2F7)
+                                  : const Color(0xFF1C1C1E),
+                            ),
                             onPressed: _toggleSearchPanel,
                           ),
                           IconButton(
-                            icon: const Icon(Icons.menu),
+                            icon: Icon(
+                              Icons.menu,
+                              color: Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? const Color(0xFFF2F2F7)
+                                  : const Color(0xFF1C1C1E),
+                            ),
                             onPressed: () {
                               context.read<ReaderBloc>().add(ToggleSideNav());
                             },
                           ),
                           PopupMenuButton<String>(
-                            elevation: 0,
-                            color: const Color(0xffDDDDDD),
-                            icon: const Icon(Icons.more_vert),
+                            elevation: 8,
+                            color:
+                                Theme.of(context).brightness == Brightness.dark
+                                    ? const Color(0xFF352A3B)
+                                    : const Color(0xFFF8F1F1),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            icon: Icon(
+                              Icons.more_vert,
+                              color: Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? const Color(0xFFF2F2F7)
+                                  : const Color(0xFF1C1C1E),
+                            ),
+                            position: PopupMenuPosition.under,
                             onSelected: (val) {
                               if (val == 'dark_mode') {
                                 context
@@ -801,17 +920,80 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                               }
                             },
                             itemBuilder: (context) => [
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                 value: 'dark_mode',
-                                child: Text('Dark mode'),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.dark_mode,
+                                      color: Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? const Color(0xFFF2F2F7)
+                                          : const Color(0xFF1C1C1E),
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      'Dark mode',
+                                      style: TextStyle(
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFF2F2F7)
+                                            : const Color(0xFF1C1C1E),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                 value: 'move_trash',
-                                child: Text('Move file to trash'),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.delete_outline,
+                                      color: Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? const Color(0xFFF2F2F7)
+                                          : const Color(0xFF1C1C1E),
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      'Move to trash',
+                                      style: TextStyle(
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFF2F2F7)
+                                            : const Color(0xFF1C1C1E),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                 value: 'share',
-                                child: Text('Share file'),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.share_outlined,
+                                      color: Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? const Color(0xFFF2F2F7)
+                                          : const Color(0xFF1C1C1E),
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      'Share file',
+                                      style: TextStyle(
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFF2F2F7)
+                                            : const Color(0xFF1C1C1E),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
@@ -826,36 +1008,59 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                       left: 0,
                       right: 0,
                       child: Container(
-                        color: const Color(0xffDDDDDD),
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xFF251B2F).withOpacity(0.95)
+                            : const Color(0xFFFAF9F7).withOpacity(0.95),
                         padding: const EdgeInsets.symmetric(horizontal: 20),
-                        height: 65, // Increased height
+                        height: 65,
                         child: Row(
                           children: [
                             Text(
                               '$currentPage',
-                              style: const TextStyle(
-                                color: Colors.black,
-                                fontSize: 16,
+                              style: TextStyle(
+                                color: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? const Color(0xFFF2F2F7)
+                                    : const Color(0xFF1C1C1E),
+                                fontSize: 14,
                               ),
                             ),
                             const SizedBox(width: 10),
                             Expanded(
                               child: SliderTheme(
                                 data: SliderThemeData(
-                                  trackHeight: 4,
+                                  trackHeight: 2,
+                                  activeTrackColor:
+                                      Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? const Color(0xFFAA96B6)
+                                          : const Color(0xFF9E7B80),
+                                  inactiveTrackColor:
+                                      Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? const Color(0xFF352A3B)
+                                          : const Color(0xFFF8F1F1),
+                                  thumbColor: Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? const Color(0xFFAA96B6)
+                                      : const Color(0xFF9E7B80),
+                                  overlayColor: Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? const Color(0xFFAA96B6)
+                                          .withOpacity(0.12)
+                                      : const Color(0xFF9E7B80)
+                                          .withOpacity(0.12),
                                   thumbShape: const RoundSliderThumbShape(
-                                    enabledThumbRadius: 8,
+                                    enabledThumbRadius: 6,
                                   ),
                                   overlayShape: const RoundSliderOverlayShape(
-                                    overlayRadius: 16,
+                                    overlayRadius: 12,
                                   ),
                                 ),
                                 child: Slider(
                                   value: currentPage.toDouble(),
                                   min: 1,
                                   max: totalPages.toDouble(),
-                                  activeColor: Colors.pinkAccent,
-                                  inactiveColor: Colors.white54,
                                   onChanged: (value) {
                                     final page = value.toInt();
                                     _controller.goToPage(pageNumber: page);
@@ -866,9 +1071,12 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                             const SizedBox(width: 10),
                             Text(
                               '$totalPages',
-                              style: const TextStyle(
-                                color: Colors.black,
-                                fontSize: 16,
+                              style: TextStyle(
+                                color: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? const Color(0xFFF2F2F7)
+                                    : const Color(0xFF1C1C1E),
+                                fontSize: 14,
                               ),
                             ),
                           ],
@@ -881,110 +1089,157 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                     duration: const Duration(milliseconds: 300),
                     top: 0,
                     bottom: 0,
-                    left: showSideNav ? 0 : -250,
+                    left: showSideNav ? 0 : -300,
                     child: Container(
-                      width: 250,
-                      color: Colors.grey.shade700.withOpacity(0.9),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          AppBar(
-                            title: const Text('Chapters',
-                                style: TextStyle(color: Colors.white70)),
-                            backgroundColor: Colors.grey.shade800,
-                            automaticallyImplyLeading: false,
-                            actions: [
-                              IconButton(
-                                icon:
-                                    const Icon(Icons.circle, color: Colors.red),
-                                onPressed: () =>
-                                    _addCurrentSelectionToMarkers(Colors.red),
+                      width: 300,
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF251B2F).withOpacity(0.98)
+                          : const Color(0xFFFAF9F7).withOpacity(0.98),
+                      child: SafeArea(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
                               ),
-                              IconButton(
-                                icon: const Icon(Icons.circle,
-                                    color: Colors.green),
-                                onPressed: () =>
-                                    _addCurrentSelectionToMarkers(Colors.green),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.close),
-                                onPressed: () {
-                                  context
-                                      .read<ReaderBloc>()
-                                      .add(ToggleSideNav());
-                                },
-                              )
-                            ],
-                          ),
-                          Expanded(
-                            child: DefaultTabController(
-                              length: 3,
-                              child: Column(
+                              child: Row(
                                 children: [
-                                  const TabBar(
-                                    tabs: [
-                                      Tab(
-                                          icon: Icon(Icons.menu_book),
-                                          text: 'Chapters'),
-                                      Tab(
-                                          icon: Icon(Icons.bookmark),
-                                          text: 'Bookmarks'),
-                                      Tab(
-                                          icon: Icon(Icons.image),
-                                          text: 'Pages'),
-                                    ],
-                                    labelColor: Colors.white,
-                                    unselectedLabelColor: Colors.white70,
-                                  ),
-                                  Expanded(
-                                    child: TabBarView(
-                                      children: [
-                                        ValueListenableBuilder(
-                                          valueListenable: outline,
-                                          builder: (context, outline, child) =>
-                                              OutlineView(
-                                            outline: outline,
-                                            controller: _controller,
-                                          ),
-                                        ),
-                                        MarkersView(
-                                          markers: _markers.values
-                                              .expand((e) => e)
-                                              .toList(),
-                                          onTap: (marker) {
-                                            final rect = _controller
-                                                .calcRectForRectInsidePage(
-                                              pageNumber: marker
-                                                  .ranges.pageText.pageNumber,
-                                              rect: marker.ranges.bounds,
-                                            );
-                                            _controller.ensureVisible(rect);
-                                            context
-                                                .read<ReaderBloc>()
-                                                .add(ToggleSideNav());
-                                          },
-                                          onDeleteTap: (marker) {
-                                            _markers[marker.ranges.pageNumber]!
-                                                .remove(marker);
-                                            setState(() {});
-                                          },
-                                        ),
-                                        ValueListenableBuilder(
-                                          valueListenable: documentRef,
-                                          builder: (context, docRef, child) =>
-                                              ThumbnailsView(
-                                            documentRef: docRef,
-                                            controller: _controller,
-                                          ),
-                                        ),
-                                      ],
+                                  Text(
+                                    _currentTitle,
+                                    style: TextStyle(
+                                      color: Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? const Color(0xFFF2F2F7)
+                                          : const Color(0xFF1C1C1E),
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
                                     ),
+                                  ),
+                                  const Spacer(),
+                                  IconButton(
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(
+                                      minWidth: 32,
+                                      minHeight: 32,
+                                    ),
+                                    icon: Icon(
+                                      Icons.close,
+                                      color: Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? const Color(0xFF8E8E93)
+                                          : const Color(0xFF6E6E73),
+                                      size: 20,
+                                    ),
+                                    onPressed: () {
+                                      context
+                                          .read<ReaderBloc>()
+                                          .add(ToggleSideNav());
+                                    },
                                   ),
                                 ],
                               ),
                             ),
-                          ),
-                        ],
+                            Container(
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  bottom: BorderSide(
+                                    color: Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? const Color(0xFF2C2C2E)
+                                        : const Color(0xFFF8F1F1),
+                                  ),
+                                ),
+                              ),
+                              child: TabBar(
+                                controller: _tabController,
+                                tabs: const [
+                                  Tab(text: 'Chapters'),
+                                  Tab(text: 'Bookmarks'),
+                                  Tab(text: 'Pages'),
+                                ],
+                                labelColor: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? const Color(0xFFAA96B6)
+                                    : const Color(0xFF9E7B80),
+                                unselectedLabelColor:
+                                    Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? const Color(0xFF8E8E93)
+                                        : const Color(0xFF6E6E73),
+                                indicatorColor: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? const Color(0xFFAA96B6)
+                                    : const Color(0xFF9E7B80),
+                                indicatorWeight: 2,
+                                labelStyle: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                unselectedLabelStyle: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                                labelPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Container(
+                                color: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? const Color(0xFF352A3B).withOpacity(0.5)
+                                    : const Color(0xFFF8F1F1).withOpacity(0.5),
+                                child: TabBarView(
+                                  controller: _tabController,
+                                  children: [
+                                    ValueListenableBuilder(
+                                      valueListenable: outline,
+                                      builder: (context, outline, child) =>
+                                          OutlineView(
+                                        outline: outline,
+                                        controller: _controller,
+                                      ),
+                                    ),
+                                    MarkersView(
+                                      markers: _markers.values
+                                          .expand((e) => e)
+                                          .toList(),
+                                      onTap: (marker) {
+                                        final rect = _controller
+                                            .calcRectForRectInsidePage(
+                                          pageNumber:
+                                              marker.ranges.pageText.pageNumber,
+                                          rect: marker.ranges.bounds,
+                                        );
+                                        _controller.ensureVisible(rect);
+                                        context
+                                            .read<ReaderBloc>()
+                                            .add(ToggleSideNav());
+                                      },
+                                      onDeleteTap: (marker) {
+                                        _markers[marker.ranges.pageNumber]!
+                                            .remove(marker);
+                                        setState(() {});
+                                      },
+                                    ),
+                                    ValueListenableBuilder(
+                                      valueListenable: documentRef,
+                                      builder: (context, docRef, child) =>
+                                          ThumbnailsView(
+                                        documentRef: docRef,
+                                        controller: _controller,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -1004,18 +1259,41 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                     ),
                   ),
 
+                  // Highlight controls
                   if (_showAskAiButton && _selectedText?.isNotEmpty == true)
                     Positioned(
-                      bottom: state.showUI
-                          ? 80
-                          : 16, // Position above the bottom nav when it's shown
+                      bottom: state.showUI ? 80 : 16,
                       right: 16,
-                      child: FloatingActionButton.extended(
-                        onPressed: _handleAskAi,
-                        icon: const Icon(Icons.chat, color: Colors.white),
-                        label: const Text('Ask AI',
-                            style: TextStyle(color: Colors.white)),
-                        backgroundColor: Theme.of(context).primaryColor,
+                      child: Row(
+                        children: [
+                          FloatingActionButton(
+                            heroTag: 'highlight_yellow',
+                            mini: true,
+                            backgroundColor: Colors.yellow.withOpacity(0.9),
+                            child: const Icon(Icons.brush,
+                                color: Colors.black87, size: 20),
+                            onPressed: () =>
+                                _addCurrentSelectionToMarkers(Colors.yellow),
+                          ),
+                          const SizedBox(width: 8),
+                          FloatingActionButton(
+                            heroTag: 'highlight_red',
+                            mini: true,
+                            backgroundColor: Colors.red.withOpacity(0.9),
+                            child: const Icon(Icons.brush,
+                                color: Colors.white, size: 20),
+                            onPressed: () =>
+                                _addCurrentSelectionToMarkers(Colors.red),
+                          ),
+                          const SizedBox(width: 8),
+                          FloatingActionButton.extended(
+                            onPressed: _handleAskAi,
+                            icon: const Icon(Icons.chat, color: Colors.white),
+                            label: const Text('Ask AI',
+                                style: TextStyle(color: Colors.white)),
+                            backgroundColor: Colors.blue.shade700,
+                          ),
+                        ],
                       ),
                     ),
 
