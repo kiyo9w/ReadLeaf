@@ -48,12 +48,21 @@ class RemoveFile extends FileEvent {
 class CloseViewer extends FileEvent {}
 
 class ToggleStarred extends FileEvent {
-  final String filePath;
+  final String? filePath;
 
   const ToggleStarred(this.filePath);
 
   @override
-  List<Object> get props => [filePath];
+  List<Object> get props => [filePath ?? ''];
+}
+
+class ToggleRead extends FileEvent {
+  final String? filePath;
+
+  const ToggleRead(this.filePath);
+
+  @override
+  List<Object> get props => [filePath ?? ''];
 }
 
 class ScanStorage extends FileEvent {

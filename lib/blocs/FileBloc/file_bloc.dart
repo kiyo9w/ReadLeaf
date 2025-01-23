@@ -23,6 +23,7 @@ class FileBloc extends Bloc<FileEvent, FileState> {
     on<RemoveFile>(_onRemoveFile);
     on<CloseViewer>(_onCloseViewer);
     on<ToggleStarred>(_onToggleStarred);
+    on<ToggleRead>(_onToggleRead);
     on<ScanStorage>(_onScanStorage);
   }
 
@@ -120,6 +121,7 @@ class FileBloc extends Bloc<FileEvent, FileState> {
         orElse: () => currentState.files.first,
       );
 
+      // Update wasRead status for all files
       final updatedFiles = currentState.files.map((file) {
         if (file.filePath == event.filePath) {
           return file.copyWith(wasRead: true);
@@ -163,6 +165,21 @@ class FileBloc extends Bloc<FileEvent, FileState> {
       final updatedFiles = currentState.files.map((file) {
         if (file.filePath == event.filePath) {
           return file.copyWith(isStarred: !file.isStarred);
+        }
+        return file;
+      }).toList();
+
+      emit(FileLoaded(updatedFiles));
+      await fileRepository.saveFiles(updatedFiles);
+    }
+  }
+
+  Future<void> _onToggleRead(ToggleRead event, Emitter<FileState> emit) async {
+    if (state is FileLoaded) {
+      final currentState = state as FileLoaded;
+      final updatedFiles = currentState.files.map((file) {
+        if (file.filePath == event.filePath) {
+          return file.copyWith(hasBeenCompleted: !file.hasBeenCompleted);
         }
         return file;
       }).toList();

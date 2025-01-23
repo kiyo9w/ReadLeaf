@@ -23,6 +23,10 @@ import 'package:migrated/utils/utils.dart';
 import 'package:migrated/widgets/pdf_viewer/markers_view.dart';
 import 'package:migrated/widgets/pdf_viewer/outline_view.dart';
 import 'package:migrated/widgets/pdf_viewer/thumbnails_view.dart';
+import 'package:provider/provider.dart';
+import 'package:migrated/providers/theme_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:migrated/models/book_metadata.dart';
 
 class PDFViewerScreen extends StatefulWidget {
   const PDFViewerScreen({Key? key}) : super(key: key);
@@ -77,9 +81,97 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
     _tabController.addListener(() {
       if (mounted) setState(() {});
     });
+
+    // Add controller ready listener
+    _controller.addListener(_onControllerReady);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NavScreen.globalKey.currentState?.setNavBarVisibility(true);
     });
+  }
+
+  void _onControllerReady() {
+    if (_controller.isReady) {
+      _loadHighlights();
+      _controller.removeListener(_onControllerReady);
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_controller.isReady) {
+      _loadHighlights();
+    }
+  }
+
+  void _loadHighlights() async {
+    if (!_controller.isReady) {
+      return;
+    }
+
+    if (context.read<ReaderBloc>().state is ReaderLoaded) {
+      final state = context.read<ReaderBloc>().state as ReaderLoaded;
+      final highlights = state.metadata.highlights;
+
+      _markers.clear();
+
+      for (final highlight in highlights) {
+        try {
+          final pageText =
+              await _textSearcher.loadText(pageNumber: highlight.pageNumber);
+          if (pageText != null) {
+            final index = pageText.fullText.indexOf(highlight.text);
+            if (index != -1) {
+              final textRange = PdfTextRanges(
+                pageText: pageText,
+                ranges: [
+                  PdfTextRange(start: index, end: index + highlight.text.length)
+                ],
+              );
+
+              _markers
+                  .putIfAbsent(highlight.pageNumber, () => [])
+                  .add(Marker(Colors.yellow, textRange));
+            } else {
+              final normalizedPageText =
+                  pageText.fullText.replaceAll(RegExp(r'\s+'), ' ').trim();
+              final normalizedHighlightText =
+                  highlight.text.replaceAll(RegExp(r'\s+'), ' ').trim();
+              final fuzzyIndex =
+                  normalizedPageText.indexOf(normalizedHighlightText);
+
+              if (fuzzyIndex != -1) {
+                final textRange = PdfTextRanges(
+                  pageText: pageText,
+                  ranges: [
+                    PdfTextRange(
+                        start: fuzzyIndex,
+                        end: fuzzyIndex + normalizedHighlightText.length)
+                  ],
+                );
+
+                _markers
+                    .putIfAbsent(highlight.pageNumber, () => [])
+                    .add(Marker(Colors.yellow, textRange));
+              }
+            }
+          } else {
+            dev.log(
+                'Could not load page text for page ${highlight.pageNumber}');
+          }
+        } catch (e) {
+          dev.log('Error loading highlight: $e');
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+        });
+      }
+    } else {
+      dev.log('Reader not in loaded state');
+    }
   }
 
   @override
@@ -87,6 +179,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
     _tabController.dispose();
     _textSearcher.removeListener(_update);
     _textSearcher.dispose();
+    _controller.removeListener(_onControllerReady);
     outline.dispose();
     documentRef.dispose();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -216,12 +309,41 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   void _addCurrentSelectionToMarkers(Color color) {
     if (_controller.isReady && _textSelections != null) {
       for (final selectedText in _textSelections!) {
+        dev.log(
+            'Processing selection: ${selectedText.text} on page ${selectedText.pageNumber}');
         _markers
             .putIfAbsent(selectedText.pageNumber, () => [])
             .add(Marker(color, selectedText));
+
+        // Save highlight to BookMetadata
+        context.read<ReaderBloc>().add(AddHighlight(
+              text: selectedText.text,
+              note: null,
+              pageNumber: selectedText.pageNumber,
+            ));
       }
       setState(() {});
     }
+  }
+
+  void _deleteMarker(Marker marker) {
+    _markers[marker.ranges.pageNumber]!.remove(marker);
+
+    // Remove highlight from BookMetadata
+    if (context.read<ReaderBloc>().state is ReaderLoaded) {
+      final state = context.read<ReaderBloc>().state as ReaderLoaded;
+      final updatedHighlights = state.metadata.highlights
+          .where((h) =>
+              h.text != marker.ranges.text ||
+              h.pageNumber != marker.ranges.pageNumber)
+          .toList();
+
+      final updatedMetadata =
+          state.metadata.copyWith(highlights: updatedHighlights);
+      context.read<ReaderBloc>().add(UpdateMetadata(updatedMetadata));
+    }
+
+    setState(() {});
   }
 
   void _paintMarkers(Canvas canvas, Rect pageRect, PdfPage page) {
@@ -823,6 +945,14 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
             ),
           );
 
+          pdfViewer = ColorFiltered(
+            colorFilter: ColorFilter.mode(
+              Colors.white,
+              state.isNightMode ? BlendMode.difference : BlendMode.dst,
+            ),
+            child: pdfViewer,
+          );
+
           return PopScope(
             canPop: true,
             onPopInvoked: (didPop) {
@@ -914,11 +1044,106 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                   : const Color(0xFF1C1C1E),
                             ),
                             position: PopupMenuPosition.under,
-                            onSelected: (val) {
-                              if (val == 'dark_mode') {
-                                context
-                                    .read<ReaderBloc>()
-                                    .add(ToggleReadingMode());
+                            onSelected: (val) async {
+                              switch (val) {
+                                case 'dark_mode':
+                                  context
+                                      .read<ReaderBloc>()
+                                      .add(ToggleReadingMode());
+                                  break;
+                                case 'move_trash':
+                                  final shouldDelete = await showDialog<bool>(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text('Delete File'),
+                                      content: const Text(
+                                          'Are you sure you want to delete this file? This action cannot be undone.'),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.of(context).pop(false),
+                                          child: const Text('Cancel'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.of(context).pop(true),
+                                          style: TextButton.styleFrom(
+                                              foregroundColor: Colors.red),
+                                          child: const Text('Delete'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+
+                                  if (shouldDelete == true && mounted) {
+                                    try {
+                                      final file = File(state.file.path);
+                                      if (await file.exists()) {
+                                        await file.delete();
+                                        if (mounted) {
+                                          context
+                                              .read<FileBloc>()
+                                              .add(RemoveFile(state.file.path));
+                                          context
+                                              .read<ReaderBloc>()
+                                              .add(CloseReader());
+                                          Navigator.of(context).pop();
+                                        }
+                                      }
+                                    } catch (e) {
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                              content: Text(
+                                                  'Error deleting file: $e')),
+                                        );
+                                      }
+                                    }
+                                  }
+                                  break;
+                                case 'share':
+                                  try {
+                                    final file = File(state.file.path);
+                                    if (await file.exists()) {
+                                      await Share.share(
+                                        state.file.path,
+                                        subject: path.basename(state.file.path),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                            content:
+                                                Text('Error sharing file: $e')),
+                                      );
+                                    }
+                                  }
+                                  break;
+                                case 'toggle_star':
+                                  context
+                                      .read<FileBloc>()
+                                      .add(ToggleStarred(state.file.path));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Updated starred status'),
+                                      duration: Duration(seconds: 1),
+                                    ),
+                                  );
+                                  break;
+                                case 'mark_as_read':
+                                  context
+                                      .read<FileBloc>()
+                                      .add(ViewFile(state.file.path));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Marked as read'),
+                                      duration: Duration(seconds: 1),
+                                    ),
+                                  );
+                                  break;
                               }
                             },
                             itemBuilder: (context) => [
@@ -927,7 +1152,9 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                 child: Row(
                                   children: [
                                     Icon(
-                                      Icons.dark_mode,
+                                      state.isNightMode
+                                          ? Icons.light_mode
+                                          : Icons.dark_mode,
                                       color: Theme.of(context).brightness ==
                                               Brightness.dark
                                           ? const Color(0xFFF2F2F7)
@@ -936,7 +1163,34 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                     ),
                                     const SizedBox(width: 12),
                                     Text(
-                                      'Dark mode',
+                                      state.isNightMode
+                                          ? 'Light mode'
+                                          : 'Dark mode',
+                                      style: TextStyle(
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFF2F2F7)
+                                            : const Color(0xFF1C1C1E),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              PopupMenuItem(
+                                value: 'toggle_star',
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.star_outline,
+                                      color: Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? const Color(0xFFF2F2F7)
+                                          : const Color(0xFF1C1C1E),
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      'Add to starred',
                                       style: TextStyle(
                                         color: Theme.of(context).brightness ==
                                                 Brightness.dark
@@ -1222,11 +1476,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                             .read<ReaderBloc>()
                                             .add(ToggleSideNav());
                                       },
-                                      onDeleteTap: (marker) {
-                                        _markers[marker.ranges.pageNumber]!
-                                            .remove(marker);
-                                        setState(() {});
-                                      },
+                                      onDeleteTap: (marker) =>
+                                          _deleteMarker(marker),
                                     ),
                                     ValueListenableBuilder(
                                       valueListenable: documentRef,

@@ -8,7 +8,8 @@ class FileInfo extends Equatable {
   final String? author;
   final String? thumbnailUrl;
   final bool isStarred;
-  final bool wasRead;
+  final bool wasRead; // For tracking last read book
+  final bool hasBeenCompleted; // For "Have read" section
 
   const FileInfo(
     this.filePath,
@@ -19,6 +20,7 @@ class FileInfo extends Equatable {
     this.thumbnailUrl,
     this.isStarred = false,
     this.wasRead = false,
+    this.hasBeenCompleted = false,
   });
 
   FileInfo copyWith({
@@ -30,6 +32,7 @@ class FileInfo extends Equatable {
     String? thumbnailUrl,
     bool? isStarred,
     bool? wasRead,
+    bool? hasBeenCompleted,
   }) {
     return FileInfo(
       filePath ?? this.filePath,
@@ -40,6 +43,7 @@ class FileInfo extends Equatable {
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
       isStarred: isStarred ?? this.isStarred,
       wasRead: wasRead ?? this.wasRead,
+      hasBeenCompleted: hasBeenCompleted ?? this.hasBeenCompleted,
     );
   }
 
@@ -52,6 +56,7 @@ class FileInfo extends Equatable {
         author,
         thumbnailUrl,
         isStarred,
-        wasRead
+        wasRead,
+        hasBeenCompleted,
       ];
 }
