@@ -7,6 +7,7 @@ import 'package:migrated/services/book_metadata_repository.dart';
 import 'package:migrated/utils/file_utils.dart';
 import 'package:path/path.dart' as path;
 import 'package:pdfrx/pdfrx.dart';
+import 'dart:developer' as dev;
 
 part 'reader_event.dart';
 part 'reader_state.dart';
@@ -28,6 +29,7 @@ class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
     on<ToggleSideNav>(_onToggleSideNav);
     on<AddHighlight>(_onAddHighlight);
     on<AddAiConversation>(_onAddAiConversation);
+    on<UpdateMetadata>(_onUpdateMetadata);
   }
 
   void _onOpenReader(OpenReader event, Emitter<ReaderState> emit) async {
@@ -163,7 +165,7 @@ class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
       final s = state as ReaderLoaded;
       final highlight = TextHighlight(
         text: event.text,
-        pageNumber: s.currentPage,
+        pageNumber: event.pageNumber,
         createdAt: DateTime.now(),
         note: event.note,
       );
@@ -192,6 +194,15 @@ class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
       if (updatedMetadata != null) {
         emit(s.copyWith(metadata: updatedMetadata));
       }
+    }
+  }
+
+  void _onUpdateMetadata(
+      UpdateMetadata event, Emitter<ReaderState> emit) async {
+    if (state is ReaderLoaded) {
+      final s = state as ReaderLoaded;
+      await _metadataRepository.saveMetadata(event.metadata);
+      emit(s.copyWith(metadata: event.metadata));
     }
   }
 }

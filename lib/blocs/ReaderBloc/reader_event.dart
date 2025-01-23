@@ -57,11 +57,16 @@ class ToggleSideNav extends ReaderEvent {}
 class AddHighlight extends ReaderEvent {
   final String text;
   final String? note;
+  final int pageNumber;
 
-  const AddHighlight({required this.text, this.note});
+  const AddHighlight({
+    required this.text,
+    this.note,
+    required this.pageNumber,
+  });
 
   @override
-  List<Object?> get props => [text, note];
+  List<Object?> get props => [text, note, pageNumber];
 }
 
 class AddAiConversation extends ReaderEvent {
@@ -75,4 +80,13 @@ class AddAiConversation extends ReaderEvent {
 
   @override
   List<Object> get props => [selectedText, aiResponse];
+}
+
+class UpdateMetadata extends ReaderEvent {
+  final BookMetadata metadata;
+
+  const UpdateMetadata(this.metadata);
+
+  @override
+  List<Object> get props => [metadata];
 }
