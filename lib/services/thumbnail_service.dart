@@ -185,7 +185,7 @@ class ThumbnailService {
       final bytes = await _generatePdfThumbnail(filePath, document);
 
       // Wait additional time to ensure proper rendering before caching
-      await Future.delayed(const Duration(milliseconds: 2000));
+      await Future.delayed(const Duration(milliseconds: 10000));
 
       // Only cache if the bytes are valid
       if (bytes.isNotEmpty) {
