@@ -287,10 +287,17 @@ class HomeScreenState extends State<HomeScreen> {
                                   },
                                   onRemove: () {},
                                   onDownload: () {},
-                                  onStar: () {},
+                                  onStar: () {
+                                    context.read<FileBloc>().add(
+                                        ToggleStarred(lastReadBook?.filePath));
+                                  },
                                   title: FileCard.extractFileName(
                                       lastReadBook.filePath),
                                   canDismiss: false,
+                                  isStarred: lastReadBook.isStarred,
+                                  wasRead: lastReadBook.wasRead,
+                                  hasBeenCompleted:
+                                      lastReadBook.hasBeenCompleted,
                                 ),
                                 if (_aiMessage != null)
                                   AIMessageCard(
@@ -377,12 +384,19 @@ class HomeScreenState extends State<HomeScreen> {
                             },
                             onRemove: () {},
                             onDownload: () {},
-                            onStar: () {},
+                            onStar: () {
+                              context
+                                  .read<FileBloc>()
+                                  .add(ToggleStarred(lastReadBook?.filePath));
+                            },
                             title: _bookOfTheDay!.title,
                             isInternetBook: true,
                             author: _bookOfTheDay!.author,
                             thumbnailUrl: _bookOfTheDay!.thumbnail,
                             canDismiss: false,
+                            isStarred: false,
+                            wasRead: false,
+                            hasBeenCompleted: false,
                           ),
                         ),
                         const SizedBox(height: 100),

@@ -18,6 +18,7 @@ class MyLibraryScreen extends StatefulWidget {
 class _MyLibraryScreenState extends State<MyLibraryScreen> {
   bool _favouriteExpanded = true;
   bool _localStorageExpanded = true;
+  bool _haveReadExpanded = true;
   final ScrollController _scrollController = ScrollController();
   bool _isScrollingDown = false;
 
@@ -60,8 +61,9 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
         if (state is FileLoaded) {
           final starredBooks =
               state.files.where((file) => file.isStarred).toList();
-          final localFiles =
-              state.files.where((file) => !file.isStarred).toList();
+          final completedBooks =
+              state.files.where((file) => file.hasBeenCompleted).toList();
+          final localFiles = state.files.toList();
 
           return Scaffold(
             appBar: AppBar(
@@ -91,6 +93,19 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
                     ),
                     if (_favouriteExpanded && starredBooks.isNotEmpty)
                       ..._buildBookCards(starredBooks),
+                    const SizedBox(height: 20),
+                    _buildCategoryHeader(
+                      title: "Have Read",
+                      count: completedBooks.length,
+                      isExpanded: _haveReadExpanded,
+                      onTap: () {
+                        setState(() {
+                          _haveReadExpanded = !_haveReadExpanded;
+                        });
+                      },
+                    ),
+                    if (_haveReadExpanded && completedBooks.isNotEmpty)
+                      ..._buildBookCards(completedBooks),
                     const SizedBox(height: 20),
                     _buildCategoryHeader(
                       title: "Local Storage",
@@ -186,6 +201,8 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
           author: book.author ?? 'Unknown',
           thumbnailUrl: book.thumbnailUrl,
           isStarred: book.isStarred,
+          wasRead: book.wasRead,
+          hasBeenCompleted: book.hasBeenCompleted,
         ),
       );
     }).toList();

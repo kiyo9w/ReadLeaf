@@ -16,6 +16,7 @@ import 'package:migrated/services/thumbnail_service.dart';
 import 'package:migrated/services/thumbnail_service.dart';
 import 'package:get_it/get_it.dart';
 import 'package:migrated/themes/custom_theme_extension.dart';
+import 'package:migrated/blocs/FileBloc/file_bloc.dart';
 
 class FileCard extends StatefulWidget {
   final String filePath;
@@ -31,6 +32,8 @@ class FileCard extends StatefulWidget {
   final String? author;
   final String? thumbnailUrl;
   final bool isStarred;
+  final bool wasRead;
+  final bool hasBeenCompleted;
   final bool canDismiss;
 
   const FileCard({
@@ -47,6 +50,8 @@ class FileCard extends StatefulWidget {
     this.author,
     this.thumbnailUrl,
     this.isStarred = false,
+    this.wasRead = false,
+    this.hasBeenCompleted = false,
     this.canDismiss = true,
     Key? key,
   }) : super(key: key);
@@ -239,44 +244,34 @@ class _FileCardState extends State<FileCard> {
           percent: progress,
           backgroundColor: theme.primaryColor.withOpacity(0.2),
           progressColor: theme.primaryColor,
-          barRadius: const Radius.circular(1),
         ),
-        const SizedBox(height: 6),
-        Text(
-          _getProgressText(),
-          textAlign: TextAlign.right,
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 12,
-            color: theme.primaryColor,
-          ),
-        ),
+        const SizedBox(height: 22),
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            IconButton(
-              icon: Icon(
+            GestureDetector(
+              onTap: () {
+                context.read<FileBloc>().add(ToggleRead(widget.filePath));
+              },
+              child: Icon(
+                widget.hasBeenCompleted ? Icons.check : Icons.check_outlined,
+                color: widget.hasBeenCompleted
+                    ? const Color(0xFFFFD700) // Bright yellow gold color
+                    : customTheme?.fileCardText?.withOpacity(0.6),
+                size: 24.0,
+                semanticLabel: 'Mark as completed',
+              ),
+            ),
+            const SizedBox(width: 22.0),
+            GestureDetector(
+              onTap: widget.onStar,
+              child: Icon(
                 widget.isStarred ? Icons.star : Icons.star_border_outlined,
                 color:
                     widget.isStarred ? Colors.amber : customTheme?.fileCardText,
                 size: 24.0,
+                semanticLabel: 'Star',
               ),
-              onPressed: widget.onStar,
-            ),
-            const SizedBox(width: 36.0),
-            IconButton(
-              icon: Icon(
-                FontAwesome5.check,
-                color: customTheme?.fileCardText,
-                size: 20.0,
-              ),
-              onPressed: widget.onRemove,
-            ),
-            const SizedBox(width: 22.0),
-            Icon(
-              Icons.more_vert,
-              color: customTheme?.fileCardText,
-              size: 30.0,
             ),
           ],
         ),
