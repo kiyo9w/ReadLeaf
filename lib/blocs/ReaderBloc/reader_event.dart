@@ -48,6 +48,15 @@ class SetZoomLevel extends ReaderEvent {
   List<Object> get props => [zoomLevel];
 }
 
+class setReadingMode extends ReaderEvent {
+  final ReadingMode mode;
+
+  const setReadingMode(this.mode);
+
+  @override
+  List<Object> get props => [mode];
+}
+
 class ToggleReadingMode extends ReaderEvent {}
 
 class ToggleUIVisibility extends ReaderEvent {}

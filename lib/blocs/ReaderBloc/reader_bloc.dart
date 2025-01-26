@@ -4,10 +4,8 @@ import 'package:equatable/equatable.dart';
 import 'package:migrated/depeninject/injection.dart';
 import 'package:migrated/models/book_metadata.dart';
 import 'package:migrated/services/book_metadata_repository.dart';
-import 'package:migrated/utils/file_utils.dart';
 import 'package:path/path.dart' as path;
 import 'package:pdfrx/pdfrx.dart';
-import 'dart:developer' as dev;
 
 part 'reader_event.dart';
 part 'reader_state.dart';
@@ -15,7 +13,6 @@ part 'reader_state.dart';
 class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
   final BookMetadataRepository _metadataRepository =
       getIt<BookMetadataRepository>();
-  final FileParser _fileParser = FileParser();
 
   ReaderBloc() : super(ReaderInitial()) {
     on<OpenReader>(_onOpenReader);
@@ -24,6 +21,7 @@ class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
     on<JumpToPage>(_onJumpToPage);
     on<SetZoomLevel>(_onSetZoomLevel);
     on<ToggleReadingMode>(_onToggleReadingMode);
+    on<setReadingMode>(_onSetReadingMode);
     on<CloseReader>(_onCloseReader);
     on<ToggleUIVisibility>(_onToggleUIVisibility);
     on<ToggleSideNav>(_onToggleSideNav);
@@ -75,7 +73,7 @@ class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
         totalPages: metadata.totalPages,
         currentPage: metadata.lastOpenedPage,
         zoomLevel: 1.0,
-        isNightMode: false,
+        readingMode: ReadingMode.light,
         file: event.file,
         contentParsed: event.contentParsed,
         showUI: true,
@@ -131,7 +129,17 @@ class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
       ToggleReadingMode event, Emitter<ReaderState> emit) {
     if (state is ReaderLoaded) {
       final s = state as ReaderLoaded;
-      emit(s.copyWith(isNightMode: !s.isNightMode));
+      final newMode = s.readingMode == ReadingMode.light
+          ? ReadingMode.dark
+          : ReadingMode.light;
+      emit(s.copyWith(readingMode: newMode));
+    }
+  }
+
+  void _onSetReadingMode(setReadingMode event, Emitter<ReaderState> emit) {
+    if (state is ReaderLoaded) {
+      final s = state as ReaderLoaded;
+      emit(s.copyWith(readingMode: event.mode));
     }
   }
 

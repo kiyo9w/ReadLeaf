@@ -15,7 +15,7 @@ class ReaderLoaded extends ReaderState {
   final int totalPages;
   final int currentPage;
   final double zoomLevel;
-  final bool isNightMode;
+  final ReadingMode readingMode;
   final File file;
   final dynamic contentParsed;
   final bool showUI;
@@ -26,7 +26,7 @@ class ReaderLoaded extends ReaderState {
     required this.totalPages,
     required this.currentPage,
     required this.zoomLevel,
-    required this.isNightMode,
+    required this.readingMode,
     required this.file,
     this.contentParsed,
     required this.showUI,
@@ -39,7 +39,7 @@ class ReaderLoaded extends ReaderState {
         totalPages,
         currentPage,
         zoomLevel,
-        isNightMode,
+        readingMode,
         file,
         contentParsed,
         showUI,
@@ -51,7 +51,7 @@ class ReaderLoaded extends ReaderState {
     int? totalPages,
     int? currentPage,
     double? zoomLevel,
-    bool? isNightMode,
+    ReadingMode? readingMode,
     File? file,
     dynamic contentParsed,
     bool? showUI,
@@ -62,7 +62,7 @@ class ReaderLoaded extends ReaderState {
       totalPages: totalPages ?? this.totalPages,
       currentPage: currentPage ?? this.currentPage,
       zoomLevel: zoomLevel ?? this.zoomLevel,
-      isNightMode: isNightMode ?? this.isNightMode,
+      readingMode: readingMode ?? this.readingMode,
       file: file ?? this.file,
       contentParsed: contentParsed ?? this.contentParsed,
       showUI: showUI ?? this.showUI,
@@ -70,6 +70,16 @@ class ReaderLoaded extends ReaderState {
       metadata: metadata ?? this.metadata,
     );
   }
+}
+
+enum ReadingMode {
+  light,
+  dark,
+  darkContrast,
+  sepia,
+  twilight,
+  console,
+  birthday
 }
 
 class ReaderError extends ReaderState {
