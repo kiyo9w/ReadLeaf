@@ -61,7 +61,6 @@ class MyApp extends StatelessWidget {
             debugShowCheckedModeBanner: false,
             routes: {
               '/pdf_viewer': (context) => const PDFViewerScreen(),
-              '/epub_viewer': (context) => const EPUBViewerScreen(),
             },
             theme: themeProvider.theme,
             home: NavScreen(key: NavScreen.globalKey),

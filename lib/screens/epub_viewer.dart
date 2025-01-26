@@ -397,7 +397,8 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
                                       fontSize: 16,
                                       height: 1.6,
                                       color: state is ReaderLoaded &&
-                                              state.isNightMode
+                                              state.readingMode ==
+                                                  ReadingMode.dark
                                           ? Colors.white
                                           : Colors.black,
                                     ),

@@ -166,8 +166,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
       }
 
       if (mounted) {
-        setState(() {
-        });
+        setState(() {});
       }
     } else {
       dev.log('Reader not in loaded state');
@@ -947,8 +946,24 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
 
           pdfViewer = ColorFiltered(
             colorFilter: ColorFilter.mode(
-              Colors.white,
-              state.isNightMode ? BlendMode.difference : BlendMode.dst,
+              switch (state.readingMode) {
+                ReadingMode.light => Colors.white,
+                ReadingMode.dark => Colors.white,
+                ReadingMode.darkContrast => Colors.white,
+                ReadingMode.sepia => const Color(0xFFF4ECD8),
+                ReadingMode.twilight => const Color(0xFF4A4A4A),
+                ReadingMode.console => const Color.fromARGB(255, 24, 161, 58),
+                ReadingMode.birthday => const Color(0xFF9C27B0),
+              },
+              switch (state.readingMode) {
+                ReadingMode.light => BlendMode.dst,
+                ReadingMode.dark => BlendMode.difference,
+                ReadingMode.darkContrast => BlendMode.difference,
+                ReadingMode.sepia => BlendMode.multiply,
+                ReadingMode.twilight => BlendMode.difference,
+                ReadingMode.console => BlendMode.overlay,
+                ReadingMode.birthday => BlendMode.difference,
+              },
             ),
             child: pdfViewer,
           );
@@ -1046,10 +1061,115 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                             position: PopupMenuPosition.under,
                             onSelected: (val) async {
                               switch (val) {
-                                case 'dark_mode':
-                                  context
-                                      .read<ReaderBloc>()
-                                      .add(ToggleReadingMode());
+                                case 'reading_mode':
+                                  final RenderBox button =
+                                      context.findRenderObject() as RenderBox;
+                                  final RenderBox overlay =
+                                      Navigator.of(context)
+                                          .overlay!
+                                          .context
+                                          .findRenderObject() as RenderBox;
+                                  final Offset offset =
+                                      button.localToGlobal(Offset.zero);
+                                  final RelativeRect position =
+                                      RelativeRect.fromRect(
+                                    Rect.fromPoints(
+                                      offset,
+                                      offset.translate(0, button.size.height),
+                                    ),
+                                    Offset.zero & overlay.size,
+                                  );
+
+                                  final readingMode =
+                                      await showMenu<ReadingMode>(
+                                    context: context,
+                                    position: position,
+                                    color: Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? const Color(0xFF352A3B)
+                                        : const Color(0xFFF8F1F1),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    items: [
+                                      PopupMenuItem(
+                                        value: ReadingMode.light,
+                                        child: Text('Light',
+                                            style: TextStyle(
+                                                color: Theme.of(context)
+                                                            .brightness ==
+                                                        Brightness.dark
+                                                    ? const Color(0xFFF2F2F7)
+                                                    : const Color(0xFF1C1C1E))),
+                                      ),
+                                      PopupMenuItem(
+                                        value: ReadingMode.dark,
+                                        child: Text('Dark',
+                                            style: TextStyle(
+                                                color: Theme.of(context)
+                                                            .brightness ==
+                                                        Brightness.dark
+                                                    ? const Color(0xFFF2F2F7)
+                                                    : const Color(0xFF1C1C1E))),
+                                      ),
+                                      PopupMenuItem(
+                                        value: ReadingMode.darkContrast,
+                                        child: Text('Dark Contrast',
+                                            style: TextStyle(
+                                                color: Theme.of(context)
+                                                            .brightness ==
+                                                        Brightness.dark
+                                                    ? const Color(0xFFF2F2F7)
+                                                    : const Color(0xFF1C1C1E))),
+                                      ),
+                                      PopupMenuItem(
+                                        value: ReadingMode.sepia,
+                                        child: Text('Sepia',
+                                            style: TextStyle(
+                                                color: Theme.of(context)
+                                                            .brightness ==
+                                                        Brightness.dark
+                                                    ? const Color(0xFFF2F2F7)
+                                                    : const Color(0xFF1C1C1E))),
+                                      ),
+                                      PopupMenuItem(
+                                        value: ReadingMode.twilight,
+                                        child: Text('Twilight',
+                                            style: TextStyle(
+                                                color: Theme.of(context)
+                                                            .brightness ==
+                                                        Brightness.dark
+                                                    ? const Color(0xFFF2F2F7)
+                                                    : const Color(0xFF1C1C1E))),
+                                      ),
+                                      PopupMenuItem(
+                                        value: ReadingMode.console,
+                                        child: Text('Console',
+                                            style: TextStyle(
+                                                color: Theme.of(context)
+                                                            .brightness ==
+                                                        Brightness.dark
+                                                    ? const Color(0xFFF2F2F7)
+                                                    : const Color(0xFF1C1C1E))),
+                                      ),
+                                      PopupMenuItem(
+                                        value: ReadingMode.birthday,
+                                        child: Text('Birthday',
+                                            style: TextStyle(
+                                                color: Theme.of(context)
+                                                            .brightness ==
+                                                        Brightness.dark
+                                                    ? const Color(0xFFF2F2F7)
+                                                    : const Color(0xFF1C1C1E))),
+                                      ),
+                                    ],
+                                  ).then((ReadingMode? mode) {
+                                    if (mode != null) {
+                                      context
+                                          .read<ReaderBloc>()
+                                          .add(setReadingMode(mode));
+                                    }
+                                  });
                                   break;
                                 case 'move_trash':
                                   final shouldDelete = await showDialog<bool>(
@@ -1148,13 +1268,11 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                             },
                             itemBuilder: (context) => [
                               PopupMenuItem(
-                                value: 'dark_mode',
+                                value: 'reading_mode',
                                 child: Row(
                                   children: [
                                     Icon(
-                                      state.isNightMode
-                                          ? Icons.light_mode
-                                          : Icons.dark_mode,
+                                      Icons.palette_outlined,
                                       color: Theme.of(context).brightness ==
                                               Brightness.dark
                                           ? const Color(0xFFF2F2F7)
@@ -1163,9 +1281,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                     ),
                                     const SizedBox(width: 12),
                                     Text(
-                                      state.isNightMode
-                                          ? 'Light mode'
-                                          : 'Dark mode',
+                                      'Reading Mode',
                                       style: TextStyle(
                                         color: Theme.of(context).brightness ==
                                                 Brightness.dark
@@ -1173,8 +1289,19 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                             : const Color(0xFF1C1C1E),
                                       ),
                                     ),
+                                    const Spacer(),
+                                    Icon(
+                                      Icons.arrow_right,
+                                      color: Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? const Color(0xFFF2F2F7)
+                                          : const Color(0xFF1C1C1E),
+                                      size: 20,
+                                    ),
                                   ],
                                 ),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 8),
                               ),
                               PopupMenuItem(
                                 value: 'toggle_star',
