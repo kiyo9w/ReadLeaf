@@ -27,6 +27,7 @@ import 'package:provider/provider.dart';
 import 'package:migrated/providers/theme_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:migrated/models/book_metadata.dart';
+import 'package:migrated/constants/responsive_constants.dart';
 
 class PDFViewerScreen extends StatefulWidget {
   const PDFViewerScreen({Key? key}) : super(key: key);
@@ -994,6 +995,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                 ? const Color(0xFF251B2F).withOpacity(0.95)
                                 : const Color(0xFFFAF9F7).withOpacity(0.95),
                         elevation: 0,
+                        toolbarHeight:
+                            ResponsiveConstants.getBottomBarHeight(context),
                         leading: IconButton(
                           icon: Icon(
                             Icons.arrow_back,
@@ -1001,6 +1004,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                 Theme.of(context).brightness == Brightness.dark
                                     ? const Color(0xFFF2F2F7)
                                     : const Color(0xFF1C1C1E),
+                            size: ResponsiveConstants.getIconSize(context),
                           ),
                           onPressed: () {
                             context.read<ReaderBloc>().add(CloseReader());
@@ -1011,7 +1015,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                         title: Text(
                           path.basename(state.file.path),
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize:
+                                ResponsiveConstants.getBodyFontSize(context),
                             color:
                                 Theme.of(context).brightness == Brightness.dark
                                     ? const Color(0xFFF2F2F7)
@@ -1027,8 +1032,11 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                       Brightness.dark
                                   ? const Color(0xFFF2F2F7)
                                   : const Color(0xFF1C1C1E),
+                              size: ResponsiveConstants.getIconSize(context),
                             ),
                             onPressed: _toggleSearchPanel,
+                            padding: EdgeInsets.all(
+                                ResponsiveConstants.isTablet(context) ? 12 : 8),
                           ),
                           IconButton(
                             icon: Icon(
@@ -1037,10 +1045,13 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                       Brightness.dark
                                   ? const Color(0xFFF2F2F7)
                                   : const Color(0xFF1C1C1E),
+                              size: ResponsiveConstants.getIconSize(context),
                             ),
                             onPressed: () {
                               context.read<ReaderBloc>().add(ToggleSideNav());
                             },
+                            padding: EdgeInsets.all(
+                                ResponsiveConstants.isTablet(context) ? 12 : 8),
                           ),
                           PopupMenuButton<String>(
                             elevation: 8,
@@ -1057,7 +1068,10 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                       Brightness.dark
                                   ? const Color(0xFFF2F2F7)
                                   : const Color(0xFF1C1C1E),
+                              size: ResponsiveConstants.getIconSize(context),
                             ),
+                            padding: EdgeInsets.all(
+                                ResponsiveConstants.isTablet(context) ? 12 : 8),
                             position: PopupMenuPosition.under,
                             onSelected: (val) async {
                               switch (val) {
@@ -1394,8 +1408,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                         color: Theme.of(context).brightness == Brightness.dark
                             ? const Color(0xFF251B2F).withOpacity(0.95)
                             : const Color(0xFFFAF9F7).withOpacity(0.95),
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        height: 65,
+                        padding: ResponsiveConstants.getContentPadding(context),
+                        height: ResponsiveConstants.getBottomBarHeight(context),
                         child: Row(
                           children: [
                             Text(
@@ -1405,14 +1419,18 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                         Brightness.dark
                                     ? const Color(0xFFF2F2F7)
                                     : const Color(0xFF1C1C1E),
-                                fontSize: 14,
+                                fontSize: ResponsiveConstants.getBodyFontSize(
+                                    context),
                               ),
                             ),
                             const SizedBox(width: 10),
                             Expanded(
                               child: SliderTheme(
                                 data: SliderThemeData(
-                                  trackHeight: 2,
+                                  trackHeight:
+                                      ResponsiveConstants.isTablet(context)
+                                          ? 4
+                                          : 2,
                                   activeTrackColor:
                                       Theme.of(context).brightness ==
                                               Brightness.dark
@@ -1433,11 +1451,17 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                           .withOpacity(0.12)
                                       : const Color(0xFF9E7B80)
                                           .withOpacity(0.12),
-                                  thumbShape: const RoundSliderThumbShape(
-                                    enabledThumbRadius: 6,
+                                  thumbShape: RoundSliderThumbShape(
+                                    enabledThumbRadius:
+                                        ResponsiveConstants.isTablet(context)
+                                            ? 8
+                                            : 6,
                                   ),
-                                  overlayShape: const RoundSliderOverlayShape(
-                                    overlayRadius: 12,
+                                  overlayShape: RoundSliderOverlayShape(
+                                    overlayRadius:
+                                        ResponsiveConstants.isTablet(context)
+                                            ? 16
+                                            : 12,
                                   ),
                                 ),
                                 child: Slider(
@@ -1459,7 +1483,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                         Brightness.dark
                                     ? const Color(0xFFF2F2F7)
                                     : const Color(0xFF1C1C1E),
-                                fontSize: 14,
+                                fontSize: ResponsiveConstants.getBodyFontSize(
+                                    context),
                               ),
                             ),
                           ],
@@ -1472,9 +1497,11 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                     duration: const Duration(milliseconds: 300),
                     top: 0,
                     bottom: 0,
-                    left: showSideNav ? 0 : -300,
+                    left: showSideNav
+                        ? 0
+                        : -ResponsiveConstants.getSideNavWidth(context),
                     child: Container(
-                      width: 300,
+                      width: ResponsiveConstants.getSideNavWidth(context),
                       color: Theme.of(context).brightness == Brightness.dark
                           ? const Color(0xFF251B2F).withOpacity(0.98)
                           : const Color(0xFFFAF9F7).withOpacity(0.98),
@@ -1483,9 +1510,14 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
+                              padding: EdgeInsets.symmetric(
+                                horizontal:
+                                    ResponsiveConstants.isTablet(context)
+                                        ? 24
+                                        : 16,
+                                vertical: ResponsiveConstants.isTablet(context)
+                                    ? 16
+                                    : 12,
                               ),
                               child: Row(
                                 children: [
@@ -1496,16 +1528,21 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                               Brightness.dark
                                           ? const Color(0xFFF2F2F7)
                                           : const Color(0xFF1C1C1E),
-                                      fontSize: 16,
+                                      fontSize:
+                                          ResponsiveConstants.getTitleFontSize(
+                                              context),
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                   const Spacer(),
                                   IconButton(
                                     padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(
-                                      minWidth: 32,
-                                      minHeight: 32,
+                                    constraints: BoxConstraints(
+                                      minWidth: ResponsiveConstants.getIconSize(
+                                          context),
+                                      minHeight:
+                                          ResponsiveConstants.getIconSize(
+                                              context),
                                     ),
                                     icon: Icon(
                                       Icons.close,
@@ -1513,7 +1550,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                               Brightness.dark
                                           ? const Color(0xFF8E8E93)
                                           : const Color(0xFF6E6E73),
-                                      size: 20,
+                                      size: ResponsiveConstants.getIconSize(
+                                          context),
                                     ),
                                     onPressed: () {
                                       context
@@ -1629,9 +1667,11 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                     duration: const Duration(milliseconds: 300),
                     top: 0,
                     bottom: 0,
-                    left: _showSearchPanel ? 0 : -300,
+                    left: _showSearchPanel
+                        ? 0
+                        : -ResponsiveConstants.getSideNavWidth(context),
                     child: SizedBox(
-                      width: 300,
+                      width: ResponsiveConstants.getSideNavWidth(context),
                       child: TextSearchView(
                         textSearcher: _textSearcher,
                         onClose: _closeSearchPanel,
@@ -1642,35 +1682,67 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                   // Highlight controls
                   if (_showAskAiButton && _selectedText?.isNotEmpty == true)
                     Positioned(
-                      bottom: state.showUI ? 80 : 16,
-                      right: 16,
+                      bottom: state.showUI
+                          ? ResponsiveConstants.getBottomBarHeight(context) + 15
+                          : 16,
+                      right: ResponsiveConstants.getContentPadding(context)
+                              .horizontal /
+                          2,
                       child: Row(
                         children: [
                           FloatingActionButton(
                             heroTag: 'highlight_yellow',
-                            mini: true,
+                            mini: !ResponsiveConstants.isTablet(context),
                             backgroundColor: Colors.yellow.withOpacity(0.9),
-                            child: const Icon(Icons.brush,
-                                color: Colors.black87, size: 20),
+                            child: Icon(
+                              Icons.brush,
+                              color: Colors.black87,
+                              size: ResponsiveConstants.isTablet(context)
+                                  ? 24
+                                  : 20,
+                            ),
                             onPressed: () =>
                                 _addCurrentSelectionToMarkers(Colors.yellow),
                           ),
-                          const SizedBox(width: 8),
+                          SizedBox(
+                              width: ResponsiveConstants.isTablet(context)
+                                  ? 16
+                                  : 8),
                           FloatingActionButton(
                             heroTag: 'highlight_red',
-                            mini: true,
+                            mini: !ResponsiveConstants.isTablet(context),
                             backgroundColor: Colors.red.withOpacity(0.9),
-                            child: const Icon(Icons.brush,
-                                color: Colors.white, size: 20),
+                            child: Icon(
+                              Icons.brush,
+                              color: Colors.white,
+                              size: ResponsiveConstants.isTablet(context)
+                                  ? 24
+                                  : 20,
+                            ),
                             onPressed: () =>
                                 _addCurrentSelectionToMarkers(Colors.red),
                           ),
-                          const SizedBox(width: 8),
+                          SizedBox(
+                              width: ResponsiveConstants.isTablet(context)
+                                  ? 16
+                                  : 8),
                           FloatingActionButton.extended(
                             onPressed: _handleAskAi,
-                            icon: const Icon(Icons.chat, color: Colors.white),
-                            label: const Text('Ask AI',
-                                style: TextStyle(color: Colors.white)),
+                            icon: Icon(
+                              Icons.chat,
+                              color: Colors.white,
+                              size: ResponsiveConstants.isTablet(context)
+                                  ? 24
+                                  : 20,
+                            ),
+                            label: Text(
+                              'Ask AI',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: ResponsiveConstants.getBodyFontSize(
+                                    context),
+                              ),
+                            ),
                             backgroundColor: Colors.blue.shade700,
                           ),
                         ],
