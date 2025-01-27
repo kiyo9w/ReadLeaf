@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:migrated/widgets/CompanionChat/chat_screen.dart';
 import 'package:migrated/models/chat_message.dart';
 import 'package:migrated/models/ai_character.dart';
+import 'package:migrated/constants/responsive_constants.dart';
 
 class FloatingChatWidget extends StatefulWidget {
   final AiCharacter character;
@@ -47,10 +48,12 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
   bool _isResizing = false;
 
   // Constants for positioning
-  static const double _topPadding = 50.0;
-  static const double _bottomPadding = 50.0;
-  static const double _chatHeadSize = 65.0;
-  static const double _minSpacing = 5.0;
+  double get _chatHeadSize =>
+      ResponsiveConstants.isTablet(context) ? 60.0 : 48.0;
+  double get _minSpacing => ResponsiveConstants.isTablet(context) ? 24.0 : 16.0;
+  double get _bottomPadding =>
+      ResponsiveConstants.isTablet(context) ? 32.0 : 16.0;
+  double get _topPadding => ResponsiveConstants.isTablet(context) ? 32.0 : 16.0;
 
   @override
   void initState() {
@@ -94,12 +97,12 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
         _animateToPosition(_xPosition, validY);
       }
     } else {
-    // When closing, first hide the chat
+      // When closing, first hide the chat
       if (mounted) {
-            setState(() {
-              _showChat = false;
-            });
-          }
+        setState(() {
+          _showChat = false;
+        });
+      }
       // Then animate to original position
       if (_originalX != null && _originalY != null) {
         _animateToPosition(_originalX!, _originalY!);
@@ -265,18 +268,19 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
     // Calculate maximum height based on space below chat head
     final spaceBelow =
         availableHeight - (_yPosition + _chatHeadSize + _minSpacing);
-    return spaceBelow.clamp(400.0, double.infinity);
+    return spaceBelow.clamp(
+        ResponsiveConstants.isTablet(context) ? 500.0 : 400.0, double.infinity);
   }
 
   double _getMaxChatWidth(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
-    return screenSize.width - 32; // 16px padding on each side
+    return ResponsiveConstants.getMaxChatWidth(context);
   }
 
   void _handleResize(DragUpdateDetails details) {
     final screenSize = MediaQuery.of(context).size;
     final maxWidth = _getMaxChatWidth(context);
     final maxHeight = _getMaxChatHeight(context);
+    final minWidth = ResponsiveConstants.getMinChatWidth(context);
 
     setState(() {
       // Handle horizontal resize
@@ -284,7 +288,8 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
           ? details.delta.dx
           : -details.delta.dx;
 
-      double newWidth = (_chatWidth + horizontalDelta).clamp(280.0, maxWidth);
+      double newWidth =
+          (_chatWidth + horizontalDelta).clamp(minWidth, maxWidth);
       if (newWidth != _chatWidth) {
         _chatWidth = newWidth;
       }
@@ -292,15 +297,15 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
       // Only allow downward resizing
       if (details.delta.dy > 0) {
         // Expanding downward
-        double newHeight =
-            (_chatHeight + details.delta.dy).clamp(400.0, maxHeight);
+        double newHeight = (_chatHeight + details.delta.dy).clamp(
+            ResponsiveConstants.isTablet(context) ? 500.0 : 400.0, maxHeight);
         if (newHeight != _chatHeight) {
           _chatHeight = newHeight;
         }
       } else if (details.delta.dy < 0) {
         // Allow shrinking upward but not beyond minimum height
-        double newHeight =
-            (_chatHeight + details.delta.dy).clamp(400.0, _chatHeight);
+        double newHeight = (_chatHeight + details.delta.dy).clamp(
+            ResponsiveConstants.isTablet(context) ? 500.0 : 400.0, _chatHeight);
         _chatHeight = newHeight;
       }
     });
@@ -337,7 +342,9 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
         } else {
           // If can't move head up, adjust chat height
           chatY = _topPadding + _chatHeadSize + _minSpacing;
-          _chatHeight = math.max(400.0, availableHeight - chatY);
+          _chatHeight = math.max(
+              ResponsiveConstants.isTablet(context) ? 500.0 : 400.0,
+              availableHeight - chatY);
         }
       }
     }
@@ -433,11 +440,13 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
               height: _chatHeadSize,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF352A3B)
+                    : Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 8,
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: ResponsiveConstants.isTablet(context) ? 16 : 12,
                     offset: const Offset(0, 4),
                   ),
                 ],
@@ -445,6 +454,8 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
               child: ClipOval(
                 child: Image.asset(
                   widget.character.imagePath,
+                  width: _chatHeadSize,
+                  height: _chatHeadSize,
                   fit: BoxFit.cover,
                 ),
               ),

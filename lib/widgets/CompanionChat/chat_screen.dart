@@ -3,6 +3,7 @@ import 'package:migrated/models/chat_message.dart';
 import 'package:migrated/models/ai_character.dart';
 import 'package:migrated/services/chat_service.dart';
 import 'package:get_it/get_it.dart';
+import 'package:migrated/constants/responsive_constants.dart';
 
 class ChatScreen extends StatefulWidget {
   final AiCharacter character;
@@ -25,10 +26,11 @@ class ChatScreen extends StatefulWidget {
 }
 
 class ChatScreenState extends State<ChatScreen> {
-  final TextEditingController _textController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
-  final ChatService _chatService = GetIt.I<ChatService>();
+  final _scrollController = ScrollController();
+  final _messageController = TextEditingController();
+  final _focusNode = FocusNode();
   List<ChatMessage> _messages = [];
+  final _chatService = GetIt.I<ChatService>();
   String? _currentCharacter;
 
   @override
@@ -54,54 +56,34 @@ class ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
-    _textController.dispose();
     _scrollController.dispose();
+    _messageController.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
   Future<void> _loadMessages() async {
-    print('Loading messages for character: ${widget.character.name}');
-
-    // Load book-specific messages first
-    final bookMessages = await _chatService.getBookMessages(
-      widget.character.name,
-      widget.bookId,
-    );
-
-    // If this is a new book conversation, also get the last few general messages for context
-    if (bookMessages.isEmpty) {
-      final lastMessages =
-          await _chatService.getLastNMessages(widget.character.name, n: 5);
+    if (widget.bookId != null) {
+      final messages = await _chatService.getBookMessages(
+        widget.character.name,
+        widget.bookId,
+      );
       if (mounted) {
         setState(() {
-          _messages = lastMessages;
+          _messages = messages;
         });
-      }
-    } else {
-      if (mounted) {
-        setState(() {
-          _messages = bookMessages;
-        });
+        _scrollToBottom();
       }
     }
-
-    // Debug: Print current message state
-    print('Loaded ${_messages.length} messages for ${widget.character.name}');
-    await _chatService.debugPrintBoxes();
-
-    // Add post-frame callback to scroll to bottom after messages are loaded
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
   }
 
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
-      Future.delayed(const Duration(milliseconds: 100), () {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      });
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
     }
   }
 
@@ -126,9 +108,7 @@ class ChatScreenState extends State<ChatScreen> {
   }
 
   void _handleSubmitted(String text) async {
-    if (text.isEmpty) return;
-
-    _textController.clear();
+    if (text.trim().isEmpty) return;
 
     final message = ChatMessage(
       text: text,
@@ -141,69 +121,115 @@ class ChatScreenState extends State<ChatScreen> {
     setState(() {
       _messages.add(message);
     });
+
+    _messageController.clear();
     _scrollToBottom();
 
-    // Save the message asynchronously
-    await _chatService.addMessage(message);
-
-    // Call the callback to get AI response
-    widget.onSendMessage(text);
+    // Save the message and get AI response
+    if (widget.bookId != null) {
+      await _chatService.addMessage(message);
+    }
+    widget.onSendMessage?.call(text);
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF4F4F4),
-        borderRadius: BorderRadius.circular(20),
+        color: isDark ? const Color(0xFF251B2F) : Colors.white,
+        borderRadius: BorderRadius.circular(
+            ResponsiveConstants.isTablet(context) ? 24 : 16),
         image: DecorationImage(
-          image: const AssetImage('assets/images/chat/chat_bg_pattern.png'),
+          image: AssetImage(
+            isDark
+                ? 'assets/images/chat/chat_bg_pattern_dark.png'
+                : 'assets/images/chat/chat_bg_pattern.png',
+          ),
           fit: BoxFit.cover,
+          opacity: isDark ? 0.05 : 0.1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: ResponsiveConstants.isTablet(context) ? 16 : 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: GestureDetector(
-        onTap: () => FocusScope.of(context).unfocus(),
-        child: Column(
-          children: [
-            // Chat header
-            Container(
-              height: 55,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(12)),
-              ),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    backgroundImage: AssetImage(widget.character.imagePath),
-                    radius: 16,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    widget.character.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 18),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    onPressed: widget.onClose,
-                  ),
-                ],
+      child: Column(
+        children: [
+          // Chat header
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: ResponsiveConstants.isTablet(context) ? 24 : 16,
+              vertical: ResponsiveConstants.isTablet(context) ? 16 : 12,
+            ),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? const Color(0xFF352A3B).withOpacity(0.95)
+                  : const Color(0xFFF8F1F1).withOpacity(0.95),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(
+                    ResponsiveConstants.isTablet(context) ? 24 : 16),
+                topRight: Radius.circular(
+                    ResponsiveConstants.isTablet(context) ? 24 : 16),
               ),
             ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: ResponsiveConstants.isTablet(context) ? 24 : 20,
+                  backgroundImage: AssetImage(widget.character.imagePath),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.character.name,
+                        style: TextStyle(
+                          fontSize:
+                              ResponsiveConstants.getTitleFontSize(context),
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      Text(
+                        widget.character.trait,
+                        style: TextStyle(
+                          fontSize:
+                              ResponsiveConstants.getBodyFontSize(context),
+                          color: isDark ? Colors.white70 : Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(
+                    Icons.close,
+                    size: ResponsiveConstants.getIconSize(context),
+                    color: isDark ? Colors.white70 : Colors.black54,
+                  ),
+                  onPressed: widget.onClose,
+                ),
+              ],
+            ),
+          ),
 
-            // Chat messages
-            Expanded(
+          // Chat messages
+          Expanded(
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: ResponsiveConstants.isTablet(context) ? 24 : 16,
+                vertical: ResponsiveConstants.isTablet(context) ? 16 : 12,
+              ),
               child: ListView.builder(
                 controller: _scrollController,
-                padding: const EdgeInsets.all(16.0),
                 itemCount: _messages.length,
                 itemBuilder: (context, index) {
                   final message = _messages[index];
@@ -211,122 +237,141 @@ class ChatScreenState extends State<ChatScreen> {
                 },
               ),
             ),
+          ),
 
-            // Input field
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border(
-                  top: BorderSide(color: Colors.grey[200]!),
-                ),
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(20),
-                  bottomRight: Radius.circular(20),
-                ),
-              ),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _textController,
-                      decoration: const InputDecoration(
-                        hintText: 'Type a message...',
-                        hintStyle: TextStyle(color: Colors.grey),
-                        border: InputBorder.none,
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      ),
-                      onSubmitted: _handleSubmitted,
-                    ),
-                  ),
-                  IconButton(
-                    icon:
-                        Icon(Icons.send, color: Theme.of(context).primaryColor),
-                    onPressed: () => _handleSubmitted(_textController.text),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ],
+          // Input field
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: ResponsiveConstants.isTablet(context) ? 24 : 16,
+              vertical: ResponsiveConstants.isTablet(context) ? 16 : 12,
+            ),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF352A3B) : const Color(0xFFF8F1F1),
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(
+                    ResponsiveConstants.isTablet(context) ? 24 : 16),
+                bottomRight: Radius.circular(
+                    ResponsiveConstants.isTablet(context) ? 24 : 16),
               ),
             ),
-          ],
-        ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _messageController,
+                    focusNode: _focusNode,
+                    style: TextStyle(
+                      fontSize: ResponsiveConstants.getBodyFontSize(context),
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Type a message...',
+                      hintStyle: TextStyle(
+                        color: isDark ? Colors.white60 : Colors.black45,
+                        fontSize: ResponsiveConstants.getBodyFontSize(context),
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(
+                            ResponsiveConstants.isTablet(context) ? 16 : 12),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor:
+                          isDark ? const Color(0xFF251B2F) : Colors.white,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal:
+                            ResponsiveConstants.isTablet(context) ? 20 : 16,
+                        vertical:
+                            ResponsiveConstants.isTablet(context) ? 16 : 12,
+                      ),
+                    ),
+                    minLines: 1,
+                    maxLines: 5,
+                    onSubmitted: _handleSubmitted,
+                  ),
+                ),
+                SizedBox(
+                    width: ResponsiveConstants.isTablet(context) ? 16 : 12),
+                IconButton(
+                  icon: Icon(
+                    Icons.send,
+                    size: ResponsiveConstants.getIconSize(context),
+                    color: isDark ? Colors.white70 : Colors.black54,
+                  ),
+                  onPressed: () => _handleSubmitted(_messageController.text),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildMessageBubble(ChatMessage message) {
-    String displayText = message.text;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      padding: EdgeInsets.only(
+        bottom: ResponsiveConstants.isTablet(context) ? 16 : 12,
+      ),
       child: Row(
         mainAxisAlignment:
             message.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!message.isUser && message.avatarImagePath != null) ...[
-            ClipOval(
-              child: Image.asset(
-                message.avatarImagePath!,
-                width: 32,
-                height: 32,
-                fit: BoxFit.cover,
+          if (!message.isUser)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: CircleAvatar(
+                radius: ResponsiveConstants.isTablet(context) ? 20 : 16,
+                backgroundImage: AssetImage(widget.character.imagePath),
               ),
             ),
-            const SizedBox(width: 8),
-          ],
-          // if (message.isUser) ...[
-          //   ClipOval(
-          //     child: Image.asset(
-          //       'user-default-logo.png',
-          //       width: 32,
-          //       height: 32,
-          //       fit: BoxFit.cover,
-          //     ),
-          //   ),
-          //   const SizedBox(width: 8),
-          // ],
           Flexible(
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: EdgeInsets.symmetric(
+                horizontal: ResponsiveConstants.isTablet(context) ? 20 : 16,
+                vertical: ResponsiveConstants.isTablet(context) ? 16 : 12,
+              ),
               decoration: BoxDecoration(
-                color: message.isUser ? const Color(0xFFE3F2FD) : Colors.white,
+                color: message.isUser
+                    ? (isDark
+                        ? const Color(0xFF352A3B).withOpacity(0.95)
+                        : Colors.blue.shade50)
+                    : (isDark
+                        ? const Color(0xFF251B2F).withOpacity(0.95)
+                        : Colors.white.withOpacity(0.95)),
                 borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(16),
-                  topRight: const Radius.circular(16),
-                  bottomLeft: Radius.circular(message.isUser ? 16 : 4),
-                  bottomRight: Radius.circular(message.isUser ? 4 : 16),
+                  topLeft: Radius.circular(
+                      ResponsiveConstants.isTablet(context) ? 20 : 16),
+                  topRight: Radius.circular(
+                      ResponsiveConstants.isTablet(context) ? 20 : 16),
+                  bottomLeft: Radius.circular(message.isUser
+                      ? 20
+                      : (ResponsiveConstants.isTablet(context) ? 8 : 4)),
+                  bottomRight: Radius.circular(message.isUser
+                      ? (ResponsiveConstants.isTablet(context) ? 8 : 4)
+                      : 20),
                 ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.05),
-                    blurRadius: 4,
+                    blurRadius: ResponsiveConstants.isTablet(context) ? 8 : 4,
                     offset: const Offset(0, 2),
                   ),
                 ],
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  RichText(
-                    text: TextSpan(
-                      style: TextStyle(
-                        color: Colors.black87,
-                        fontSize: 15,
-                        height: 1.4,
-                      ),
-                      children: _parseText(displayText),
-                    ),
-                  ),
-                ],
+              child: Text(
+                message.text,
+                style: TextStyle(
+                  fontSize: ResponsiveConstants.getBodyFontSize(context),
+                  color:
+                      isDark ? Colors.white.withOpacity(0.9) : Colors.black87,
+                ),
               ),
             ),
           ),
-          if (message.isUser)
-            const SizedBox(width: 40), // Space for avatar symmetry
         ],
       ),
     );
