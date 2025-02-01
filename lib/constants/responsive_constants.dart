@@ -23,7 +23,14 @@ class ResponsiveConstants {
   static double getSideNavWidth(BuildContext context) {
     if (isLargeTablet(context)) return 450.0; // Fixed width for large tablets
     if (isTablet(context)) return 400.0; // Fixed width for tablets
-    return 300.0;
+    return 335.0;
+  }
+
+  // Floating chat head size
+  static double getFloatingChatHeadSize(BuildContext context) {
+    if (isLargeTablet(context)) return 96.0; // Large tablets
+    if (isTablet(context)) return 80.0; // Tablets
+    return 65.0; // Mobile devices
   }
 
   static double getSafeAreaBottom(BuildContext context) {
@@ -96,8 +103,8 @@ class ResponsiveConstants {
 
   static double getMaxChatWidth(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
-    if (isLargeTablet(context)) return width * 0.6;
-    if (isTablet(context)) return width * 0.7;
+    if (isLargeTablet(context)) return width * 0.8;
+    if (isTablet(context)) return width * 0.8;
     return width - 32;
   }
 

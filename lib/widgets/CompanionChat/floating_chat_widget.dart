@@ -49,7 +49,7 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
 
   // Constants for positioning
   double get _chatHeadSize =>
-      ResponsiveConstants.isTablet(context) ? 60.0 : 48.0;
+      ResponsiveConstants.getFloatingChatHeadSize(context);
   double get _minSpacing => ResponsiveConstants.isTablet(context) ? 24.0 : 16.0;
   double get _bottomPadding =>
       ResponsiveConstants.isTablet(context) ? 32.0 : 16.0;
