@@ -10,6 +10,53 @@ class Marker {
   Marker(this.color, this.ranges);
 }
 
+class MarkerManager {
+  Map<int, List<Marker>> _markers = {};
+
+  /// Get a defensive copy of markers for a given page.
+  List<Marker> getMarkersForPage(int pageNumber) =>
+      _markers.containsKey(pageNumber)
+          ? List<Marker>.from(_markers[pageNumber]!)
+          : [];
+
+  /// Replace the markers map entirely.
+  void setMarkers(Map<int, List<Marker>> newMarkers) {
+    _markers = newMarkers;
+  }
+
+  /// Immutable add: create a new list with the new marker.
+  void addMarker(int pageNumber, Marker marker) {
+    final currentList = _markers[pageNumber] != null
+        ? List<Marker>.from(_markers[pageNumber]!)
+        : <Marker>[];
+    currentList.add(marker);
+    _markers[pageNumber] = currentList;
+  }
+
+  /// Immutable remove: remove the marker and update the list.
+  void removeMarker(int pageNumber, Marker marker) {
+    if (_markers.containsKey(pageNumber)) {
+      final newList = List<Marker>.from(_markers[pageNumber]!);
+      newList.remove(marker);
+      _markers[pageNumber] = newList;
+    }
+  }
+
+  /// Clear all markers.
+  void clearMarkers() {
+    _markers.clear();
+  }
+
+  /// Get all markers as a flat list.
+  List<Marker> getMarkers() {
+    return _markers.values.expand((list) => list).toList();
+  }
+
+  /// Retrieve the entire markers map (a defensive copy).
+  Map<int, List<Marker>> get markers =>
+      _markers.map((key, value) => MapEntry(key, List<Marker>.from(value)));
+}
+
 class MarkersView extends StatelessWidget {
   const MarkersView({
     super.key,

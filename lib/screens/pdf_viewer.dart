@@ -52,7 +52,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   double _scaleFactor = 1.0;
   double _baseScaleFactor = 1.0;
   final _markers = <int, List<Marker>>{};
-  bool _loadingHighlights = false;
   List<PdfTextRanges>? _textSelections;
   final outline = ValueNotifier<List<PdfOutlineNode>?>(null);
   final documentRef = ValueNotifier<PdfDocumentRef?>(null);
@@ -108,27 +107,22 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   }
 
   void _loadHighlights() async {
-    if (!_controller.isReady || _loadingHighlights) return;
-    _loadingHighlights = true;
+    if (!_controller.isReady) {
+      return;
+    }
 
-    final readerState = context.read<ReaderBloc>().state;
-    if (readerState is ReaderLoaded) {
-      final highlights = readerState.metadata.highlights;
+    if (context.read<ReaderBloc>().state is ReaderLoaded) {
+      final state = context.read<ReaderBloc>().state as ReaderLoaded;
+      final highlights = state.metadata.highlights;
 
-      final newMarkers = <int, List<Marker>>{};
+      _markers.clear();
+
       for (final highlight in highlights) {
         try {
           final pageText =
               await _textSearcher.loadText(pageNumber: highlight.pageNumber);
           if (pageText != null) {
-            int index = pageText.fullText.indexOf(highlight.text);
-            if (index == -1) {
-              final normalizedPageText =
-                  pageText.fullText.replaceAll(RegExp(r'\s+'), ' ').trim();
-              final normalizedHighlightText =
-                  highlight.text.replaceAll(RegExp(r'\s+'), ' ').trim();
-              index = normalizedPageText.indexOf(normalizedHighlightText);
-            }
+            final index = pageText.fullText.indexOf(highlight.text);
             if (index != -1) {
               final textRange = PdfTextRanges(
                 pageText: pageText,
@@ -136,11 +130,32 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                   PdfTextRange(start: index, end: index + highlight.text.length)
                 ],
               );
-              newMarkers.update(
-                highlight.pageNumber,
-                (existing) => [...existing, Marker(Colors.yellow, textRange)],
-                ifAbsent: () => [Marker(Colors.yellow, textRange)],
-              );
+
+              _markers
+                  .putIfAbsent(highlight.pageNumber, () => [])
+                  .add(Marker(Colors.yellow, textRange));
+            } else {
+              final normalizedPageText =
+                  pageText.fullText.replaceAll(RegExp(r'\s+'), ' ').trim();
+              final normalizedHighlightText =
+                  highlight.text.replaceAll(RegExp(r'\s+'), ' ').trim();
+              final fuzzyIndex =
+                  normalizedPageText.indexOf(normalizedHighlightText);
+
+              if (fuzzyIndex != -1) {
+                final textRange = PdfTextRanges(
+                  pageText: pageText,
+                  ranges: [
+                    PdfTextRange(
+                        start: fuzzyIndex,
+                        end: fuzzyIndex + normalizedHighlightText.length)
+                  ],
+                );
+
+                _markers
+                    .putIfAbsent(highlight.pageNumber, () => [])
+                    .add(Marker(Colors.yellow, textRange));
+              }
             }
           } else {
             dev.log(
@@ -152,16 +167,11 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
       }
 
       if (mounted) {
-        setState(() {
-          _markers
-            ..clear()
-            ..addAll(newMarkers);
-        });
+        setState(() {});
       }
     } else {
       dev.log('Reader not in loaded state');
     }
-    _loadingHighlights = false;
   }
 
   @override
@@ -298,37 +308,28 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
 
   void _addCurrentSelectionToMarkers(Color color) {
     if (_controller.isReady && _textSelections != null) {
-      setState(() {
-        for (final selectedText in _textSelections!) {
-          final page = selectedText.pageNumber;
-          final currentList = _markers[page] != null
-              ? List<Marker>.from(_markers[page]!)
-              : <Marker>[];
-          currentList.add(Marker(color, selectedText));
-          _markers[page] = currentList;
-        }
-      });
-
       for (final selectedText in _textSelections!) {
+        dev.log(
+            'Processing selection: ${selectedText.text} on page ${selectedText.pageNumber}');
+        _markers
+            .putIfAbsent(selectedText.pageNumber, () => [])
+            .add(Marker(color, selectedText));
+
+        // Save highlight to BookMetadata
         context.read<ReaderBloc>().add(AddHighlight(
               text: selectedText.text,
               note: null,
               pageNumber: selectedText.pageNumber,
             ));
       }
+      setState(() {});
     }
   }
 
   void _deleteMarker(Marker marker) {
-    final page = marker.ranges.pageNumber;
-    if (_markers.containsKey(page)) {
-      setState(() {
-        final newList = List<Marker>.from(_markers[page]!);
-        newList.remove(marker);
-        _markers[page] = newList;
-      });
-    }
+    _markers[marker.ranges.pageNumber]!.remove(marker);
 
+    // Remove highlight from BookMetadata
     if (context.read<ReaderBloc>().state is ReaderLoaded) {
       final state = context.read<ReaderBloc>().state as ReaderLoaded;
       final updatedHighlights = state.metadata.highlights
@@ -341,35 +342,37 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
           state.metadata.copyWith(highlights: updatedHighlights);
       context.read<ReaderBloc>().add(UpdateMetadata(updatedMetadata));
     }
+
+    setState(() {});
   }
 
-  void _paintMarkers(Canvas canvas, Rect pageRect, PdfPage page) {
-    final markersList = _markers[page.pageNumber];
-    if (markersList == null || markersList.isEmpty) {
-      return;
-    }
-    final markersCopy = List<Marker>.from(markersList);
+void _paintMarkers(Canvas canvas, Rect pageRect, PdfPage page) {
+  final markersList = _markers[page.pageNumber];
+  if (markersList == null || markersList.isEmpty) {
+    return;
+  }
+  final markersCopy = List<Marker>.from(markersList);
 
-    for (final marker in markersCopy) {
-      final paint = Paint()
-        ..color = marker.color.withAlpha(100)
-        ..style = PaintingStyle.fill;
+  for (final marker in markersCopy) {
+    final paint = Paint()
+      ..color = marker.color.withAlpha(100)
+      ..style = PaintingStyle.fill;
 
-      for (final range in marker.ranges.ranges) {
-        final f = PdfTextRangeWithFragments.fromTextRange(
-          marker.ranges.pageText,
-          range.start,
-          range.end,
+    for (final range in marker.ranges.ranges) {
+      final f = PdfTextRangeWithFragments.fromTextRange(
+        marker.ranges.pageText,
+        range.start,
+        range.end,
+      );
+      if (f != null) {
+        canvas.drawRect(
+          f.bounds.toRectInPageRect(page: page, pageRect: pageRect),
+          paint,
         );
-        if (f != null) {
-          canvas.drawRect(
-            f.bounds.toRectInPageRect(page: page, pageRect: pageRect),
-            paint,
-          );
-        }
       }
     }
   }
+}
 
   void _handleChatMessage(String? message, {String? selectedText}) async {
     final state = context.read<ReaderBloc>().state;
