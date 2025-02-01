@@ -7,11 +7,13 @@ import 'package:migrated/themes/custom_theme_extension.dart';
 class AIMessageCard extends StatelessWidget {
   final String message;
   final VoidCallback onContinue;
+  final bool skipAnimation;
 
   const AIMessageCard({
     Key? key,
     required this.message,
     required this.onContinue,
+    this.skipAnimation = false,
   }) : super(key: key);
 
   @override
@@ -68,6 +70,7 @@ class AIMessageCard extends StatelessWidget {
                       color: customTheme?.aiMessageText ?? Colors.white,
                     ),
                     typingSpeed: const Duration(milliseconds: 30),
+                    skipAnimation: skipAnimation,
                   ),
                 ],
               ),

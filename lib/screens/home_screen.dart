@@ -306,6 +306,7 @@ class HomeScreenState extends State<HomeScreen> {
                                       context.read<FileBloc>().add(
                                           ViewFile(lastReadBook!.filePath));
                                     },
+                                    skipAnimation: true,
                                   ),
                               ],
                             ),

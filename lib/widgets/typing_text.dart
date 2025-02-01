@@ -8,6 +8,7 @@ class TypingText extends StatefulWidget {
   final TextOverflow? overflow;
   final Duration typingSpeed;
   final VoidCallback? onTypingComplete;
+  final bool skipAnimation;
 
   const TypingText({
     Key? key,
@@ -17,6 +18,7 @@ class TypingText extends StatefulWidget {
     this.overflow,
     this.typingSpeed = const Duration(milliseconds: 15),
     this.onTypingComplete,
+    this.skipAnimation = false,
   }) : super(key: key);
 
   @override
@@ -31,8 +33,14 @@ class _TypingTextState extends State<TypingText> {
   @override
   void initState() {
     super.initState();
-    _displayText = '';
-    _startTyping();
+    _displayText = widget.skipAnimation ? widget.text : '';
+    if (!widget.skipAnimation) {
+      _startTyping();
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        widget.onTypingComplete?.call();
+      });
+    }
   }
 
   void _startTyping() {
@@ -58,7 +66,9 @@ class _TypingTextState extends State<TypingText> {
 
   @override
   void dispose() {
-    _timer.cancel();
+    if (!widget.skipAnimation) {
+      _timer.cancel();
+    }
     super.dispose();
   }
 
@@ -67,8 +77,13 @@ class _TypingTextState extends State<TypingText> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.text != widget.text) {
       _currentIndex = 0;
-      _displayText = '';
-      _startTyping();
+      if (widget.skipAnimation) {
+        _displayText = widget.text;
+        widget.onTypingComplete?.call();
+      } else {
+        _displayText = '';
+        _startTyping();
+      }
     }
   }
 
