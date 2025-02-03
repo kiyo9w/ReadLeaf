@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:collection';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:migrated/models/chat_message.dart';
 import 'package:migrated/services/chat_service.dart';
@@ -12,26 +13,51 @@ class RagService {
   final AiCharacterService _characterService = getIt<AiCharacterService>();
   static const int _maxConversationHistory = 5;
 
-  // The backend URL should be registered in GetIt (instanceName: 'backendUrl')
+  // Backend URL, injected via dependency injection (e.g., "http://localhost:8000")
   final String _backendUrl = getIt<String>(instanceName: 'backendUrl');
 
   RagService._internal();
-
   factory RagService() => _instance;
 
-  /// Builds a conversation context for a given book by retrieving messages
-  /// from the ChatService for the selected character and filtering by book ID.
+  /// Uploads a PDF file to the backend /upload-pdf endpoint.
+  /// Returns a message indicating success or throws an exception on failure.
+  Future<String> uploadPdf(File file) async {
+    try {
+      final url = Uri.parse(_backendUrl).resolve('/upload-pdf');
+      print('Uploading PDF to backend: ${file.path}');
+
+      final request = http.MultipartRequest("POST", url);
+      final multipartFile =
+          await http.MultipartFile.fromPath("file", file.path);
+      request.files.add(multipartFile);
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      print('Upload response status: ${response.statusCode}');
+      print('Upload response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['message'] as String;
+      } else {
+        throw Exception("Error uploading PDF: ${response.body}");
+      }
+    } catch (e) {
+      print('Error uploading PDF: $e');
+      throw Exception('Failed to upload PDF: $e');
+    }
+  }
+
+  /// Builds conversation context from the latest chat messages for the given book.
   Future<String> buildConversationContext(String bookId) async {
     try {
-      // Use the selected character's name (or a default)
       final characterName =
           _characterService.getSelectedCharacter()?.name ?? 'Default';
-      // Use getBookMessages (which is defined in your ChatService)
-      final messages =
+      // Use getBookMessages (which should be defined in ChatService)
+      final List<ChatMessage> messages =
           await _chatService.getBookMessages(characterName, bookId);
       if (messages.isEmpty) return '';
-
-      // Only use the last _maxConversationHistory messages for context.
       final recentMessages = messages.length <= _maxConversationHistory
           ? messages
           : messages.sublist(messages.length - _maxConversationHistory);
@@ -46,8 +72,8 @@ class RagService {
     }
   }
 
-  /// Builds the complete prompt context by combining conversation history,
-  /// any selected text, and a custom prompt.
+  /// Builds a complete prompt context by merging conversation history,
+  /// any selected text, and the user's query (custom prompt).
   Future<String> buildPromptContext({
     required String bookId,
     String? selectedText,
@@ -63,25 +89,22 @@ class RagService {
       buffer.writeln(conversationContext);
       buffer.writeln();
     }
-
     if (selectedText != null && selectedText.isNotEmpty) {
       buffer.writeln(
           'Current text selection from "$bookTitle" (page $currentPage of $totalPages):');
       buffer.writeln(selectedText);
       buffer.writeln();
     }
-
     if (customPrompt != null && customPrompt.isNotEmpty) {
       buffer.writeln('User question:');
       buffer.writeln(customPrompt);
     }
-
     return buffer.toString().trim();
   }
 
   /// Calls the backend /query endpoint.
-  /// It sends a JSON payload with the conversation context (built from local chat history)
-  /// along with book information and the AI character details.
+  /// It constructs a nested payload with extra template variables under "doc_to_text",
+  /// so that the backend's DocToText component can merge the document context.
   Future<String> query({
     required String bookId,
     String? selectedText,
@@ -92,34 +115,26 @@ class RagService {
     required String aiPersonality,
     required String userQuery,
   }) async {
-    // Build the prompt context using local conversation history and the user's custom prompt.
-    final promptContext = await buildPromptContext(
-      bookId: bookId,
-      selectedText: selectedText,
-      bookTitle: bookTitle,
-      currentPage: currentPage,
-      totalPages: totalPages,
-      customPrompt: userQuery,
-    );
-
-    // Construct the JSON payload expected by the backend.
+    // Construct payload with the expected flat structure.
     final Map<String, dynamic> payload = {
-      'user_query': promptContext,
-      'selected_text': selectedText ?? '',
-      'book_title': bookTitle,
-      'page_number': currentPage,
-      'total_pages': totalPages,
-      'ai_name': aiName,
-      'ai_personality': aiPersonality,
+      "user_query": userQuery,
+      "selected_text": selectedText ?? "",
+      "book_title": bookTitle,
+      "page_number": currentPage,
+      "total_pages": totalPages,
+      "ai_name": aiName,
+      "ai_personality": aiPersonality,
     };
 
-    // Call the backend's /query endpoint.
     final url = Uri.parse(_backendUrl).resolve('/query');
     final response = await http.post(
       url,
-      headers: {'Content-Type': 'application/json'},
+      headers: {"Content-Type": "application/json"},
       body: jsonEncode(payload),
     );
+
+    print("Response status code: ${response.statusCode}");
+    print("Response body: ${response.body}");
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
