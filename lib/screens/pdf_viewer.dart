@@ -12,7 +12,7 @@ import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
 import 'package:migrated/screens/nav_screen.dart';
 import 'package:migrated/widgets/text_search_view.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:migrated/services/gemini_service.dart';
+import 'package:migrated/services/rag_service.dart';
 import 'package:get_it/get_it.dart';
 import 'package:migrated/widgets/CompanionChat/floating_chat_widget.dart';
 import 'package:migrated/models/chat_message.dart';
@@ -40,7 +40,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
     with SingleTickerProviderStateMixin {
   final _controller = PdfViewerController();
   late final _textSearcher = PdfTextSearcher(_controller)..addListener(_update);
-  late final _geminiService = GetIt.I<GeminiService>();
+  late final _ragService = GetIt.I<RagService>();
   late final _characterService = GetIt.I<AiCharacterService>();
   late final TabController _tabController;
   final GlobalKey<FloatingChatWidgetState> _floatingChatKey = GlobalKey();
@@ -346,33 +346,33 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
     setState(() {});
   }
 
-void _paintMarkers(Canvas canvas, Rect pageRect, PdfPage page) {
-  final markersList = _markers[page.pageNumber];
-  if (markersList == null || markersList.isEmpty) {
-    return;
-  }
-  final markersCopy = List<Marker>.from(markersList);
+  void _paintMarkers(Canvas canvas, Rect pageRect, PdfPage page) {
+    final markersList = _markers[page.pageNumber];
+    if (markersList == null || markersList.isEmpty) {
+      return;
+    }
+    final markersCopy = List<Marker>.from(markersList);
 
-  for (final marker in markersCopy) {
-    final paint = Paint()
-      ..color = marker.color.withAlpha(100)
-      ..style = PaintingStyle.fill;
+    for (final marker in markersCopy) {
+      final paint = Paint()
+        ..color = marker.color.withAlpha(100)
+        ..style = PaintingStyle.fill;
 
-    for (final range in marker.ranges.ranges) {
-      final f = PdfTextRangeWithFragments.fromTextRange(
-        marker.ranges.pageText,
-        range.start,
-        range.end,
-      );
-      if (f != null) {
-        canvas.drawRect(
-          f.bounds.toRectInPageRect(page: page, pageRect: pageRect),
-          paint,
+      for (final range in marker.ranges.ranges) {
+        final f = PdfTextRangeWithFragments.fromTextRange(
+          marker.ranges.pageText,
+          range.start,
+          range.end,
         );
+        if (f != null) {
+          canvas.drawRect(
+            f.bounds.toRectInPageRect(page: page, pageRect: pageRect),
+            paint,
+          );
+        }
       }
     }
   }
-}
 
   void _handleChatMessage(String? message, {String? selectedText}) async {
     final state = context.read<ReaderBloc>().state;
@@ -385,13 +385,18 @@ void _paintMarkers(Canvas canvas, Rect pageRect, PdfPage page) {
     final totalPages = state.totalPages;
 
     try {
-      final response = await _geminiService.askAboutText(
-        selectedText ?? '',
-        customPrompt: message ??
-            'Can you explain what the text is about? After that share your thoughts in a single open ended question in the same paragraph, make the question short and concise.',
+      final response = await _ragService.query(
+        bookId: state.file.path,
+        selectedText: selectedText ?? '',
         bookTitle: bookTitle,
         currentPage: currentPage,
         totalPages: totalPages,
+        aiName:
+            _characterService.getSelectedCharacter()?.name ?? 'AI Assistant',
+        aiPersonality: _characterService.getSelectedCharacter()?.personality ??
+            'A helpful AI assistant',
+        userQuery: message ??
+            'Can you explain what the text is about? After that share your thoughts in a single open ended question in the same paragraph, make the question short and concise.',
       );
 
       if (!mounted) return;
@@ -402,6 +407,7 @@ void _paintMarkers(Canvas canvas, Rect pageRect, PdfPage page) {
     } catch (e) {
       if (!mounted) return;
       Utils.showErrorSnackBar(context, 'Failed to get AI response');
+      dev.log('Error in _handleChatMessage: $e');
     }
   }
 

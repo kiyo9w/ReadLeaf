@@ -14,6 +14,7 @@ import 'package:migrated/services/chat_service.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:migrated/models/chat_message.dart';
 import 'package:migrated/providers/theme_provider.dart';
+import 'package:migrated/services/rag_service.dart';
 
 final GetIt getIt = GetIt.instance;
 
@@ -36,10 +37,18 @@ Future<void> configureDependencies() async {
   final aiCharacterService = AiCharacterService();
   getIt.registerSingleton<AiCharacterService>(aiCharacterService);
 
-  // Initialize Gemini service after AiCharacterService
-  final geminiService = GeminiService();
-  await geminiService.initialize();
-  getIt.registerSingleton<GeminiService>(geminiService);
+  // Register ChatService as a singleton
+  final chatService = ChatService();
+  await chatService.init();
+  getIt.registerSingleton<ChatService>(chatService);
+
+  // Register backend URL from environment variables
+  final backendUrl = dotenv.env['BACKEND_URL'] ?? 'http://localhost:8000';
+  getIt.registerSingleton<String>(backendUrl, instanceName: 'backendUrl');
+
+  // Initialize RagService after ChatService
+  final ragService = RagService();
+  getIt.registerSingleton<RagService>(ragService);
 
   // Initialize BookMetadataRepository
   final bookMetadataRepository = BookMetadataRepository();
@@ -74,9 +83,4 @@ Future<void> configureDependencies() async {
         annasArchieve: getIt<AnnasArchieve>(),
         fileRepository: getIt<FileRepository>(),
       ));
-
-  // Register ChatService as a singleton
-  final chatService = ChatService();
-  await chatService.init();
-  getIt.registerSingleton<ChatService>(chatService);
 }

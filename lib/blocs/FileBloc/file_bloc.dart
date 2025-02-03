@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:migrated/models/file_info.dart';
 import 'package:migrated/utils/file_utils.dart';
 import 'package:migrated/services/storage_scanner_service.dart';
+import 'package:migrated/services/rag_service.dart';
+import 'package:migrated/depeninject/injection.dart';
 
 part 'file_event.dart';
 part 'file_state.dart';
@@ -11,6 +13,7 @@ part 'file_state.dart';
 class FileBloc extends Bloc<FileEvent, FileState> {
   final FileRepository fileRepository;
   final StorageScannerService storageScannerService;
+  final RagService _ragService = getIt<RagService>();
 
   FileBloc({
     required this.fileRepository,
@@ -86,12 +89,25 @@ class FileBloc extends Bloc<FileEvent, FileState> {
 
       final isFileAlreadyLoaded =
           currentFiles.any((existingFile) => existingFile.filePath == filePath);
-      if (isFileAlreadyLoaded) {
-        emit(FileLoaded(currentFiles));
-      } else {
+
+      if (!isFileAlreadyLoaded) {
+        // Only upload PDF files
+        if (FileParser.determineFileType(filePath) == "pdf") {
+          try {
+            print('Uploading new PDF to backend: $filePath');
+            await _ragService.uploadPdf(file);
+            print('Successfully uploaded PDF to backend');
+          } catch (e) {
+            print('Error uploading PDF to backend: $e');
+            // Continue even if upload fails - don't block the user
+          }
+        }
+
         final newFiles = [...currentFiles, FileInfo(filePath, fileSize)];
         emit(FileLoaded(newFiles));
         await fileRepository.saveFiles(newFiles);
+      } else {
+        emit(FileLoaded(currentFiles));
       }
     } catch (e) {
       emit(FileError(message: e.toString()));
