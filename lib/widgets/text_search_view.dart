@@ -76,16 +76,22 @@ class _TextSearchViewState extends State<TextSearchView> {
     return Material(
       elevation: 8,
       child: Container(
-        color: Colors.white,
+        color: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.95),
         child: GestureDetector(
           onTap: () => FocusScope.of(context).unfocus(),
           child: Column(
             children: [
               AppBar(
-                backgroundColor: Colors.grey.shade200,
-                title: const Text('Search Results'),
+                backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+                title: Text(
+                  'Search Results',
+                  style: Theme.of(context).appBarTheme.titleTextStyle,
+                ),
                 leading: IconButton(
-                  icon: const Icon(Icons.close),
+                  icon: Icon(
+                    Icons.close,
+                    color: Theme.of(context).appBarTheme.iconTheme?.color,
+                  ),
                   onPressed: () {
                     searchTextController.clear();
                     widget.textSearcher.resetTextSearch();
@@ -97,6 +103,10 @@ class _TextSearchViewState extends State<TextSearchView> {
                   ? LinearProgressIndicator(
                       value: widget.textSearcher.searchProgress,
                       minHeight: 4,
+                      backgroundColor:
+                          Theme.of(context).colorScheme.surfaceVariant,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                          Theme.of(context).colorScheme.primary),
                     )
                   : const SizedBox(height: 4),
               Padding(
@@ -111,21 +121,48 @@ class _TextSearchViewState extends State<TextSearchView> {
                             autofocus: false,
                             focusNode: focusNode,
                             controller: searchTextController,
-                            decoration: const InputDecoration(
+                            style: Theme.of(context).textTheme.bodyMedium,
+                            decoration: InputDecoration(
                               hintText: 'Search in document',
-                              contentPadding: EdgeInsets.only(right: 50),
+                              hintStyle: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    color: Theme.of(context).hintColor,
+                                  ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 12),
+                              filled: true,
+                              fillColor: Theme.of(context)
+                                  .inputDecorationTheme
+                                  .fillColor
+                                  ?.withOpacity(0.7),
+                              border:
+                                  Theme.of(context).inputDecorationTheme.border,
+                              enabledBorder: Theme.of(context)
+                                  .inputDecorationTheme
+                                  .enabledBorder,
+                              focusedBorder: Theme.of(context)
+                                  .inputDecorationTheme
+                                  .focusedBorder,
                             ),
                             textInputAction: TextInputAction.search,
                           ),
                           if (widget.textSearcher.hasMatches)
-                            Align(
-                              alignment: Alignment.centerRight,
+                            Positioned(
+                              right: 12,
                               child: Text(
                                 '${widget.textSearcher.currentIndex! + 1} / ${widget.textSearcher.matches.length}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.color
+                                          ?.withOpacity(0.6),
+                                    ),
                               ),
                             ),
                         ],
@@ -139,7 +176,10 @@ class _TextSearchViewState extends State<TextSearchView> {
                               focusNode.requestFocus();
                             }
                           : null,
-                      icon: const Icon(Icons.close),
+                      icon: Icon(
+                        Icons.close,
+                        color: Theme.of(context).iconTheme.color,
+                      ),
                       iconSize: 20,
                     ),
                   ],
@@ -176,10 +216,10 @@ class _TextSearchViewState extends State<TextSearchView> {
                         padding: const EdgeInsets.only(bottom: 10),
                         child: Text(
                           'Page ${-matchIndex}',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                         ),
                       );
                     }

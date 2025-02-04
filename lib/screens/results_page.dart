@@ -146,7 +146,8 @@ class _ResultPageState extends State<ResultPage> {
                             fileName: "${book.title}.pdf",
                           ));
                         } else {
-                          Utils.showErrorSnackBar(context, 'Failed to get download link');
+                          Utils.showErrorSnackBar(
+                              context, 'Failed to get download link');
                         }
                       },
                       onStar: () {},
@@ -162,13 +163,13 @@ class _ResultPageState extends State<ResultPage> {
           ),
         );
       }
-      return const Center(
+      return Center(
         child: Text(
           "No Results Found!",
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: Colors.grey,
+            color: Theme.of(context).textTheme.bodyLarge?.color ?? Colors.grey,
           ),
         ),
       );
@@ -227,11 +228,20 @@ class DownloadProgressDialog extends StatelessWidget {
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          LinearProgressIndicator(value: progress),
-          SizedBox(height: 10),
-          Text('$percentage%'),
+          LinearProgressIndicator(
+            value: progress,
+            backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+            valueColor: AlwaysStoppedAnimation<Color>(
+                Theme.of(context).colorScheme.primary),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '$percentage%',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
         ],
       ),
+      backgroundColor: Theme.of(context).dialogTheme.backgroundColor,
     );
   }
 }
