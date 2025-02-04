@@ -12,7 +12,7 @@ import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
 import 'package:migrated/screens/nav_screen.dart';
 import 'package:migrated/widgets/text_search_view.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:migrated/services/rag_service.dart';
+import 'package:migrated/services/gemini_service.dart';
 import 'package:get_it/get_it.dart';
 import 'package:migrated/widgets/CompanionChat/floating_chat_widget.dart';
 import 'package:migrated/models/chat_message.dart';
@@ -40,7 +40,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
     with SingleTickerProviderStateMixin {
   final _controller = PdfViewerController();
   late final _textSearcher = PdfTextSearcher(_controller)..addListener(_update);
-  late final _ragService = GetIt.I<RagService>();
+  late final _geminiService = GetIt.I<GeminiService>();
   late final _characterService = GetIt.I<AiCharacterService>();
   late final TabController _tabController;
   final GlobalKey<FloatingChatWidgetState> _floatingChatKey = GlobalKey();
@@ -410,7 +410,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
     }
   }
 
-  void _handleChatMessage(String? message, {String? selectedText}) async {
+  Future<void> _handleChatMessage(String? message,
+      {String? selectedText}) async {
     final state = context.read<ReaderBloc>().state;
     if (state is! ReaderLoaded) {
       return;
@@ -421,18 +422,13 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
     final totalPages = state.totalPages;
 
     try {
-      final response = await _ragService.query(
-        bookId: state.file.path,
-        selectedText: selectedText ?? '',
+      final response = await _geminiService.askAboutText(
+        selectedText ?? '',
+        customPrompt: message,
         bookTitle: bookTitle,
         currentPage: currentPage,
         totalPages: totalPages,
-        aiName:
-            _characterService.getSelectedCharacter()?.name ?? 'AI Assistant',
-        aiPersonality: _characterService.getSelectedCharacter()?.personality ??
-            'A helpful AI assistant',
-        userQuery: message ??
-            'Can you explain what the text is about? After that share your thoughts in a single open ended question in the same paragraph, make the question short and concise.',
+        task: message == null ? 'encouragement' : 'analyze_text',
       );
 
       if (!mounted) return;

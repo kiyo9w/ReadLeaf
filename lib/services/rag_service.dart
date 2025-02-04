@@ -7,14 +7,16 @@ import 'package:migrated/services/chat_service.dart';
 import 'package:migrated/services/ai_character_service.dart';
 import 'package:migrated/depeninject/injection.dart';
 
+// NOTE: This service is currently not in use. The functionality has been migrated to GeminiService.
+// Keeping this code for reference in case we need to reimplement RAG with a backend service.
 class RagService {
   static final RagService _instance = RagService._internal();
-  final ChatService _chatService = getIt<ChatService>();
-  final AiCharacterService _characterService = getIt<AiCharacterService>();
-  static const int _maxConversationHistory = 5;
+  // final ChatService _chatService = getIt<ChatService>();
+  // final AiCharacterService _characterService = getIt<AiCharacterService>();
+  // static const int _maxConversationHistory = 5;
 
   // Backend URL, injected via dependency injection (e.g., "http://localhost:8000")
-  final String _backendUrl = getIt<String>(instanceName: 'backendUrl');
+  // final String _backendUrl = getIt<String>(instanceName: 'backendUrl');
 
   RagService._internal();
   factory RagService() => _instance;
@@ -22,6 +24,9 @@ class RagService {
   /// Uploads a PDF file to the backend /upload-pdf endpoint.
   /// Returns a message indicating success or throws an exception on failure.
   Future<String> uploadPdf(File file) async {
+    throw UnimplementedError(
+        'RAG service is currently disabled. Using GeminiService instead.');
+    /*
     try {
       final url = Uri.parse(_backendUrl).resolve('/upload-pdf');
       print('Uploading PDF to backend: ${file.path}');
@@ -47,10 +52,14 @@ class RagService {
       print('Error uploading PDF: $e');
       throw Exception('Failed to upload PDF: $e');
     }
+    */
   }
 
   /// Builds conversation context from the latest chat messages for the given book.
   Future<String> buildConversationContext(String bookId) async {
+    throw UnimplementedError(
+        'RAG service is currently disabled. Using GeminiService instead.');
+    /*
     try {
       final characterName =
           _characterService.getSelectedCharacter()?.name ?? 'Default';
@@ -70,6 +79,7 @@ class RagService {
       print('Error building conversation context: $e');
       return '';
     }
+    */
   }
 
   /// Builds a complete prompt context by merging conversation history,
@@ -82,6 +92,9 @@ class RagService {
     required int totalPages,
     String? customPrompt,
   }) async {
+    throw UnimplementedError(
+        'RAG service is currently disabled. Using GeminiService instead.');
+    /*
     final conversationContext = await buildConversationContext(bookId);
     final buffer = StringBuffer();
 
@@ -100,6 +113,7 @@ class RagService {
       buffer.writeln(customPrompt);
     }
     return buffer.toString().trim();
+    */
   }
 
   /// Calls the backend /query endpoint.
@@ -115,6 +129,9 @@ class RagService {
     required String aiPersonality,
     required String userQuery,
   }) async {
+    throw UnimplementedError(
+        'RAG service is currently disabled. Using GeminiService instead.');
+    /*
     // Construct payload with the expected flat structure.
     final Map<String, dynamic> payload = {
       "user_query": userQuery,
@@ -142,5 +159,6 @@ class RagService {
     } else {
       throw Exception("Error querying backend: ${response.body}");
     }
+    */
   }
 }

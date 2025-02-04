@@ -5,6 +5,8 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:migrated/services/ai_character_service.dart';
 import 'package:migrated/depeninject/injection.dart';
+import 'package:migrated/services/chat_service.dart';
+import 'package:migrated/models/chat_message.dart';
 
 class ConversationEntry {
   final String userInput;
@@ -16,6 +18,7 @@ class GeminiService {
   static final GeminiService _instance = GeminiService._internal();
   late final GenerativeModel _model;
   AiCharacterService? _characterService;
+  ChatService? _chatService;
   bool _isInitialized = false;
   static const int maxConversations = 5;
 
@@ -33,6 +36,11 @@ class GeminiService {
   AiCharacterService get characterService {
     _characterService ??= getIt<AiCharacterService>();
     return _characterService!;
+  }
+
+  ChatService get chatService {
+    _chatService ??= getIt<ChatService>();
+    return _chatService!;
   }
 
   Future<void> initialize() async {
@@ -59,6 +67,61 @@ class GeminiService {
     } catch (e) {
       log('Error initializing Gemini service: $e');
     }
+  }
+
+  /// Builds conversation context from the latest chat messages for the given book.
+  Future<String> buildConversationContext(String bookId) async {
+    try {
+      final characterName =
+          characterService.getSelectedCharacter()?.name ?? 'Default';
+      final List<ChatMessage> messages =
+          await chatService.getBookMessages(characterName, bookId);
+      if (messages.isEmpty) return '';
+
+      final recentMessages = messages.length <= maxConversations
+          ? messages
+          : messages.sublist(messages.length - maxConversations);
+
+      final conversationContext = recentMessages.map((msg) {
+        final role = msg.isUser ? 'User' : 'Assistant';
+        return '$role: ${msg.text}';
+      }).join('\n');
+
+      return 'Previous conversation context:\n$conversationContext';
+    } catch (e) {
+      log('Error building conversation context: $e');
+      return '';
+    }
+  }
+
+  /// Builds a complete prompt context by merging conversation history,
+  /// any selected text, and the user's query (custom prompt).
+  Future<String> buildPromptContext({
+    required String bookId,
+    String? selectedText,
+    required String bookTitle,
+    required int currentPage,
+    required int totalPages,
+    String? customPrompt,
+  }) async {
+    final conversationContext = await buildConversationContext(bookId);
+    final buffer = StringBuffer();
+
+    if (conversationContext.isNotEmpty) {
+      buffer.writeln(conversationContext);
+      buffer.writeln();
+    }
+    if (selectedText != null && selectedText.isNotEmpty) {
+      buffer.writeln(
+          'Current text selection from "$bookTitle" (page $currentPage of $totalPages):');
+      buffer.writeln(selectedText);
+      buffer.writeln();
+    }
+    if (customPrompt != null && customPrompt.isNotEmpty) {
+      buffer.writeln('User question:');
+      buffer.writeln(customPrompt);
+    }
+    return buffer.toString().trim();
   }
 
   String _buildConversationContext(String bookId) {
@@ -184,6 +247,30 @@ $conversationContext""";
           // Store the conversation
           _addToConversationHistory(
               bookTitle, customPrompt ?? selectedText, response.text!);
+
+          // Also store in chat service for persistence
+          final characterName =
+              characterService.getSelectedCharacter()?.name ?? 'AI Assistant';
+
+          // Add user message
+          await chatService.addMessage(ChatMessage(
+            text: customPrompt ?? selectedText,
+            isUser: true,
+            timestamp: DateTime.now(),
+            characterName: characterName,
+            bookId: bookTitle,
+          ));
+
+          // Add AI response
+          await chatService.addMessage(ChatMessage(
+            text: response.text!,
+            isUser: false,
+            timestamp: DateTime.now(),
+            characterName: characterName,
+            bookId: bookTitle,
+            avatarImagePath: characterService.getSelectedCharacter()?.imagePath,
+          ));
+
           return response.text!;
         }
 

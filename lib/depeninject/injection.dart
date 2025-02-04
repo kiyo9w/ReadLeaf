@@ -42,6 +42,11 @@ Future<void> configureDependencies() async {
   await chatService.init();
   getIt.registerSingleton<ChatService>(chatService);
 
+  // Initialize GeminiService
+  final geminiService = GeminiService();
+  await geminiService.initialize();
+  getIt.registerSingleton<GeminiService>(geminiService);
+
   // Register backend URL from environment variables
   final backendUrl = dotenv.env['BACKEND_URL'] ?? 'http://localhost:8000';
   getIt.registerSingleton<String>(backendUrl, instanceName: 'backendUrl');
