@@ -176,15 +176,24 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
 
   @override
   void dispose() {
+    // Cancel any pending operations first
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _textSearcher.resetTextSearch();
+    });
+
+    // Then dispose resources
     _tabController.dispose();
     _textSearcher.removeListener(_update);
     _textSearcher.dispose();
     _controller.removeListener(_onControllerReady);
     outline.dispose();
     documentRef.dispose();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NavScreen.globalKey.currentState?.setNavBarVisibility(false);
     });
+
     super.dispose();
   }
 
@@ -239,15 +248,31 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   }
 
   void _closeSearchPanel() {
-    setState(() {
-      _showSearchPanel = false;
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _showSearchPanel = false;
+      });
       _textSearcher.resetTextSearch();
     });
   }
 
   void _toggleSearchPanel() {
-    setState(() {
-      _showSearchPanel = !_showSearchPanel;
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // Close side nav if it's open
+      if (context.read<ReaderBloc>().state is ReaderLoaded) {
+        final state = context.read<ReaderBloc>().state as ReaderLoaded;
+        if (state.showSideNav) {
+          context.read<ReaderBloc>().add(ToggleSideNav());
+        }
+      }
+
+      setState(() {
+        _showSearchPanel = !_showSearchPanel;
+      });
       if (!_showSearchPanel) {
         _textSearcher.resetTextSearch();
       }
@@ -255,10 +280,40 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   }
 
   void _closeSideNav(BuildContext context) {
+    if (!mounted) return;
     final readerBloc = context.read<ReaderBloc>();
     final state = readerBloc.state;
     if (state is ReaderLoaded && state.showSideNav) {
-      readerBloc.add(ToggleSideNav());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        // Close search panel if it's open
+        if (_showSearchPanel) {
+          setState(() {
+            _showSearchPanel = false;
+          });
+          _textSearcher.resetTextSearch();
+        }
+        readerBloc.add(ToggleSideNav());
+      });
+    }
+  }
+
+  void _toggleSideNav() {
+    if (!mounted) return;
+    final readerBloc = context.read<ReaderBloc>();
+    final state = readerBloc.state;
+    if (state is ReaderLoaded) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        // If search panel is open, close it first
+        if (_showSearchPanel) {
+          setState(() {
+            _showSearchPanel = false;
+          });
+          _textSearcher.resetTextSearch();
+        }
+        readerBloc.add(ToggleSideNav());
+      });
     }
   }
 
@@ -277,7 +332,10 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
 
   void _handleTap() {
     context.read<ReaderBloc>().add(ToggleUIVisibility());
-    if (_showSearchPanel) _closeSearchPanel();
+    if (_showSearchPanel) {
+      _closeSearchPanel();
+      _textSearcher.resetTextSearch();
+    }
     if (context.read<ReaderBloc>().state is ReaderLoaded) {
       final state = context.read<ReaderBloc>().state as ReaderLoaded;
       if (state.showSideNav) _closeSideNav(context);
@@ -1055,9 +1113,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                   : const Color(0xFF1C1C1E),
                               size: ResponsiveConstants.getIconSize(context),
                             ),
-                            onPressed: () {
-                              context.read<ReaderBloc>().add(ToggleSideNav());
-                            },
+                            onPressed: () => _toggleSideNav(),
                             padding: EdgeInsets.all(
                                 ResponsiveConstants.isTablet(context) ? 12 : 8),
                           ),
