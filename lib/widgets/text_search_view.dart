@@ -39,6 +39,9 @@ class _TextSearchViewState extends State<TextSearchView> {
       if (!mounted) return;
       searchTextController.clear();
       widget.textSearcher.resetTextSearch();
+      _matchIndexToListIndex.clear();
+      _listIndexToMatchIndex.clear();
+      setState(() {});
     });
   }
 
@@ -54,6 +57,8 @@ class _TextSearchViewState extends State<TextSearchView> {
     searchTextController.removeListener(_searchTextUpdated);
     searchTextController.dispose();
     focusNode.dispose();
+    _matchIndexToListIndex.clear();
+    _listIndexToMatchIndex.clear();
     super.dispose();
   }
 
@@ -62,6 +67,8 @@ class _TextSearchViewState extends State<TextSearchView> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       widget.textSearcher.resetTextSearch();
+      _matchIndexToListIndex.clear();
+      _listIndexToMatchIndex.clear();
     });
     super.deactivate();
   }
@@ -284,8 +291,12 @@ class _TextSearchViewState extends State<TextSearchView> {
                           padding: EdgeInsets.zero,
                           key: Key(searchTextController.text),
                           controller: scrollController,
-                          itemCount: _listIndexToMatchIndex.length,
+                          itemCount: _listIndexToMatchIndex.isEmpty
+                              ? 0
+                              : _listIndexToMatchIndex.length,
                           itemBuilder: (context, index) {
+                            if (_listIndexToMatchIndex.isEmpty) return null;
+
                             final matchIndex = _listIndexToMatchIndex[index];
                             if (matchIndex >= 0 &&
                                 matchIndex < _effectiveMatchCount) {

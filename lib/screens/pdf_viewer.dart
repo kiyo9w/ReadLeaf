@@ -55,6 +55,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   List<PdfTextRanges>? _textSelections;
   final outline = ValueNotifier<List<PdfOutlineNode>?>(null);
   final documentRef = ValueNotifier<PdfDocumentRef?>(null);
+  Key _searchViewKey = UniqueKey();
 
   String get _currentTitle {
     switch (_tabController.index) {
@@ -256,7 +257,9 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
       }
 
       _showSearchPanel = !_showSearchPanel;
-      if (!_showSearchPanel) {
+      if (_showSearchPanel) {
+        _searchViewKey = UniqueKey();
+      } else {
         _textSearcher.resetTextSearch();
       }
     });
@@ -1711,10 +1714,13 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                         : -ResponsiveConstants.getSideNavWidth(context),
                     child: SizedBox(
                       width: ResponsiveConstants.getSideNavWidth(context),
-                      child: TextSearchView(
-                        textSearcher: _textSearcher,
-                        onClose: _closeSearchPanel,
-                      ),
+                      child: _showSearchPanel
+                          ? TextSearchView(
+                              key: _searchViewKey,
+                              textSearcher: _textSearcher,
+                              onClose: _closeSearchPanel,
+                            )
+                          : const SizedBox(),
                     ),
                   ),
 
