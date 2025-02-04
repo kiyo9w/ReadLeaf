@@ -424,7 +424,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
     try {
       final response = await _geminiService.askAboutText(
         selectedText ?? '',
-        customPrompt: message,
+        customPrompt: message ?? 'Can you explain what the text is about? After that share your thoughts in a single open ended question in the same paragraph, make the question short and concise.',
         bookTitle: bookTitle,
         currentPage: currentPage,
         totalPages: totalPages,
