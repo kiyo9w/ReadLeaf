@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:synchronized/extension.dart';
+import 'package:migrated/constants/responsive_constants.dart';
 
 class TextSearchView extends StatefulWidget {
   const TextSearchView({
@@ -22,16 +23,32 @@ class _TextSearchViewState extends State<TextSearchView> {
   late final pageTextStore =
       PdfPageTextCache(textSearcher: widget.textSearcher);
   final scrollController = ScrollController();
+  static const int initialResultLimit = 500;
+  bool _showAllResults = false;
 
   @override
   void initState() {
+    super.initState();
     widget.textSearcher.addListener(_searchResultUpdated);
     searchTextController.addListener(_searchTextUpdated);
-    super.initState();
+  }
+
+  void _clearSearch() {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      searchTextController.clear();
+      widget.textSearcher.resetTextSearch();
+    });
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      widget.textSearcher.resetTextSearch();
+    });
+
     scrollController.dispose();
     widget.textSearcher.removeListener(_searchResultUpdated);
     searchTextController.removeListener(_searchTextUpdated);
@@ -40,63 +57,114 @@ class _TextSearchViewState extends State<TextSearchView> {
     super.dispose();
   }
 
+  @override
+  void deactivate() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      widget.textSearcher.resetTextSearch();
+    });
+    super.deactivate();
+  }
+
   void _searchTextUpdated() {
-    widget.textSearcher.startTextSearch(searchTextController.text);
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _showAllResults = false;
+      widget.textSearcher.startTextSearch(searchTextController.text);
+    });
   }
 
   int? _currentSearchSession;
   final _matchIndexToListIndex = <int>[];
   final _listIndexToMatchIndex = <int>[];
 
-  void _searchResultUpdated() {
-    if (_currentSearchSession != widget.textSearcher.searchSession) {
-      _currentSearchSession = widget.textSearcher.searchSession;
-      _matchIndexToListIndex.clear();
-      _listIndexToMatchIndex.clear();
-    }
-    for (int i = _matchIndexToListIndex.length;
-        i < widget.textSearcher.matches.length;
-        i++) {
-      if (i == 0 ||
-          widget.textSearcher.matches[i - 1].pageNumber !=
-              widget.textSearcher.matches[i].pageNumber) {
-        _listIndexToMatchIndex.add(-widget.textSearcher.matches[i].pageNumber);
-      }
-      _matchIndexToListIndex.add(_listIndexToMatchIndex.length);
-      _listIndexToMatchIndex.add(i);
-    }
-
-    if (mounted) setState(() {});
+  int get _effectiveMatchCount {
+    final totalMatches = widget.textSearcher.matches.length;
+    return _showAllResults
+        ? totalMatches
+        : totalMatches.clamp(0, initialResultLimit);
   }
 
-  static const double itemHeight = 50;
+  void _searchResultUpdated() {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_currentSearchSession != widget.textSearcher.searchSession) {
+        _currentSearchSession = widget.textSearcher.searchSession;
+        _matchIndexToListIndex.clear();
+        _listIndexToMatchIndex.clear();
+        _showAllResults = false;
+      }
+
+      final effectiveCount = _effectiveMatchCount;
+      for (int i = _matchIndexToListIndex.length; i < effectiveCount; i++) {
+        if (i == 0 ||
+            widget.textSearcher.matches[i - 1].pageNumber !=
+                widget.textSearcher.matches[i].pageNumber) {
+          _listIndexToMatchIndex
+              .add(-widget.textSearcher.matches[i].pageNumber);
+        }
+        _matchIndexToListIndex.add(_listIndexToMatchIndex.length);
+        _listIndexToMatchIndex.add(i);
+      }
+
+      setState(() {});
+    });
+  }
+
+  static const double itemHeight = 80;
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Material(
       elevation: 8,
       child: Container(
-        color: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.95),
-        child: GestureDetector(
-          onTap: () => FocusScope.of(context).unfocus(),
+        color: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF251B2F).withOpacity(0.98)
+            : const Color(0xFFFAF9F7).withOpacity(0.98),
+        child: SafeArea(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              AppBar(
-                backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
-                title: Text(
-                  'Search Results',
-                  style: Theme.of(context).appBarTheme.titleTextStyle,
+              Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: ResponsiveConstants.isTablet(context) ? 24 : 16,
+                  vertical: ResponsiveConstants.isTablet(context) ? 16 : 12,
                 ),
-                leading: IconButton(
-                  icon: Icon(
-                    Icons.close,
-                    color: Theme.of(context).appBarTheme.iconTheme?.color,
-                  ),
-                  onPressed: () {
-                    searchTextController.clear();
-                    widget.textSearcher.resetTextSearch();
-                    widget.onClose();
-                  },
+                child: Row(
+                  children: [
+                    Text(
+                      'Search Results',
+                      style: TextStyle(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xFFF2F2F7)
+                            : const Color(0xFF1C1C1E),
+                        fontSize: ResponsiveConstants.getTitleFontSize(context),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: BoxConstraints(
+                        minWidth: ResponsiveConstants.getIconSize(context),
+                        minHeight: ResponsiveConstants.getIconSize(context),
+                      ),
+                      icon: Icon(
+                        Icons.close,
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xFF8E8E93)
+                            : const Color(0xFF6E6E73),
+                        size: ResponsiveConstants.getIconSize(context),
+                      ),
+                      onPressed: () {
+                        _clearSearch();
+                        widget.onClose();
+                      },
+                    ),
+                  ],
                 ),
               ),
               widget.textSearcher.isSearching
@@ -104,126 +172,186 @@ class _TextSearchViewState extends State<TextSearchView> {
                       value: widget.textSearcher.searchProgress,
                       minHeight: 4,
                       backgroundColor:
-                          Theme.of(context).colorScheme.surfaceVariant,
+                          Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF352A3B)
+                              : Colors.grey[200],
                       valueColor: AlwaysStoppedAnimation<Color>(
-                          Theme.of(context).colorScheme.primary),
+                          Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFFAA96B6)
+                              : const Color(0xFF9E7B80)),
                     )
                   : const SizedBox(height: 4),
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Stack(
-                        alignment: Alignment.centerLeft,
-                        children: [
-                          TextField(
-                            autofocus: false,
-                            focusNode: focusNode,
-                            controller: searchTextController,
-                            style: Theme.of(context).textTheme.bodyMedium,
-                            decoration: InputDecoration(
-                              hintText: 'Search in document',
-                              hintStyle: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(
-                                    color: Theme.of(context).hintColor,
-                                  ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 12),
-                              filled: true,
-                              fillColor: Theme.of(context)
-                                  .inputDecorationTheme
-                                  .fillColor
-                                  ?.withOpacity(0.7),
-                              border:
-                                  Theme.of(context).inputDecorationTheme.border,
-                              enabledBorder: Theme.of(context)
-                                  .inputDecorationTheme
-                                  .enabledBorder,
-                              focusedBorder: Theme.of(context)
-                                  .inputDecorationTheme
-                                  .focusedBorder,
-                            ),
-                            textInputAction: TextInputAction.search,
-                          ),
-                          if (widget.textSearcher.hasMatches)
-                            Positioned(
-                              right: 12,
-                              child: Text(
-                                '${widget.textSearcher.currentIndex! + 1} / ${widget.textSearcher.matches.length}',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(
-                                      color: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.color
-                                          ?.withOpacity(0.6),
-                                    ),
-                              ),
-                            ),
-                        ],
+              Container(
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF2C2C2E)
+                          : const Color(0xFFF8F1F1),
+                    ),
+                  ),
+                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: TextField(
+                  autofocus: false,
+                  focusNode: focusNode,
+                  controller: searchTextController,
+                  style: TextStyle(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFFF2F2F7)
+                        : const Color(0xFF1C1C1E),
+                    fontSize: 14,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Search in document',
+                    hintStyle: TextStyle(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF8E8E93)
+                          : const Color(0xFF6E6E73),
+                      fontSize: 14,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                    filled: true,
+                    fillColor: Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF352A3B)
+                        : const Color(0xFFF8F1F1),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xFFAA96B6)
+                            : const Color(0xFF9E7B80),
+                        width: 1,
                       ),
                     ),
-                    IconButton(
-                      onPressed: searchTextController.text.isNotEmpty
-                          ? () {
+                    suffixIcon: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (widget.textSearcher.hasMatches)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Text(
+                              '${widget.textSearcher.currentIndex! + 1} / ${widget.textSearcher.matches.length}',
+                              style: TextStyle(
+                                color: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? const Color(0xFF8E8E93)
+                                    : const Color(0xFF6E6E73),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        if (searchTextController.text.isNotEmpty)
+                          IconButton(
+                            icon: Icon(
+                              Icons.close,
+                              color: Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? const Color(0xFF8E8E93)
+                                  : const Color(0xFF6E6E73),
+                              size: 20,
+                            ),
+                            onPressed: () {
                               searchTextController.clear();
                               widget.textSearcher.resetTextSearch();
                               focusNode.requestFocus();
-                            }
-                          : null,
-                      icon: Icon(
-                        Icons.close,
-                        color: Theme.of(context).iconTheme.color,
-                      ),
-                      iconSize: 20,
+                            },
+                          ),
+                      ],
                     ),
-                  ],
+                  ),
+                  textInputAction: TextInputAction.search,
                 ),
               ),
-              const SizedBox(height: 4),
               Expanded(
-                child: ListView.builder(
-                  key: Key(searchTextController.text),
-                  controller: scrollController,
-                  itemCount: _listIndexToMatchIndex.length,
-                  itemBuilder: (context, index) {
-                    final matchIndex = _listIndexToMatchIndex[index];
-                    if (matchIndex >= 0 &&
-                        matchIndex < widget.textSearcher.matches.length) {
-                      final match = widget.textSearcher.matches[matchIndex];
-                      return SearchResultTile(
-                        key: ValueKey(index),
-                        match: match,
-                        onTap: () async {
-                          await widget.textSearcher
-                              .goToMatchOfIndex(matchIndex);
-                          if (mounted) setState(() {});
-                        },
-                        pageTextStore: pageTextStore,
-                        height: itemHeight,
-                        isCurrent:
-                            matchIndex == widget.textSearcher.currentIndex,
-                      );
-                    } else {
-                      return Container(
-                        height: itemHeight,
-                        alignment: Alignment.bottomLeft,
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Text(
-                          'Page ${-matchIndex}',
-                          style:
-                              Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
+                child: Container(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFF352A3B).withOpacity(0.5)
+                      : const Color(0xFFF8F1F1).withOpacity(0.5),
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: ListView.builder(
+                          padding: EdgeInsets.zero,
+                          key: Key(searchTextController.text),
+                          controller: scrollController,
+                          itemCount: _listIndexToMatchIndex.length,
+                          itemBuilder: (context, index) {
+                            final matchIndex = _listIndexToMatchIndex[index];
+                            if (matchIndex >= 0 &&
+                                matchIndex < _effectiveMatchCount) {
+                              final match =
+                                  widget.textSearcher.matches[matchIndex];
+                              return SearchResultTile(
+                                key: ValueKey(index),
+                                match: match,
+                                onTap: () async {
+                                  await widget.textSearcher
+                                      .goToMatchOfIndex(matchIndex);
+                                  if (mounted) setState(() {});
+                                },
+                                pageTextStore: pageTextStore,
+                                height: itemHeight,
+                                isCurrent: matchIndex ==
+                                    widget.textSearcher.currentIndex,
+                                isDark: isDark,
+                              );
+                            } else if (matchIndex < 0) {
+                              return Container(
+                                height: itemHeight,
+                                alignment: Alignment.centerLeft,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 12),
+                                child: Text(
+                                  'Page ${-matchIndex}',
+                                  style: TextStyle(
+                                    color: isDark ? Colors.white : Colors.black,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
                                   ),
+                                ),
+                              );
+                            }
+                            return null;
+                          },
                         ),
-                      );
-                    }
-                  },
+                      ),
+                      if (!_showAllResults &&
+                          widget.textSearcher.matches.length >
+                              initialResultLimit)
+                        Container(
+                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          child: TextButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _showAllResults = true;
+                                _searchResultUpdated();
+                              });
+                            },
+                            icon: Icon(
+                              Icons.expand_more,
+                              color: isDark ? Colors.white70 : Colors.black54,
+                            ),
+                            label: Text(
+                              'Show More (${widget.textSearcher.matches.length - initialResultLimit} more results)',
+                              style: TextStyle(
+                                color: isDark ? Colors.white70 : Colors.black54,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -242,6 +370,7 @@ class SearchResultTile extends StatefulWidget {
     required this.pageTextStore,
     required this.height,
     required this.isCurrent,
+    required this.isDark,
   });
 
   final PdfTextRangeWithFragments match;
@@ -249,6 +378,7 @@ class SearchResultTile extends StatefulWidget {
   final PdfPageTextCache pageTextStore;
   final double height;
   final bool isCurrent;
+  final bool isDark;
 
   @override
   State<SearchResultTile> createState() => _SearchResultTileState();
@@ -285,26 +415,35 @@ class _SearchResultTileState extends State<SearchResultTile> {
 
   @override
   Widget build(BuildContext context) {
-    final text = Text.rich(createTextSpanForMatch(pageText, widget.match));
+    final text = Text.rich(
+      createTextSpanForMatch(pageText, widget.match),
+      maxLines: 3,
+      overflow: TextOverflow.ellipsis,
+    );
 
     return SizedBox(
       height: widget.height,
       child: Material(
         color: widget.isCurrent
-            ? Theme.of(context).colorScheme.secondary.withOpacity(0.1)
-            : null,
+            ? (Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF352A3B)
+                : const Color(0xFFF8F1F1))
+            : Colors.transparent,
         child: InkWell(
           onTap: () => widget.onTap(),
           child: Container(
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
-                  color: Colors.black12,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFF2C2C2E)
+                      : const Color(0xFFF8F1F1),
                   width: 0.5,
                 ),
               ),
             ),
-            padding: const EdgeInsets.all(3),
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: text,
           ),
         ),
@@ -315,8 +454,10 @@ class _SearchResultTileState extends State<SearchResultTile> {
   TextSpan createTextSpanForMatch(
       PdfPageText? pageText, PdfTextRangeWithFragments match,
       {TextStyle? style}) {
-    style ??= const TextStyle(
+    style ??= TextStyle(
       fontSize: 14,
+      color: widget.isDark ? Colors.white : Colors.black,
+      height: 1.2,
     );
     if (pageText == null) {
       return TextSpan(
@@ -350,16 +491,29 @@ class _SearchResultTileState extends State<SearchResultTile> {
 
     return TextSpan(
       children: [
-        TextSpan(text: header),
         TextSpan(
-          text: body,
-          style: const TextStyle(
-            backgroundColor: Colors.yellow,
+          text: header,
+          style: style.copyWith(
+            color: widget.isDark ? Colors.white70 : Colors.black54,
           ),
         ),
-        TextSpan(text: footer),
+        TextSpan(
+          text: body,
+          style: style.copyWith(
+            backgroundColor: widget.isDark
+                ? const Color(0xFF9C27B0).withOpacity(0.3)
+                : Colors.yellow.withOpacity(0.3),
+            color: widget.isDark ? Colors.white : Colors.black,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        TextSpan(
+          text: footer,
+          style: style.copyWith(
+            color: widget.isDark ? Colors.white70 : Colors.black54,
+          ),
+        ),
       ],
-      style: style,
     );
   }
 }
