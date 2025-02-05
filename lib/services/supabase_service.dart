@@ -41,6 +41,8 @@ class SupabaseService {
           'id': response.user!.id,
           'email': email,
           'username': username,
+          'avatar_url': null,
+          'social_provider': null,
         });
 
         return app_models.User(
@@ -109,10 +111,29 @@ class SupabaseService {
           .eq('user_id', userId)
           .single();
 
+      // Get social provider avatar if available
+      String? avatarUrl = profile['avatar_url'];
+      final socialProvider = profile['social_provider'];
+
+      if (avatarUrl == null && _client.auth.currentUser?.userMetadata != null) {
+        final metadata = _client.auth.currentUser!.userMetadata!;
+        avatarUrl = metadata['avatar_url']?.toString() ?? metadata['picture']?.toString();
+
+        // Update the profile with the social avatar if found
+        if (avatarUrl != null) {
+          await _client.from(_userProfilesTable).update({
+            'avatar_url': avatarUrl,
+            'social_provider': socialProvider ?? _getSocialProvider(),
+          }).eq('id', userId);
+        }
+      }
+
       return app_models.User(
         id: profile['id'],
         email: profile['email'],
         username: profile['username'],
+        avatarUrl: avatarUrl,
+        socialProvider: profile['social_provider'],
         preferences: UserPreferences.fromJson(preferences),
         library: UserLibrary.fromJson(library),
         aiSettings: UserAISettings.fromJson(aiSettings),
@@ -120,6 +141,12 @@ class SupabaseService {
     } catch (e) {
       rethrow;
     }
+  }
+
+  String? _getSocialProvider() {
+    final provider = _client.auth.currentUser?.appMetadata['provider'];
+    if (provider == null) return null;
+    return provider.toString();
   }
 
   // Update methods
@@ -151,6 +178,20 @@ class SupabaseService {
       'user_id': userId,
       ...settings.toJson(),
     });
+  }
+
+  Future<void> updateProfile({
+    required String userId,
+    String? username,
+    String? avatarUrl,
+  }) async {
+    final updates = <String, dynamic>{};
+    if (username != null) updates['username'] = username;
+    if (avatarUrl != null) updates['avatar_url'] = avatarUrl;
+
+    if (updates.isNotEmpty) {
+      await _client.from(_userProfilesTable).update(updates).eq('id', userId);
+    }
   }
 
   // Sync methods

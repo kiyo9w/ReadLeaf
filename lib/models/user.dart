@@ -14,6 +14,7 @@ class User with _$User {
     required String email,
     required String username,
     String? avatarUrl,
+    String? socialProvider,
     @Default(UserPreferences()) UserPreferences preferences,
     @Default(UserLibrary()) UserLibrary library,
     @Default(UserAISettings()) UserAISettings aiSettings,
