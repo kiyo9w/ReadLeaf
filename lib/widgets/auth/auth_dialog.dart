@@ -12,17 +12,6 @@ import '../../injection.dart';
 class AuthDialog extends StatefulWidget {
   const AuthDialog({super.key});
 
-  static Future<void> show(BuildContext context) {
-    return showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      enableDrag: true,
-      useSafeArea: true,
-      builder: (context) => const AuthDialog(),
-    );
-  }
-
   @override
   State<AuthDialog> createState() => _AuthDialogState();
 }
@@ -183,185 +172,240 @@ class _AuthDialogState extends State<AuthDialog>
     final mediaQuery = MediaQuery.of(context);
     final bottomPadding = mediaQuery.viewInsets.bottom;
 
-    return DraggableScrollableSheet(
-      initialChildSize: 0.95,
-      minChildSize: 0.95,
-      maxChildSize: 1,
-      builder: (context, scrollController) => Material(
-        color: Colors.transparent,
-        child: BlocListener<AuthBloc, AuthState>(
-          listener: (context, state) {
-            if (state is AuthFailure) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(state.message),
-                  backgroundColor: theme.colorScheme.error,
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: DraggableScrollableSheet(
+        initialChildSize: 0.90,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        snap: true,
+        snapSizes: const [0.7],
+        builder: (context, scrollController) => Material(
+          color: Colors.transparent,
+          child: BlocListener<AuthBloc, AuthState>(
+            listener: (context, state) {
+              if (state is AuthFailure) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(state.message),
+                    backgroundColor: theme.colorScheme.error,
+                  ),
+                );
+              } else if (state is AuthAuthenticated && _isLogin) {
+                Navigator.of(context).pop();
+              }
+            },
+            child: Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(16),
                 ),
-              );
-            } else if (state is AuthAuthenticated && _isLogin) {
-              Navigator.of(context).pop();
-            }
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: theme.brightness == Brightness.dark
-                  ? const Color(0xFF251B2F)
-                  : const Color(0xFFFAF9F7),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16),
               ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Top handle bar
-                Container(
-                  margin: const EdgeInsets.only(top: 8),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: theme.brightness == Brightness.dark
-                        ? const Color(0xFF352A3B)
-                        : const Color(0xFFF8F1F1),
-                    borderRadius: BorderRadius.circular(2),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Top handle bar with gesture detector for better drag control
+                  GestureDetector(
+                    onVerticalDragUpdate: (details) {
+                      if (details.primaryDelta! > 0) {
+                        // Dragging down
+                        if (details.primaryDelta! > 10) {
+                          Navigator.of(context).pop();
+                        }
+                      }
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.only(top: 8),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: theme.brightness == Brightness.dark
+                            ? const Color(0xFF352A3B)
+                            : const Color(0xFFF8F1F1),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
                   ),
-                ),
-                // Header with back button
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        icon: Icon(
-                          Icons.arrow_back,
-                          color: theme.brightness == Brightness.dark
-                              ? const Color(0xFFF2F2F7)
-                              : const Color(0xFF1C1C1E),
+                  // Header with back button
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            Icons.arrow_back,
+                            color: theme.brightness == Brightness.dark
+                                ? const Color(0xFFF2F2F7)
+                                : const Color(0xFF1C1C1E),
+                          ),
+                          onPressed: () => Navigator.pop(context),
                         ),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                      const Spacer(),
-                    ],
+                        const Spacer(),
+                      ],
+                    ),
                   ),
-                ),
-                // Main content
-                Expanded(
-                  child: SingleChildScrollView(
-                    controller: scrollController,
-                    physics: const ClampingScrollPhysics(),
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                        left: 32,
-                        right: 32,
-                        bottom: bottomPadding + 16,
-                      ),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              _isLogin
-                                  ? 'Log in to ReadLeaf'
-                                  : 'Sign up for ReadLeaf',
-                              style: theme.textTheme.headlineMedium?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                color: theme.brightness == Brightness.dark
-                                    ? const Color(0xFFF2F2F7)
-                                    : const Color(0xFF1C1C1E),
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 32),
-                            if (!_isLogin)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 16),
-                                child: _CustomTextField(
-                                  controller: _usernameController,
-                                  labelText: 'Username',
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Please enter a username';
-                                    }
-                                    return null;
-                                  },
+                  // Main content
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: scrollController,
+                      physics: const ClampingScrollPhysics(),
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          left: 32,
+                          right: 32,
+                          bottom: bottomPadding + 16,
+                        ),
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                _isLogin
+                                    ? 'Log in to ReadLeaf'
+                                    : 'Sign up for ReadLeaf',
+                                style: theme.textTheme.headlineMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: theme.brightness == Brightness.dark
+                                      ? const Color(0xFFF2F2F7)
+                                      : const Color(0xFF1C1C1E),
                                 ),
+                                textAlign: TextAlign.center,
                               ),
-                            _CustomTextField(
-                              controller: _emailController,
-                              labelText: 'Email',
-                              keyboardType: TextInputType.emailAddress,
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please enter your email';
-                                }
-                                if (!value.contains('@')) {
-                                  return 'Please enter a valid email';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 16),
-                            _CustomTextField(
-                              controller: _passwordController,
-                              labelText: 'Password',
-                              obscureText: _obscurePassword,
-                              helperText: !_isLogin
-                                  ? '''Your password must have at least:
+                              const SizedBox(height: 32),
+                              if (!_isLogin)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 16),
+                                  child: _CustomTextField(
+                                    controller: _usernameController,
+                                    labelText: 'Username',
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Please enter a username';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                ),
+                              _CustomTextField(
+                                controller: _emailController,
+                                labelText: 'Email',
+                                keyboardType: TextInputType.emailAddress,
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Please enter your email';
+                                  }
+                                  if (!value.contains('@')) {
+                                    return 'Please enter a valid email';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 16),
+                              _CustomTextField(
+                                controller: _passwordController,
+                                labelText: 'Password',
+                                obscureText: _obscurePassword,
+                                helperText: !_isLogin
+                                    ? '''Your password must have at least:
 • 8 characters (20 max)
 • 1 letter and 1 number
 • 1 special character (Example: # ? ! \$ & @)'''
-                                  : null,
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _obscurePassword
-                                      ? Icons.visibility_off_outlined
-                                      : Icons.visibility_outlined,
+                                    : null,
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscurePassword
+                                        ? Icons.visibility_off_outlined
+                                        : Icons.visibility_outlined,
+                                  ),
+                                  onPressed: _togglePasswordVisibility,
                                 ),
-                                onPressed: _togglePasswordVisibility,
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Please enter your password';
+                                  }
+                                  if (!_isLogin && value.length < 6) {
+                                    return 'Password must be at least 6 characters';
+                                  }
+                                  return null;
+                                },
                               ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please enter your password';
-                                }
-                                if (!_isLogin && value.length < 6) {
-                                  return 'Password must be at least 6 characters';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 24),
-                            _SigninButton(
-                              text: 'Continue',
-                              onPressed: _submit,
-                              isLoading: _isLoading,
-                            ),
-                            if (_isLogin) ...[
-                              const SizedBox(height: 16),
-                              TextButton(
-                                onPressed: _resetPassword,
-                                child: Text(
-                                  'Forgot password?',
-                                  style: TextStyle(
-                                    color:
-                                        Theme.of(context).colorScheme.primary,
-                                    fontWeight: FontWeight.w600,
+                              const SizedBox(height: 24),
+                              _SigninButton(
+                                text: 'Continue',
+                                onPressed: _submit,
+                                isLoading: _isLoading,
+                              ),
+                              if (_isLogin) ...[
+                                const SizedBox(height: 16),
+                                TextButton(
+                                  onPressed: _resetPassword,
+                                  child: Text(
+                                    'Forgot password?',
+                                    style: TextStyle(
+                                      color:
+                                          Theme.of(context).colorScheme.primary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
+                              ],
+                              const SizedBox(height: 24),
+                              Row(
+                                children: [
+                                  Expanded(
+                                      child: Divider(
+                                          color:
+                                              Theme.of(context).dividerColor)),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16),
+                                    child: Text(
+                                      'or',
+                                      style: TextStyle(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
-                            const SizedBox(height: 24),
-                            Row(
-                              children: [
-                                Expanded(
-                                    child: Divider(
-                                        color: Theme.of(context).dividerColor)),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 16),
-                                  child: Text(
-                                    'or',
+                              const SizedBox(height: 24),
+                              _SocialButton(
+                                onPressed: () => _handleSocialSignIn(
+                                  _socialAuthService.signInWithGoogle,
+                                ),
+                                icon: Image.asset(
+                                  'assets/images/auth/google_logo.png',
+                                  width: 20,
+                                  height: 20,
+                                ),
+                                label: 'Continue with Google',
+                              ),
+                              const SizedBox(height: 12),
+                              _SocialButton(
+                                onPressed: () => _handleSocialSignIn(
+                                  _socialAuthService.signInWithFacebook,
+                                ),
+                                icon: const Icon(
+                                  Icons.facebook,
+                                  color: Color(0xFF1877F2),
+                                  size: 20,
+                                ),
+                                label: 'Continue with Facebook',
+                              ),
+                              const SizedBox(height: 32),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    _isLogin
+                                        ? "Don't have an account? "
+                                        : 'Already have an account? ',
                                     style: TextStyle(
                                       color: Theme.of(context)
                                           .colorScheme
@@ -369,76 +413,36 @@ class _AuthDialogState extends State<AuthDialog>
                                       fontSize: 14,
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 24),
-                            _SocialButton(
-                              onPressed: () => _handleSocialSignIn(
-                                _socialAuthService.signInWithGoogle,
-                              ),
-                              icon: Image.asset(
-                                'assets/images/auth/google_logo.png',
-                                width: 20,
-                                height: 20,
-                              ),
-                              label: 'Continue with Google',
-                            ),
-                            const SizedBox(height: 12),
-                            _SocialButton(
-                              onPressed: () => _handleSocialSignIn(
-                                _socialAuthService.signInWithFacebook,
-                              ),
-                              icon: const Icon(
-                                Icons.facebook,
-                                color: Color(0xFF1877F2),
-                                size: 20,
-                              ),
-                              label: 'Continue with Facebook',
-                            ),
-                            const SizedBox(height: 32),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  _isLogin
-                                      ? "Don't have an account? "
-                                      : 'Already have an account? ',
-                                  style: TextStyle(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                TextButton(
-                                  onPressed: _toggleAuthMode,
-                                  style: TextButton.styleFrom(
-                                    padding: EdgeInsets.zero,
-                                    minimumSize: Size.zero,
-                                    tapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
-                                  ),
-                                  child: Text(
-                                    _isLogin ? 'Sign up' : 'Log in',
-                                    style: TextStyle(
-                                      color:
-                                          Theme.of(context).colorScheme.primary,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
+                                  TextButton(
+                                    onPressed: _toggleAuthMode,
+                                    style: TextButton.styleFrom(
+                                      padding: EdgeInsets.zero,
+                                      minimumSize: Size.zero,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                    child: Text(
+                                      _isLogin ? 'Sign up' : 'Log in',
+                                      style: TextStyle(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                          ],
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
