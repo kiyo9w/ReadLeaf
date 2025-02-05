@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:migrated/models/chat_message.dart';
 import 'package:migrated/services/chat_service.dart';
 import 'package:migrated/services/ai_character_service.dart';
-import 'package:migrated/depeninject/injection.dart';
+import 'package:migrated/injection.dart';
 
 // NOTE: This service is currently not in use. The functionality has been migrated to GeminiService.
 // Keeping this code for reference in case we need to reimplement RAG with a backend service.

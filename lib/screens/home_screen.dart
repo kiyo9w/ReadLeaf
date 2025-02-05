@@ -11,7 +11,7 @@ import 'package:migrated/utils/file_utils.dart';
 import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
 import 'package:migrated/services/gemini_service.dart';
 import 'package:migrated/services/annas_archieve.dart';
-import 'package:migrated/depeninject/injection.dart';
+import 'package:migrated/injection.dart';
 import 'package:migrated/models/file_info.dart';
 import 'package:migrated/screens/nav_screen.dart';
 import 'package:migrated/services/book_metadata_repository.dart';
@@ -408,6 +408,7 @@ class HomeScreenState extends State<HomeScreen> {
             ),
           ),
           floatingActionButton: FloatingActionButton(
+            heroTag: 'add_book_fab',
             onPressed: () async {
               final filePath = await FileUtils.picker();
               if (filePath != null) {

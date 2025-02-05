@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:migrated/services/ai_character_service.dart';
-import 'package:migrated/depeninject/injection.dart';
+import 'package:migrated/injection.dart';
 import 'package:migrated/models/ai_character.dart';
 import 'package:migrated/constants/ui_constants.dart';
 import 'package:migrated/widgets/typing_text.dart';
 import 'package:migrated/screens/home_screen.dart';
 import 'dart:async';
+import 'package:migrated/constants/responsive_constants.dart';
 
 class AiCharacterSlider extends StatefulWidget {
   static final globalKey = GlobalKey<AiCharacterSliderState>();
@@ -321,13 +322,19 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
                 Expanded(
                   child: Text(
                     'Choose Character',
-                    style: theme.textTheme.titleLarge,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontSize: ResponsiveConstants.getTitleFontSize(context),
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 IconButton(
                   onPressed: _collapse,
-                  icon: Icon(Icons.close, color: theme.iconTheme.color),
+                  icon: Icon(
+                    Icons.close,
+                    color: theme.iconTheme.color,
+                    size: ResponsiveConstants.getIconSize(context),
+                  ),
                 ),
               ],
             ),
@@ -352,6 +359,7 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
     final isSelected = index == _selectedIndex;
     final isCustom = character.categories.contains('Custom');
     final theme = Theme.of(context);
+    final isTablet = ResponsiveConstants.isTablet(context);
 
     return GestureDetector(
       onTap: () => _onCharacterTap(index),
@@ -417,15 +425,18 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
 
   Widget _buildCharacterAvatar(int index, {bool large = false}) {
     final theme = Theme.of(context);
+    final isTablet = ResponsiveConstants.isTablet(context);
+    final size = large ? (isTablet ? 120.0 : 100.0) : (isTablet ? 100.0 : 80.0);
+
     return Container(
-      width: large ? 100 : 80,
-      height: large ? 100 : 80,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(
           color:
               index == _selectedIndex ? theme.primaryColor : Colors.transparent,
-          width: 2,
+          width: isTablet ? 3 : 2,
         ),
         boxShadow: [
           BoxShadow(
@@ -483,7 +494,11 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
   // Calculate height based on content
   double _calculateHeight(BuildContext context) {
     if (_isExpanded) {
-      return 280.0; // Height for character selection view
+      return ResponsiveConstants.isLargeTablet(context)
+          ? 320.0
+          : ResponsiveConstants.isTablet(context)
+              ? 300.0 // Height for regular tablets
+              : 280.0; // Height for phones
     }
 
     // Get text painter to measure text height
@@ -491,7 +506,7 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
       text: TextSpan(
         text: characters[_selectedIndex].personality,
         style: TextStyle(
-          fontSize: 13,
+          fontSize: ResponsiveConstants.isTablet(context) ? 15 : 13,
           height: 1.4,
           color: Theme.of(context).textTheme.bodyMedium?.color,
         ),
@@ -512,27 +527,38 @@ class AiCharacterSliderState extends State<AiCharacterSlider>
       needsExpansion = textPainter.didExceedMaxLines;
     }
 
-    // Base height calculation
-    double height = 16.0; // Top padding
-    height += _avatarHeight; // Avatar
-    height += 12.0; // Spacing after avatar
-    height += 24.0; // Name height
-    height += 4.0; // Spacing between name and trait
-    height += 20.0; // Trait height
-    height += 12.0; // Spacing before text container
+    // Base height calculation with responsive adjustments
+    double height =
+        ResponsiveConstants.isTablet(context) ? 20.0 : 16.0; // Top padding
+    height +=
+        ResponsiveConstants.isTablet(context) ? 100.0 : 100.0; // Avatar height
+    height += ResponsiveConstants.isTablet(context)
+        ? 14.0
+        : 12.0; // Spacing after avatar
+    height +=
+        ResponsiveConstants.isTablet(context) ? 28.0 : 24.0; // Name height
+    height += ResponsiveConstants.isTablet(context)
+        ? 6.0
+        : 4.0; // Spacing between name and trait
+    height += ResponsiveConstants.isTablet(context) ? 22.0 : 20.0;
+    height += ResponsiveConstants.isTablet(context)
+        ? 14.0
+        : 12.0; // Spacing before text container
     height += 24.0; // Text container padding
     height += textPainter.height; // Text height
 
-    // Add height for button only if text actually overflows
+    // Add height for button if text needs expansion
     if (needsExpansion || _isTextExpanded) {
-      height += 8.0; // Button margin
-      height += 40.0; // Button height
+      height +=
+          ResponsiveConstants.isTablet(context) ? 12.0 : 8.0; // Button margin
+      height +=
+          ResponsiveConstants.isTablet(context) ? 48.0 : 40.0; // Button height
       height += 5.0; // Extra space to prevent overflow
     }
 
-    height += 5.0; // Bottom padding
+    height +=
+        ResponsiveConstants.isTablet(context) ? 8.0 : 5.0; // Bottom padding
 
-    // Remove any fractional pixels to prevent overflow
     return height.ceilToDouble();
   }
 }

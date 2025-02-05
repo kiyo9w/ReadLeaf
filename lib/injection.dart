@@ -21,17 +21,24 @@ import 'package:migrated/services/supabase_service.dart';
 import 'package:migrated/services/deep_link_service.dart';
 import 'package:migrated/services/storage_service.dart';
 import 'package:migrated/services/social_auth_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:migrated/models/ai_character_preference.dart';
 
 final getIt = GetIt.instance;
 
 @InjectableInit()
 Future<void> configureDependencies() async {
-  // Initialize core services
-  await Hive.initFlutter();
-  if (!Hive.isAdapterRegistered(3)) {
-    Hive.registerAdapter(ChatMessageAdapter());
+  // Initialize core services in parallel
+  await Future.wait([
+    Hive.initFlutter(),
+    _initializeHiveAdapters(),
+  ]);
+
+  // Verify environment variables
+  if (dotenv.env['SUPABASE_URL'] == null ||
+      dotenv.env['SUPABASE_ANON_KEY'] == null) {
+    throw Exception('Required environment variables are not set');
   }
-  await dotenv.load(fileName: '.env');
 
   // Register infrastructure services
   getIt.registerLazySingleton<Dio>(() {
@@ -45,46 +52,59 @@ Future<void> configureDependencies() async {
     );
   });
 
+  // Register Supabase service first as other services might depend on it
+  getIt.registerLazySingleton<SupabaseService>(
+    () => SupabaseService(Supabase.instance.client),
+  );
+
+  // Register DeepLinkService early as it's a core service
+  getIt.registerLazySingleton<DeepLinkService>(() => DeepLinkService());
+
   // Register backend URL
   final backendUrl = dotenv.env['BACKEND_URL'] ?? 'http://localhost:8000';
   getIt.registerSingleton<String>(backendUrl, instanceName: 'backendUrl');
 
-  // Register storage and file services
+  // Create instances of core services
   final fileRepository = FileRepository();
-  await fileRepository.init();
-  getIt.registerSingleton<FileRepository>(fileRepository);
-  getIt.registerLazySingleton<StorageScannerService>(
-      () => StorageScannerService());
-  getIt.registerLazySingleton<StorageService>(() => StorageService());
-
-  // Register authentication services
-  getIt.registerLazySingleton<SocialAuthService>(() => SocialAuthService());
-  getIt.registerLazySingleton<DeepLinkService>(() => DeepLinkService());
-
-  // Register AI and metadata services
-  final aiCharacterService = AiCharacterService();
-  getIt.registerSingleton<AiCharacterService>(aiCharacterService);
-
-  final chatService = ChatService();
-  await chatService.init();
-  getIt.registerSingleton<ChatService>(chatService);
-
-  final geminiService = GeminiService();
-  await geminiService.initialize();
-  getIt.registerSingleton<GeminiService>(geminiService);
-
-  final ragService = RagService();
-  getIt.registerSingleton<RagService>(ragService);
-
   final bookMetadataRepository = BookMetadataRepository();
-  await bookMetadataRepository.init();
+  final chatService = ChatService();
+  final geminiService = GeminiService();
+  final aiCharacterService = AiCharacterService();
+  final storageService = StorageService();
+  final storageScannerService = StorageScannerService();
+  final socialAuthService = SocialAuthService();
+  final themeProvider = ThemeProvider();
+  final ragService = RagService();
+
+  // Initialize services that require async initialization
+  await Future.wait([
+    fileRepository.init(),
+    bookMetadataRepository.init(),
+    chatService.init(),
+    geminiService.initialize(),
+    aiCharacterService.init(),
+  ]);
+
+  // Register all services
+  // Storage and file services
+  getIt.registerSingleton<FileRepository>(fileRepository);
+  getIt.registerSingleton<StorageScannerService>(storageScannerService);
+  getIt.registerSingleton<StorageService>(storageService);
+
+  // Authentication services
+  getIt.registerSingleton<SocialAuthService>(socialAuthService);
+
+  // AI and metadata services
+  getIt.registerSingleton<AiCharacterService>(aiCharacterService);
+  getIt.registerSingleton<ChatService>(chatService);
+  getIt.registerSingleton<GeminiService>(geminiService);
+  getIt.registerSingleton<RagService>(ragService);
   getIt.registerSingleton<BookMetadataRepository>(bookMetadataRepository);
 
-  // Register UI services
-  final themeProvider = ThemeProvider();
+  // UI services
   getIt.registerSingleton<ThemeProvider>(themeProvider);
 
-  // Register API services
+  // API services
   getIt.registerLazySingleton<AnnasArchieve>(
       () => AnnasArchieve(dio: getIt<Dio>()));
 
@@ -100,4 +120,13 @@ Future<void> configureDependencies() async {
       ));
   getIt.registerLazySingleton<AuthBloc>(
       () => AuthBloc(getIt<SupabaseService>()));
+}
+
+Future<void> _initializeHiveAdapters() async {
+  if (!Hive.isAdapterRegistered(3)) {
+    Hive.registerAdapter(ChatMessageAdapter());
+  }
+  if (!Hive.isAdapterRegistered(6)) {
+    Hive.registerAdapter(AiCharacterPreferenceAdapter());
+  }
 }

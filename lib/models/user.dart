@@ -13,6 +13,7 @@ class User with _$User {
     required String id,
     required String email,
     required String username,
+    String? avatarUrl,
     @Default(UserPreferences()) UserPreferences preferences,
     @Default(UserLibrary()) UserLibrary library,
     @Default(UserAISettings()) UserAISettings aiSettings,

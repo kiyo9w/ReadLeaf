@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:migrated/services/ai_character_service.dart';
-import 'package:migrated/depeninject/injection.dart';
+import 'package:migrated/injection.dart';
 import 'package:migrated/widgets/typing_text.dart';
 import 'package:migrated/themes/custom_theme_extension.dart';
 

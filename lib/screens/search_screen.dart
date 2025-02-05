@@ -6,7 +6,7 @@ import 'package:migrated/blocs/SearchBloc/search_bloc.dart';
 import 'package:migrated/screens/nav_screen.dart';
 import 'package:migrated/constants/search_constants.dart';
 import 'results_page.dart';
-import '../depeninject/injection.dart';
+import 'package:migrated/injection.dart';
 import '../services/annas_archieve.dart';
 import 'package:migrated/services/thumbnail_service.dart';
 

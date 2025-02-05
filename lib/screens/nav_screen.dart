@@ -8,7 +8,7 @@ import 'package:migrated/screens/my_library_screen.dart';
 import 'package:migrated/screens/settings_screen.dart';
 import 'package:migrated/screens/character_screen.dart';
 import 'package:migrated/utils/file_utils.dart';
-import 'package:migrated/depeninject/injection.dart';
+import 'package:migrated/injection.dart';
 import 'package:migrated/blocs/FileBloc/file_bloc.dart';
 import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
 

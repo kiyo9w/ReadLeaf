@@ -4,7 +4,7 @@ import 'dart:collection';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:migrated/services/ai_character_service.dart';
-import 'package:migrated/depeninject/injection.dart';
+import 'package:migrated/injection.dart';
 import 'package:migrated/services/chat_service.dart';
 import 'package:migrated/models/chat_message.dart';
 

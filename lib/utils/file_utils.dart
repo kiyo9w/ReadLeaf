@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:migrated/models/file_info.dart';
-import 'package:migrated/depeninject/injection.dart';
+import 'package:migrated/injection.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutter/services.dart';
@@ -191,7 +191,8 @@ class FileUtils {
                       fileName: bookInfo.title,
                     ));
                   } else {
-                    Utils.showErrorSnackBar(context, 'Failed to get download link');
+                    Utils.showErrorSnackBar(
+                        context, 'Failed to get download link');
                   }
                 },
               ),

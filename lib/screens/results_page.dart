@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:migrated/screens/search_screen.dart';
 import 'package:migrated/services/annas_archieve.dart';
 import 'package:migrated/services/webview.dart';
-import 'package:migrated/depeninject/injection.dart';
+import 'package:migrated/injection.dart';
 import 'package:migrated/blocs/FileBloc/file_bloc.dart';
 import 'package:migrated/blocs/SearchBloc/search_bloc.dart';
 import 'package:migrated/widgets/file_card.dart';

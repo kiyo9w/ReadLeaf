@@ -5,7 +5,7 @@ import 'package:migrated/models/file_info.dart';
 import 'package:migrated/utils/file_utils.dart';
 import 'package:migrated/services/storage_scanner_service.dart';
 import 'package:migrated/services/rag_service.dart';
-import 'package:migrated/depeninject/injection.dart';
+import 'package:migrated/injection.dart';
 
 part 'file_event.dart';
 part 'file_state.dart';

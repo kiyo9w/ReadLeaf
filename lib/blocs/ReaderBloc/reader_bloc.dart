@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
-import 'package:migrated/depeninject/injection.dart';
+import 'package:migrated/injection.dart';
 import 'package:migrated/models/book_metadata.dart';
 import 'package:migrated/services/book_metadata_repository.dart';
 import 'package:path/path.dart' as path;
@@ -111,9 +111,12 @@ class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
     if (state is ReaderLoaded) {
       final s = state as ReaderLoaded;
       if (event.pageIndex > 0 && event.pageIndex <= s.totalPages) {
-        await _metadataRepository.updateLastOpenedPage(
-            s.file.path, event.pageIndex);
-        emit(s.copyWith(currentPage: event.pageIndex));
+        // Only update if the page actually changed
+        if (event.pageIndex != s.currentPage) {
+          await _metadataRepository.updateLastOpenedPage(
+              s.file.path, event.pageIndex);
+          emit(s.copyWith(currentPage: event.pageIndex));
+        }
       }
     }
   }
@@ -121,7 +124,10 @@ class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
   void _onSetZoomLevel(SetZoomLevel event, Emitter<ReaderState> emit) {
     if (state is ReaderLoaded) {
       final s = state as ReaderLoaded;
-      emit(s.copyWith(zoomLevel: event.zoomLevel));
+      // Only update if the zoom level actually changed
+      if (event.zoomLevel != s.zoomLevel) {
+        emit(s.copyWith(zoomLevel: event.zoomLevel));
+      }
     }
   }
 
@@ -177,12 +183,12 @@ class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
         createdAt: DateTime.now(),
         note: event.note,
       );
-      await _metadataRepository.addHighlight(s.file.path, highlight);
 
-      final updatedMetadata = _metadataRepository.getMetadata(s.file.path);
-      if (updatedMetadata != null) {
-        emit(s.copyWith(metadata: updatedMetadata));
-      }
+      // Batch metadata updates
+      await Future.wait([
+        _metadataRepository.addHighlight(s.file.path, highlight),
+        _updateMetadataState(s, emit),
+      ]);
     }
   }
 
@@ -196,12 +202,20 @@ class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
         timestamp: DateTime.now(),
         pageNumber: s.currentPage,
       );
-      await _metadataRepository.addAiConversation(s.file.path, conversation);
 
-      final updatedMetadata = _metadataRepository.getMetadata(s.file.path);
-      if (updatedMetadata != null) {
-        emit(s.copyWith(metadata: updatedMetadata));
-      }
+      // Batch metadata updates
+      await Future.wait([
+        _metadataRepository.addAiConversation(s.file.path, conversation),
+        _updateMetadataState(s, emit),
+      ]);
+    }
+  }
+
+  Future<void> _updateMetadataState(
+      ReaderLoaded state, Emitter<ReaderState> emit) async {
+    final updatedMetadata = _metadataRepository.getMetadata(state.file.path);
+    if (updatedMetadata != null) {
+      emit(state.copyWith(metadata: updatedMetadata));
     }
   }
 

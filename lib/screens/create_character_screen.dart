@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:migrated/models/ai_character.dart';
 import 'package:migrated/services/ai_character_service.dart';
-import 'package:migrated/depeninject/injection.dart';
+import 'package:migrated/injection.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart' as path_provider;
 import 'package:path/path.dart' as path;
@@ -635,7 +635,8 @@ Text: {TEXT}""";
                       shape: BoxShape.circle,
                       color: isActive ? theme.primaryColor : theme.cardColor,
                       border: Border.all(
-                        color: isActive ? theme.primaryColor : theme.dividerColor,
+                        color:
+                            isActive ? theme.primaryColor : theme.dividerColor,
                         width: 2,
                       ),
                     ),
@@ -643,7 +644,9 @@ Text: {TEXT}""";
                       child: Text(
                         '${index + 1}',
                         style: TextStyle(
-                          color: isActive ? theme.colorScheme.onPrimary : theme.textTheme.bodyMedium?.color,
+                          color: isActive
+                              ? theme.colorScheme.onPrimary
+                              : theme.textTheme.bodyMedium?.color,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
