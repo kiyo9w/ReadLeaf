@@ -24,7 +24,7 @@ class SupabaseService {
   }
 
   // Authentication methods
-  Future<app_models.User?> signUp({
+  Future<(app_models.User?, bool)> signUp({
     required String email,
     required String password,
     required String username,
@@ -33,25 +33,26 @@ class SupabaseService {
       final response = await _client.auth.signUp(
         email: email,
         password: password,
+        data: {
+          'username': username,
+        },
       );
 
       if (response.user != null) {
-        // Create user profile
-        await _client.from(_userProfilesTable).insert({
-          'id': response.user!.id,
-          'email': email,
-          'username': username,
-          'avatar_url': null,
-          'social_provider': null,
-        });
+        // Wait a brief moment for the trigger to create the profile
+        await Future.delayed(const Duration(milliseconds: 500));
 
-        return app_models.User(
-          id: response.user!.id,
-          email: email,
-          username: username,
-        );
+        // Get the user data that was automatically created by the trigger
+        final userData = await getUserData();
+        if (userData == null) {
+          throw Exception('Failed to create user profile');
+        }
+        return (
+          userData,
+          false
+        ); // Always false since email verification is disabled
       }
-      return null;
+      return (null, false);
     } catch (e) {
       rethrow;
     }
@@ -117,7 +118,8 @@ class SupabaseService {
 
       if (avatarUrl == null && _client.auth.currentUser?.userMetadata != null) {
         final metadata = _client.auth.currentUser!.userMetadata!;
-        avatarUrl = metadata['avatar_url']?.toString() ?? metadata['picture']?.toString();
+        avatarUrl = metadata['avatar_url']?.toString() ??
+            metadata['picture']?.toString();
 
         // Update the profile with the social avatar if found
         if (avatarUrl != null) {

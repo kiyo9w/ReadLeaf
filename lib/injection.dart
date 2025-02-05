@@ -21,6 +21,7 @@ import 'package:read_leaf/services/supabase_service.dart';
 import 'package:read_leaf/services/deep_link_service.dart';
 import 'package:read_leaf/services/storage_service.dart';
 import 'package:read_leaf/services/social_auth_service.dart';
+import 'package:read_leaf/services/image_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:read_leaf/models/ai_character_preference.dart';
 
@@ -75,6 +76,7 @@ Future<void> configureDependencies() async {
   final socialAuthService = SocialAuthService();
   final themeProvider = ThemeProvider();
   final ragService = RagService();
+  final imageService = ImageService();
 
   // Initialize services that require async initialization
   await Future.wait([
@@ -103,6 +105,7 @@ Future<void> configureDependencies() async {
 
   // UI services
   getIt.registerSingleton<ThemeProvider>(themeProvider);
+  getIt.registerSingleton<ImageService>(imageService);
 
   // API services
   getIt.registerLazySingleton<AnnasArchieve>(

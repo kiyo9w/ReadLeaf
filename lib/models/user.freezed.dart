@@ -24,6 +24,7 @@ mixin _$User {
   String get email => throw _privateConstructorUsedError;
   String get username => throw _privateConstructorUsedError;
   String? get avatarUrl => throw _privateConstructorUsedError;
+  String? get socialProvider => throw _privateConstructorUsedError;
   UserPreferences get preferences => throw _privateConstructorUsedError;
   UserLibrary get library => throw _privateConstructorUsedError;
   UserAISettings get aiSettings => throw _privateConstructorUsedError;
@@ -49,6 +50,7 @@ abstract class $UserCopyWith<$Res> {
       String email,
       String username,
       String? avatarUrl,
+      String? socialProvider,
       UserPreferences preferences,
       UserLibrary library,
       UserAISettings aiSettings,
@@ -79,6 +81,7 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
     Object? email = null,
     Object? username = null,
     Object? avatarUrl = freezed,
+    Object? socialProvider = freezed,
     Object? preferences = null,
     Object? library = null,
     Object? aiSettings = null,
@@ -101,6 +104,10 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
       avatarUrl: freezed == avatarUrl
           ? _value.avatarUrl
           : avatarUrl // ignore: cast_nullable_to_non_nullable
+              as String?,
+      socialProvider: freezed == socialProvider
+          ? _value.socialProvider
+          : socialProvider // ignore: cast_nullable_to_non_nullable
               as String?,
       preferences: null == preferences
           ? _value.preferences
@@ -168,6 +175,7 @@ abstract class _$$UserImplCopyWith<$Res> implements $UserCopyWith<$Res> {
       String email,
       String username,
       String? avatarUrl,
+      String? socialProvider,
       UserPreferences preferences,
       UserLibrary library,
       UserAISettings aiSettings,
@@ -198,6 +206,7 @@ class __$$UserImplCopyWithImpl<$Res>
     Object? email = null,
     Object? username = null,
     Object? avatarUrl = freezed,
+    Object? socialProvider = freezed,
     Object? preferences = null,
     Object? library = null,
     Object? aiSettings = null,
@@ -220,6 +229,10 @@ class __$$UserImplCopyWithImpl<$Res>
       avatarUrl: freezed == avatarUrl
           ? _value.avatarUrl
           : avatarUrl // ignore: cast_nullable_to_non_nullable
+              as String?,
+      socialProvider: freezed == socialProvider
+          ? _value.socialProvider
+          : socialProvider // ignore: cast_nullable_to_non_nullable
               as String?,
       preferences: null == preferences
           ? _value.preferences
@@ -253,6 +266,7 @@ class _$UserImpl with DiagnosticableTreeMixin implements _User {
       required this.email,
       required this.username,
       this.avatarUrl,
+      this.socialProvider,
       this.preferences = const UserPreferences(),
       this.library = const UserLibrary(),
       this.aiSettings = const UserAISettings(),
@@ -271,6 +285,8 @@ class _$UserImpl with DiagnosticableTreeMixin implements _User {
   @override
   final String? avatarUrl;
   @override
+  final String? socialProvider;
+  @override
   @JsonKey()
   final UserPreferences preferences;
   @override
@@ -287,7 +303,7 @@ class _$UserImpl with DiagnosticableTreeMixin implements _User {
 
   @override
   String toString({DiagnosticLevel minLevel = DiagnosticLevel.info}) {
-    return 'User(id: $id, email: $email, username: $username, avatarUrl: $avatarUrl, preferences: $preferences, library: $library, aiSettings: $aiSettings, isAnonymous: $isAnonymous, lastSyncTime: $lastSyncTime)';
+    return 'User(id: $id, email: $email, username: $username, avatarUrl: $avatarUrl, socialProvider: $socialProvider, preferences: $preferences, library: $library, aiSettings: $aiSettings, isAnonymous: $isAnonymous, lastSyncTime: $lastSyncTime)';
   }
 
   @override
@@ -299,6 +315,7 @@ class _$UserImpl with DiagnosticableTreeMixin implements _User {
       ..add(DiagnosticsProperty('email', email))
       ..add(DiagnosticsProperty('username', username))
       ..add(DiagnosticsProperty('avatarUrl', avatarUrl))
+      ..add(DiagnosticsProperty('socialProvider', socialProvider))
       ..add(DiagnosticsProperty('preferences', preferences))
       ..add(DiagnosticsProperty('library', library))
       ..add(DiagnosticsProperty('aiSettings', aiSettings))
@@ -317,6 +334,8 @@ class _$UserImpl with DiagnosticableTreeMixin implements _User {
                 other.username == username) &&
             (identical(other.avatarUrl, avatarUrl) ||
                 other.avatarUrl == avatarUrl) &&
+            (identical(other.socialProvider, socialProvider) ||
+                other.socialProvider == socialProvider) &&
             (identical(other.preferences, preferences) ||
                 other.preferences == preferences) &&
             (identical(other.library, library) || other.library == library) &&
@@ -330,8 +349,18 @@ class _$UserImpl with DiagnosticableTreeMixin implements _User {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, id, email, username, avatarUrl,
-      preferences, library, aiSettings, isAnonymous, lastSyncTime);
+  int get hashCode => Object.hash(
+      runtimeType,
+      id,
+      email,
+      username,
+      avatarUrl,
+      socialProvider,
+      preferences,
+      library,
+      aiSettings,
+      isAnonymous,
+      lastSyncTime);
 
   /// Create a copy of User
   /// with the given fields replaced by the non-null parameter values.
@@ -355,6 +384,7 @@ abstract class _User implements User {
       required final String email,
       required final String username,
       final String? avatarUrl,
+      final String? socialProvider,
       final UserPreferences preferences,
       final UserLibrary library,
       final UserAISettings aiSettings,
@@ -371,6 +401,8 @@ abstract class _User implements User {
   String get username;
   @override
   String? get avatarUrl;
+  @override
+  String? get socialProvider;
   @override
   UserPreferences get preferences;
   @override

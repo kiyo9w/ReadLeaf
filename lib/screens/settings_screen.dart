@@ -9,6 +9,7 @@ import '../blocs/AuthBloc/auth_event.dart';
 import '../blocs/AuthBloc/auth_state.dart';
 import '../widgets/auth/auth_dialog.dart';
 import 'profile_screen.dart';
+import '../services/auth_dialog_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -34,7 +35,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showAuthDialog(BuildContext context) {
-    AuthDialog.show(context);
+    AuthDialogService.showAuthDialog(context);
   }
 
   Widget _buildAvatar(String? avatarUrl) {

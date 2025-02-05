@@ -28,6 +28,9 @@ import 'package:read_leaf/providers/theme_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:read_leaf/models/book_metadata.dart';
 import 'package:read_leaf/constants/responsive_constants.dart';
+import 'package:read_leaf/blocs/AuthBloc/auth_bloc.dart';
+import 'package:read_leaf/services/auth_dialog_service.dart';
+import 'package:read_leaf/blocs/AuthBloc/auth_state.dart';
 
 class PDFViewerScreen extends StatefulWidget {
   const PDFViewerScreen({Key? key}) : super(key: key);

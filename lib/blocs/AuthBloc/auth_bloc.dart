@@ -4,10 +4,13 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import '../../services/supabase_service.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
+import 'package:flutter/material.dart';
+import '../../widgets/auth/email_verification_screen.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final SupabaseService _supabaseService;
   late final StreamSubscription<AuthEvent> _authStateSubscription;
+  AuthState? _lastKnownState;
 
   AuthBloc(this._supabaseService) : super(AuthInitial()) {
     on<AuthCheckRequested>(_onAuthCheckRequested);
@@ -15,6 +18,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthSignInRequested>(_onAuthSignInRequested);
     on<AuthSignOutRequested>(_onAuthSignOutRequested);
     on<AuthUserUpdated>(_onAuthUserUpdated);
+
+    // Initialize with cached state if available
+    _initializeAuthState();
 
     // Listen to auth state changes
     _authStateSubscription =
@@ -35,17 +41,38 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }).listen((event) => add(event));
   }
 
+  Future<void> _initializeAuthState() async {
+    try {
+      final user = await _supabaseService.getUserData();
+      if (user != null) {
+        _lastKnownState = AuthAuthenticated(user);
+        emit(_lastKnownState!);
+      }
+    } catch (e) {
+      // Ignore errors during initialization
+    }
+  }
+
   Future<void> _onAuthCheckRequested(
     AuthCheckRequested event,
     Emitter<AuthState> emit,
   ) async {
     try {
-      emit(AuthLoading());
+      // Emit loading state only if we don't have a cached state
+      if (_lastKnownState == null) {
+        emit(AuthLoading());
+      } else {
+        // Emit cached state immediately
+        emit(_lastKnownState!);
+      }
+
       final user = await _supabaseService.getUserData();
       if (user != null) {
-        emit(AuthAuthenticated(user));
+        _lastKnownState = AuthAuthenticated(user);
+        emit(_lastKnownState!);
       } else {
-        emit(AuthUnauthenticated());
+        _lastKnownState = AuthUnauthenticated();
+        emit(_lastKnownState!);
       }
     } catch (e) {
       emit(AuthFailure(e.toString()));
@@ -58,14 +85,18 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     try {
       emit(AuthLoading());
-      final user = await _supabaseService.signUp(
+      final (user, _) = await _supabaseService.signUp(
         email: event.email,
         password: event.password,
         username: event.username,
       );
+
       if (user != null) {
-        emit(AuthSignUpSuccess(user));
-        emit(AuthAuthenticated(user));
+        if (event.context.mounted) {
+          Navigator.of(event.context).pop();
+        }
+        _lastKnownState = AuthAuthenticated(user);
+        emit(_lastKnownState!);
       } else {
         emit(AuthFailure('Sign up failed'));
       }
@@ -85,8 +116,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         password: event.password,
       );
       if (user != null) {
-        emit(AuthSignInSuccess(user));
-        emit(AuthAuthenticated(user));
+        _lastKnownState = AuthAuthenticated(user);
+        emit(_lastKnownState!);
       } else {
         emit(AuthFailure('Sign in failed'));
       }
@@ -101,7 +132,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     try {
       await _supabaseService.signOut();
-      emit(AuthUnauthenticated());
+      _lastKnownState = AuthUnauthenticated();
+      emit(_lastKnownState!);
     } catch (e) {
       emit(AuthFailure(e.toString()));
     }
@@ -113,14 +145,21 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     try {
       if (event.userId != null) {
+        if (_lastKnownState is! AuthAuthenticated) {
+          emit(AuthLoading());
+        }
+
         final user = await _supabaseService.getUserData();
         if (user != null) {
-          emit(AuthAuthenticated(user));
+          _lastKnownState = AuthAuthenticated(user);
+          emit(_lastKnownState!);
         } else {
-          emit(AuthUnauthenticated());
+          _lastKnownState = AuthUnauthenticated();
+          emit(_lastKnownState!);
         }
       } else {
-        emit(AuthUnauthenticated());
+        _lastKnownState = AuthUnauthenticated();
+        emit(_lastKnownState!);
       }
     } catch (e) {
       emit(AuthFailure(e.toString()));
