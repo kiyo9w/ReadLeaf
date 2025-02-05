@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
+import 'package:read_leaf/blocs/ReaderBloc/reader_bloc.dart';
 
 class ThumbnailsView extends StatelessWidget {
   const ThumbnailsView({
@@ -50,7 +50,9 @@ class ThumbnailsView extends StatelessWidget {
                                 pageNumber: pageNumber,
                                 anchor: PdfPageAnchor.top,
                               );
-                              context.read<ReaderBloc>().add(JumpToPage(pageNumber));
+                              context
+                                  .read<ReaderBloc>()
+                                  .add(JumpToPage(pageNumber));
                               // Close the side nav after jumping to the page
                               context.read<ReaderBloc>().add(ToggleSideNav());
                             },

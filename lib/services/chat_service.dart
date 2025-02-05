@@ -1,5 +1,5 @@
 import 'package:hive/hive.dart';
-import 'package:migrated/models/chat_message.dart';
+import 'package:read_leaf/models/chat_message.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 

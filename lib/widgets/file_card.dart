@@ -5,18 +5,18 @@ import 'package:fluttericon/elusive_icons.dart';
 import 'package:fluttericon/font_awesome5_icons.dart';
 import 'package:fluttericon/octicons_icons.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
-import 'package:migrated/screens/search_screen.dart';
+import 'package:read_leaf/screens/search_screen.dart';
 import 'package:path/path.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
-import 'package:migrated/services/book_metadata_repository.dart';
-import 'package:migrated/services/ai_character_service.dart';
-import 'package:migrated/services/thumbnail_service.dart';
-import 'package:migrated/services/thumbnail_service.dart';
+import 'package:read_leaf/services/book_metadata_repository.dart';
+import 'package:read_leaf/services/ai_character_service.dart';
+import 'package:read_leaf/services/thumbnail_service.dart';
+import 'package:read_leaf/services/thumbnail_service.dart';
 import 'package:get_it/get_it.dart';
-import 'package:migrated/themes/custom_theme_extension.dart';
-import 'package:migrated/blocs/FileBloc/file_bloc.dart';
+import 'package:read_leaf/themes/custom_theme_extension.dart';
+import 'package:read_leaf/blocs/FileBloc/file_bloc.dart';
 
 class FileCard extends StatefulWidget {
   final String filePath;

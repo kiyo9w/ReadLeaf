@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:migrated/services/ai_character_service.dart';
-import 'package:migrated/injection.dart';
-import 'package:migrated/models/ai_character.dart';
-import 'package:migrated/constants/ui_constants.dart';
-import 'package:migrated/widgets/typing_text.dart';
-import 'package:migrated/screens/home_screen.dart';
+import 'package:read_leaf/services/ai_character_service.dart';
+import 'package:read_leaf/injection.dart';
+import 'package:read_leaf/models/ai_character.dart';
+import 'package:read_leaf/constants/ui_constants.dart';
+import 'package:read_leaf/widgets/typing_text.dart';
+import 'package:read_leaf/screens/home_screen.dart';
 import 'dart:async';
-import 'package:migrated/constants/responsive_constants.dart';
+import 'package:read_leaf/constants/responsive_constants.dart';
 
 class AiCharacterSlider extends StatefulWidget {
   static final globalKey = GlobalKey<AiCharacterSliderState>();

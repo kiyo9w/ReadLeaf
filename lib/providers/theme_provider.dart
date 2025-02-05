@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:migrated/themes/custom_theme_extension.dart';
+import 'package:read_leaf/themes/custom_theme_extension.dart';
 
 class ThemeProvider extends ChangeNotifier {
   static const String _themeBoxName = 'theme_box';

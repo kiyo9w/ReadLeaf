@@ -2,15 +2,15 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:persistent_bottom_nav_bar_v2/persistent_bottom_nav_bar_v2.dart';
-import 'package:migrated/screens/home_screen.dart';
-import 'package:migrated/screens/search_screen.dart';
-import 'package:migrated/screens/my_library_screen.dart';
-import 'package:migrated/screens/settings_screen.dart';
-import 'package:migrated/screens/character_screen.dart';
-import 'package:migrated/utils/file_utils.dart';
-import 'package:migrated/injection.dart';
-import 'package:migrated/blocs/FileBloc/file_bloc.dart';
-import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
+import 'package:read_leaf/screens/home_screen.dart';
+import 'package:read_leaf/screens/search_screen.dart';
+import 'package:read_leaf/screens/my_library_screen.dart';
+import 'package:read_leaf/screens/settings_screen.dart';
+import 'package:read_leaf/screens/character_screen.dart';
+import 'package:read_leaf/utils/file_utils.dart';
+import 'package:read_leaf/injection.dart';
+import 'package:read_leaf/blocs/FileBloc/file_bloc.dart';
+import 'package:read_leaf/blocs/ReaderBloc/reader_bloc.dart';
 
 class NavScreen extends StatefulWidget {
   const NavScreen({super.key});

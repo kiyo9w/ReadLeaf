@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:migrated/widgets/snack_bar_widget.dart';
-import 'package:migrated/blocs/SearchBloc/search_bloc.dart';
-import 'package:migrated/screens/nav_screen.dart';
-import 'package:migrated/constants/search_constants.dart';
+import 'package:read_leaf/widgets/snack_bar_widget.dart';
+import 'package:read_leaf/blocs/SearchBloc/search_bloc.dart';
+import 'package:read_leaf/screens/nav_screen.dart';
+import 'package:read_leaf/constants/search_constants.dart';
 import 'results_page.dart';
-import 'package:migrated/injection.dart';
+import 'package:read_leaf/injection.dart';
 import '../services/annas_archieve.dart';
-import 'package:migrated/services/thumbnail_service.dart';
+import 'package:read_leaf/services/thumbnail_service.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({Key? key}) : super(key: key);

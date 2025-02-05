@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
+import 'package:read_leaf/blocs/ReaderBloc/reader_bloc.dart';
 
 class Marker {
   final Color color;

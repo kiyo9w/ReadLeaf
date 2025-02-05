@@ -1,11 +1,11 @@
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'dart:io';
-import 'package:migrated/models/file_info.dart';
-import 'package:migrated/utils/file_utils.dart';
-import 'package:migrated/services/storage_scanner_service.dart';
-import 'package:migrated/services/rag_service.dart';
-import 'package:migrated/injection.dart';
+import 'package:read_leaf/models/file_info.dart';
+import 'package:read_leaf/utils/file_utils.dart';
+import 'package:read_leaf/services/storage_scanner_service.dart';
+import 'package:read_leaf/services/rag_service.dart';
+import 'package:read_leaf/injection.dart';
 
 part 'file_event.dart';
 part 'file_state.dart';

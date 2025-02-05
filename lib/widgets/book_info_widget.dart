@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../blocs/FileBloc/file_bloc.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:migrated/models/file_info.dart';
-import 'package:migrated/services/webview.dart';
+import 'package:read_leaf/models/file_info.dart';
+import 'package:read_leaf/services/webview.dart';
 
 class BookInfoWidget extends StatelessWidget {
   final String link;

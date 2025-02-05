@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:migrated/screens/search_screen.dart';
-import 'package:migrated/services/annas_archieve.dart';
-import 'package:migrated/services/webview.dart';
-import 'package:migrated/injection.dart';
-import 'package:migrated/blocs/FileBloc/file_bloc.dart';
-import 'package:migrated/blocs/SearchBloc/search_bloc.dart';
-import 'package:migrated/widgets/file_card.dart';
-import 'package:migrated/widgets/page_title_widget.dart';
-import 'package:migrated/widgets/book_info_widget.dart';
-import 'package:migrated/screens/nav_screen.dart';
-import 'package:migrated/services/thumbnail_service.dart';
-import 'package:migrated/utils/file_utils.dart';
-import 'package:migrated/utils/utils.dart';
+import 'package:read_leaf/screens/search_screen.dart';
+import 'package:read_leaf/services/annas_archieve.dart';
+import 'package:read_leaf/services/webview.dart';
+import 'package:read_leaf/injection.dart';
+import 'package:read_leaf/blocs/FileBloc/file_bloc.dart';
+import 'package:read_leaf/blocs/SearchBloc/search_bloc.dart';
+import 'package:read_leaf/widgets/file_card.dart';
+import 'package:read_leaf/widgets/page_title_widget.dart';
+import 'package:read_leaf/widgets/book_info_widget.dart';
+import 'package:read_leaf/screens/nav_screen.dart';
+import 'package:read_leaf/services/thumbnail_service.dart';
+import 'package:read_leaf/utils/file_utils.dart';
+import 'package:read_leaf/utils/utils.dart';
 
 class ResultPage extends StatefulWidget {
   final String searchQuery;

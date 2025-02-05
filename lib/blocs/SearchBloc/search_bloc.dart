@@ -1,10 +1,10 @@
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:dio/dio.dart';
-import 'package:migrated/services/annas_archieve.dart';
-import 'package:migrated/utils/file_utils.dart';
+import 'package:read_leaf/services/annas_archieve.dart';
+import 'package:read_leaf/utils/file_utils.dart';
 import 'package:path/path.dart' as path;
-import 'package:migrated/models/file_info.dart';
+import 'package:read_leaf/models/file_info.dart';
 import 'dart:io';
 
 part 'search_event.dart';

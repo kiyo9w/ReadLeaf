@@ -1,14 +1,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:migrated/models/ai_character.dart';
-import 'package:migrated/services/ai_character_service.dart';
-import 'package:migrated/injection.dart';
+import 'package:read_leaf/models/ai_character.dart';
+import 'package:read_leaf/services/ai_character_service.dart';
+import 'package:read_leaf/injection.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart' as path_provider;
 import 'package:path/path.dart' as path;
-import 'package:migrated/widgets/ai_character_slider.dart';
-import 'package:migrated/screens/home_screen.dart';
-import 'package:migrated/utils/utils.dart';
+import 'package:read_leaf/widgets/ai_character_slider.dart';
+import 'package:read_leaf/screens/home_screen.dart';
+import 'package:read_leaf/utils/utils.dart';
 
 class CreateCharacterScreen extends StatefulWidget {
   const CreateCharacterScreen({super.key});

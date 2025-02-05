@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
-import 'package:migrated/widgets/CompanionChat/chat_screen.dart';
-import 'package:migrated/models/chat_message.dart';
-import 'package:migrated/models/ai_character.dart';
-import 'package:migrated/constants/responsive_constants.dart';
+import 'package:read_leaf/widgets/CompanionChat/chat_screen.dart';
+import 'package:read_leaf/models/chat_message.dart';
+import 'package:read_leaf/models/ai_character.dart';
+import 'package:read_leaf/constants/responsive_constants.dart';
 
 class FloatingChatWidget extends StatefulWidget {
   final AiCharacter character;

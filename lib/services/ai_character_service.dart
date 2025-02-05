@@ -1,7 +1,7 @@
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:migrated/widgets/ai_character_slider.dart';
-import 'package:migrated/models/ai_character.dart';
-import 'package:migrated/models/ai_character_preference.dart';
+import 'package:read_leaf/widgets/ai_character_slider.dart';
+import 'package:read_leaf/models/ai_character.dart';
+import 'package:read_leaf/models/ai_character_preference.dart';
 
 class AiCharacterService {
   static const String _boxName = 'ai_character_preferences';
@@ -12,23 +12,43 @@ class AiCharacterService {
   List<AiCharacter> _customCharacters = [];
 
   Future<void> init() async {
-    // Open the Hive boxes
-    _box = await Hive.openBox<AiCharacterPreference>(_boxName);
-    _customCharactersBox = await Hive.openBox<Map>(_customCharactersBoxName);
+    try {
+      // Open the Hive boxes with retry logic
+      _box = await _openBox<AiCharacterPreference>(_boxName);
+      _customCharactersBox = await _openBox<Map>(_customCharactersBoxName);
 
-    // Load custom characters
-    _loadCustomCharacters();
+      // Load custom characters
+      _loadCustomCharacters();
 
-    // Load the last selected character if any
-    final preference = _box.values.isEmpty ? null : _box.values.last;
-    if (preference != null) {
-      // Find the character by name in both default and custom characters
-      _selectedCharacter = getAllCharacters().firstWhere(
-        (char) => char.name == preference.characterName,
-        orElse: () => defaultCharacters[2], // Default to Amelia if not found
-      );
-    } else {
-      _selectedCharacter = defaultCharacters[2]; // Default to Amelia
+      // Load the last selected character if any
+      final preference = _box.values.isEmpty ? null : _box.values.last;
+      if (preference != null) {
+        // Find the character by name in both default and custom characters
+        _selectedCharacter = getAllCharacters().firstWhere(
+          (char) => char.name == preference.characterName,
+          orElse: () => defaultCharacters[2], // Default to Amelia if not found
+        );
+      } else {
+        _selectedCharacter = defaultCharacters[2]; // Default to Amelia
+      }
+    } catch (e) {
+      print('Error initializing AiCharacterService: $e');
+      // Set default character in case of initialization error
+      _selectedCharacter = defaultCharacters[2];
+      rethrow;
+    }
+  }
+
+  Future<Box<T>> _openBox<T>(String boxName) async {
+    try {
+      if (Hive.isBoxOpen(boxName)) {
+        return Hive.box<T>(boxName);
+      }
+      return await Hive.openBox<T>(boxName);
+    } catch (e) {
+      // If there's an error, try to delete and recreate the box
+      await Hive.deleteBoxFromDisk(boxName);
+      return await Hive.openBox<T>(boxName);
     }
   }
 

@@ -2,20 +2,20 @@ import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:migrated/models/file_info.dart';
-import 'package:migrated/injection.dart';
+import 'package:read_leaf/models/file_info.dart';
+import 'package:read_leaf/injection.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutter/services.dart';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/material.dart';
-import 'package:migrated/blocs/SearchBloc/search_bloc.dart';
-import 'package:migrated/services/annas_archieve.dart';
-import 'package:migrated/widgets/book_info_widget.dart';
-import 'package:migrated/services/webview.dart';
-import 'package:migrated/screens/nav_screen.dart';
-import 'package:migrated/utils/utils.dart';
+import 'package:read_leaf/blocs/SearchBloc/search_bloc.dart';
+import 'package:read_leaf/services/annas_archieve.dart';
+import 'package:read_leaf/widgets/book_info_widget.dart';
+import 'package:read_leaf/services/webview.dart';
+import 'package:read_leaf/screens/nav_screen.dart';
+import 'package:read_leaf/utils/utils.dart';
 // import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 class FileUtils {

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 // Package imports:
 import 'package:dio/dio.dart';
 import 'package:html/parser.dart' show parse;
-import 'package:migrated/blocs/FileBloc/file_bloc.dart';
+import 'package:read_leaf/blocs/FileBloc/file_bloc.dart';
 
 class BookData {
   final String title;
@@ -80,10 +80,10 @@ class AnnasArchieve {
                 ?.text ??
             '',
         'description': element
-            ?.querySelector('div[class="mb-1"]')
-            ?.text
-            .replaceFirst("description", '')
-            ?? " ",
+                ?.querySelector('div[class="mb-1"]')
+                ?.text
+                .replaceFirst("description", '') ??
+            " ",
       };
 
       if ((data['title'] != null && data['title'] != '') &&
@@ -263,7 +263,8 @@ class AnnasArchieve {
     if (content == "" && sort == "" && fileType == "") {
       return '$baseUrl/search?q=$searchQuery';
     }
-    print('$baseUrl/search?index=&q=$searchQuery&content=$content&ext=$fileType&sort=$sort');
+    print(
+        '$baseUrl/search?index=&q=$searchQuery&content=$content&ext=$fileType&sort=$sort');
     return '$baseUrl/search?index=&q=$searchQuery&content=$content&ext=$fileType&sort=$sort';
   }
 
@@ -334,26 +335,19 @@ class AnnasArchieve {
       return 'Non-fiction';
     } else if (info.toLowerCase().contains('(fiction)')) {
       return 'Fiction';
-    }
-    else if (info.toLowerCase().contains('(unknown)')) {
+    } else if (info.toLowerCase().contains('(unknown)')) {
       return 'Unknown';
-    }
-    else if (info.toLowerCase().contains('(magazine)')) {
+    } else if (info.toLowerCase().contains('(magazine)')) {
       return 'Magazine';
-    }
-    else if (info.toLowerCase().contains('(comic book)')) {
+    } else if (info.toLowerCase().contains('(comic book)')) {
       return 'Comic book';
-    }
-    else if (info.toLowerCase().contains('(standard document)')) {
+    } else if (info.toLowerCase().contains('(standard document)')) {
       return 'Standard document';
-    }
-    else if (info.toLowerCase().contains('(other)')) {
+    } else if (info.toLowerCase().contains('(other)')) {
       return 'Other';
-    }
-    else if (info.toLowerCase().contains('(Musical score)')) {
+    } else if (info.toLowerCase().contains('(Musical score)')) {
       return 'Musical score';
-    }
-    else if (info.toLowerCase().contains('(Audiobook)')) {
+    } else if (info.toLowerCase().contains('(Audiobook)')) {
       return 'Audio book';
     }
     //... there must be a better way to do this
@@ -406,7 +400,8 @@ class AnnasArchieve {
     }
   }
 
-  Future<Map<String, List<BookData>>> getMassBooks({required List<String> queries}) async {
+  Future<Map<String, List<BookData>>> getMassBooks(
+      {required List<String> queries}) async {
     final Map<String, List<BookData>> results = {};
     for (final query in queries) {
       try {
@@ -416,7 +411,7 @@ class AnnasArchieve {
         );
         results[query] = books;
       } catch (e) {
-          print("Something went wrong");
+        print("Something went wrong");
       }
     }
     return results;

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:migrated/models/chat_message.dart';
-import 'package:migrated/models/ai_character.dart';
-import 'package:migrated/services/chat_service.dart';
+import 'package:read_leaf/models/chat_message.dart';
+import 'package:read_leaf/models/ai_character.dart';
+import 'package:read_leaf/services/chat_service.dart';
 import 'package:get_it/get_it.dart';
-import 'package:migrated/constants/responsive_constants.dart';
+import 'package:read_leaf/constants/responsive_constants.dart';
 
 class ChatScreen extends StatefulWidget {
   final AiCharacter character;

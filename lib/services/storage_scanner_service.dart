@@ -4,7 +4,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:external_path/external_path.dart';
 import 'package:path/path.dart' as path;
-import 'package:migrated/models/file_info.dart';
+import 'package:read_leaf/models/file_info.dart';
 
 class StorageScannerService {
   static const List<String> supportedFormats = ['pdf', 'epub', 'mobi'];

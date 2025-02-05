@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:migrated/services/ai_character_service.dart';
-import 'package:migrated/injection.dart';
-import 'package:migrated/widgets/typing_text.dart';
-import 'package:migrated/themes/custom_theme_extension.dart';
+import 'package:read_leaf/services/ai_character_service.dart';
+import 'package:read_leaf/injection.dart';
+import 'package:read_leaf/widgets/typing_text.dart';
+import 'package:read_leaf/themes/custom_theme_extension.dart';
 
 class AIMessageCard extends StatelessWidget {
   final String message;

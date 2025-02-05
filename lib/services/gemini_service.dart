@@ -3,10 +3,10 @@ import 'dart:math' as math;
 import 'dart:collection';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:migrated/services/ai_character_service.dart';
-import 'package:migrated/injection.dart';
-import 'package:migrated/services/chat_service.dart';
-import 'package:migrated/models/chat_message.dart';
+import 'package:read_leaf/services/ai_character_service.dart';
+import 'package:read_leaf/injection.dart';
+import 'package:read_leaf/services/chat_service.dart';
+import 'package:read_leaf/models/chat_message.dart';
 
 class ConversationEntry {
   final String userInput;

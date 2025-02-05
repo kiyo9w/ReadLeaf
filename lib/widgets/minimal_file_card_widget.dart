@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:migrated/blocs/FileBloc/file_bloc.dart';
-import 'package:migrated/services/thumbnail_service.dart';
+import 'package:read_leaf/blocs/FileBloc/file_bloc.dart';
+import 'package:read_leaf/services/thumbnail_service.dart';
 import 'dart:io';
 import 'package:percent_indicator/linear_percent_indicator.dart';
-import 'package:migrated/services/book_metadata_repository.dart';
+import 'package:read_leaf/services/book_metadata_repository.dart';
 import 'package:get_it/get_it.dart';
-import 'package:migrated/themes/custom_theme_extension.dart';
+import 'package:read_leaf/themes/custom_theme_extension.dart';
 
 class MinimalFileCard extends StatefulWidget {
   final String filePath;

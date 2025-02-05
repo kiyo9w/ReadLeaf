@@ -7,27 +7,27 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:pdfrx/pdfrx.dart';
-import 'package:migrated/blocs/FileBloc/file_bloc.dart';
-import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
-import 'package:migrated/screens/nav_screen.dart';
-import 'package:migrated/widgets/text_search_view.dart';
+import 'package:read_leaf/blocs/FileBloc/file_bloc.dart';
+import 'package:read_leaf/blocs/ReaderBloc/reader_bloc.dart';
+import 'package:read_leaf/screens/nav_screen.dart';
+import 'package:read_leaf/widgets/text_search_view.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:migrated/services/gemini_service.dart';
+import 'package:read_leaf/services/gemini_service.dart';
 import 'package:get_it/get_it.dart';
-import 'package:migrated/widgets/CompanionChat/floating_chat_widget.dart';
-import 'package:migrated/models/chat_message.dart';
-import 'package:migrated/services/ai_character_service.dart';
-import 'package:migrated/models/ai_character.dart';
-import 'package:migrated/screens/character_screen.dart';
-import 'package:migrated/utils/utils.dart';
-import 'package:migrated/widgets/pdf_viewer/markers_view.dart';
-import 'package:migrated/widgets/pdf_viewer/outline_view.dart';
-import 'package:migrated/widgets/pdf_viewer/thumbnails_view.dart';
+import 'package:read_leaf/widgets/CompanionChat/floating_chat_widget.dart';
+import 'package:read_leaf/models/chat_message.dart';
+import 'package:read_leaf/services/ai_character_service.dart';
+import 'package:read_leaf/models/ai_character.dart';
+import 'package:read_leaf/screens/character_screen.dart';
+import 'package:read_leaf/utils/utils.dart';
+import 'package:read_leaf/widgets/pdf_viewer/markers_view.dart';
+import 'package:read_leaf/widgets/pdf_viewer/outline_view.dart';
+import 'package:read_leaf/widgets/pdf_viewer/thumbnails_view.dart';
 import 'package:provider/provider.dart';
-import 'package:migrated/providers/theme_provider.dart';
+import 'package:read_leaf/providers/theme_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:migrated/models/book_metadata.dart';
-import 'package:migrated/constants/responsive_constants.dart';
+import 'package:read_leaf/models/book_metadata.dart';
+import 'package:read_leaf/constants/responsive_constants.dart';
 
 class PDFViewerScreen extends StatefulWidget {
   const PDFViewerScreen({Key? key}) : super(key: key);
@@ -84,31 +84,42 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
       if (mounted) setState(() {});
     });
 
-    // Add controller ready listener
-    _controller.addListener(_onControllerReady);
+    // Add controller ready listener using a safer approach
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _controller.addListener(_onControllerReady);
+        _textSearcher.addListener(_update);
+      }
+    });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      NavScreen.globalKey.currentState?.setNavBarVisibility(true);
+      if (mounted) {
+        NavScreen.globalKey.currentState?.setNavBarVisibility(true);
+      }
     });
   }
 
   void _onControllerReady() {
-    if (_controller.isReady) {
+    if (_controller.isReady && mounted) {
       _loadHighlights();
-      _controller.removeListener(_onControllerReady);
+      try {
+        _controller.removeListener(_onControllerReady);
+      } catch (e) {
+        print('Error removing controller ready listener: $e');
+      }
     }
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_controller.isReady) {
+    if (_controller.isReady && mounted) {
       _loadHighlights();
     }
   }
 
   void _loadHighlights() async {
-    if (!_controller.isReady) {
+    if (!_controller.isReady || !mounted) {
       return;
     }
 
@@ -116,7 +127,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
       final state = context.read<ReaderBloc>().state as ReaderLoaded;
       final highlights = state.metadata.highlights;
 
-      _markers.clear();
+      final Map<int, List<Marker>> newMarkers = {};
 
       for (final highlight in highlights) {
         try {
@@ -132,7 +143,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                 ],
               );
 
-              _markers
+              newMarkers
                   .putIfAbsent(highlight.pageNumber, () => [])
                   .add(Marker(Colors.yellow, textRange));
             } else {
@@ -153,14 +164,11 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                   ],
                 );
 
-                _markers
+                newMarkers
                     .putIfAbsent(highlight.pageNumber, () => [])
                     .add(Marker(Colors.yellow, textRange));
               }
             }
-          } else {
-            dev.log(
-                'Could not load page text for page ${highlight.pageNumber}');
           }
         } catch (e) {
           dev.log('Error loading highlight: $e');
@@ -168,23 +176,31 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
       }
 
       if (mounted) {
-        setState(() {});
+        setState(() {
+          _markers.clear();
+          _markers.addAll(newMarkers);
+        });
       }
-    } else {
-      dev.log('Reader not in loaded state');
     }
   }
 
   @override
   void dispose() {
     _tabController.dispose();
-    _textSearcher.removeListener(_update);
+    // Remove listeners safely
+    try {
+      _controller.removeListener(_onControllerReady);
+      _textSearcher.removeListener(_update);
+    } catch (e) {
+      print('Error removing listeners: $e');
+    }
     _textSearcher.dispose();
-    _controller.removeListener(_onControllerReady);
     outline.dispose();
     documentRef.dispose();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+      if (mounted) {
+        NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+      }
     });
     super.dispose();
   }
@@ -424,7 +440,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
     try {
       final response = await _geminiService.askAboutText(
         selectedText ?? '',
-        customPrompt: message ?? 'Can you explain what the text is about? After that share your thoughts in a single open ended question in the same paragraph, make the question short and concise.',
+        customPrompt: message ??
+            'Can you explain what the text is about? After that share your thoughts in a single open ended question in the same paragraph, make the question short and concise.',
         bookTitle: bookTitle,
         currentPage: currentPage,
         totalPages: totalPages,
@@ -910,6 +927,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
             initialPageNumber: currentPage,
             params: PdfViewerParams(
               enableTextSelection: true,
+              maxScale: 4.0,
+              minScale: 0.5,
               onPageChanged: (page) {
                 if (mounted && page != null) {
                   context.read<ReaderBloc>().add(JumpToPage(page));
@@ -919,11 +938,13 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
               selectableRegionInjector: (context, child) {
                 return SelectionArea(
                   onSelectionChanged: (selection) {
-                    setState(() {
-                      _showAskAiButton =
-                          selection?.plainText?.isNotEmpty == true;
-                      _selectedText = selection?.plainText;
-                    });
+                    if (mounted) {
+                      setState(() {
+                        _showAskAiButton =
+                            selection?.plainText?.isNotEmpty == true;
+                        _selectedText = selection?.plainText;
+                      });
+                    }
                   },
                   child: child,
                 );
@@ -941,47 +962,14 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                 }
               },
               onViewerReady: (document, controller) async {
-                documentRef.value = controller.documentRef;
-                outline.value = await document.loadOutline();
+                if (mounted) {
+                  documentRef.value = controller.documentRef;
+                  outline.value = await document.loadOutline();
+                }
               },
-              linkHandlerParams: PdfLinkHandlerParams(
-                onLinkTap: _handleLink,
-                linkColor: Colors.blue.withOpacity(0.15),
-                customPainter: (canvas, pageRect, page, links) {
-                  final paint = Paint()
-                    ..color = Colors.blue.withOpacity(0.1)
-                    ..style = PaintingStyle.fill;
-                  for (final link in links) {
-                    for (final rect in link.rects) {
-                      canvas.drawRRect(
-                        RRect.fromRectAndRadius(
-                          rect.toRectInPageRect(
-                            page: page,
-                            pageRect: pageRect,
-                          ),
-                          const Radius.circular(4),
-                        ),
-                        paint,
-                      );
-                    }
-                  }
-                },
-              ),
-              viewerOverlayBuilder: (context, size, handleLinkTap) => [
-                GestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  onTapUp: (details) {
-                    handleLinkTap(details.localPosition);
-                    _handleTap();
-                  },
-                  onDoubleTapDown: (details) {
-                    _handleDoubleTap(details);
-                  },
-                  child: IgnorePointer(
-                    child: SizedBox(width: size.width, height: size.height),
-                  ),
-                ),
-              ],
+              backgroundColor: state.readingMode == ReadingMode.dark
+                  ? Colors.black
+                  : Colors.white,
             ),
           );
 
@@ -1729,64 +1717,68 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                       right: ResponsiveConstants.getContentPadding(context)
                               .horizontal /
                           2,
-                      child: Row(
-                        children: [
-                          FloatingActionButton(
-                            heroTag: 'highlight_yellow',
-                            mini: !ResponsiveConstants.isTablet(context),
-                            backgroundColor: Colors.yellow.withOpacity(0.9),
-                            child: Icon(
-                              Icons.brush,
-                              color: Colors.black87,
-                              size: ResponsiveConstants.isTablet(context)
-                                  ? 24
-                                  : 20,
-                            ),
-                            onPressed: () =>
-                                _addCurrentSelectionToMarkers(Colors.yellow),
-                          ),
-                          SizedBox(
-                              width: ResponsiveConstants.isTablet(context)
-                                  ? 16
-                                  : 8),
-                          FloatingActionButton(
-                            heroTag: 'highlight_red',
-                            mini: !ResponsiveConstants.isTablet(context),
-                            backgroundColor: Colors.red.withOpacity(0.9),
-                            child: Icon(
-                              Icons.brush,
-                              color: Colors.white,
-                              size: ResponsiveConstants.isTablet(context)
-                                  ? 24
-                                  : 20,
-                            ),
-                            onPressed: () =>
-                                _addCurrentSelectionToMarkers(Colors.red),
-                          ),
-                          SizedBox(
-                              width: ResponsiveConstants.isTablet(context)
-                                  ? 16
-                                  : 8),
-                          FloatingActionButton.extended(
-                            onPressed: _handleAskAi,
-                            icon: Icon(
-                              Icons.chat,
-                              color: Colors.white,
-                              size: ResponsiveConstants.isTablet(context)
-                                  ? 24
-                                  : 20,
-                            ),
-                            label: Text(
-                              'Ask AI',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: ResponsiveConstants.getBodyFontSize(
-                                    context),
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: Row(
+                          children: [
+                            FloatingActionButton(
+                              heroTag: 'highlight_yellow_${file.path}',
+                              mini: !ResponsiveConstants.isTablet(context),
+                              backgroundColor: Colors.yellow.withOpacity(0.9),
+                              child: Icon(
+                                Icons.brush,
+                                color: Colors.black87,
+                                size: ResponsiveConstants.isTablet(context)
+                                    ? 24
+                                    : 20,
                               ),
+                              onPressed: () =>
+                                  _addCurrentSelectionToMarkers(Colors.yellow),
                             ),
-                            backgroundColor: Colors.blue.shade700,
-                          ),
-                        ],
+                            SizedBox(
+                                width: ResponsiveConstants.isTablet(context)
+                                    ? 16
+                                    : 8),
+                            FloatingActionButton(
+                              heroTag: 'highlight_red_${file.path}',
+                              mini: !ResponsiveConstants.isTablet(context),
+                              backgroundColor: Colors.red.withOpacity(0.9),
+                              child: Icon(
+                                Icons.brush,
+                                color: Colors.white,
+                                size: ResponsiveConstants.isTablet(context)
+                                    ? 24
+                                    : 20,
+                              ),
+                              onPressed: () =>
+                                  _addCurrentSelectionToMarkers(Colors.red),
+                            ),
+                            SizedBox(
+                                width: ResponsiveConstants.isTablet(context)
+                                    ? 16
+                                    : 8),
+                            FloatingActionButton.extended(
+                              heroTag: 'ask_ai_${file.path}',
+                              onPressed: _handleAskAi,
+                              icon: Icon(
+                                Icons.chat,
+                                color: Colors.white,
+                                size: ResponsiveConstants.isTablet(context)
+                                    ? 24
+                                    : 20,
+                              ),
+                              label: Text(
+                                'Ask AI',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: ResponsiveConstants.getBodyFontSize(
+                                      context),
+                                ),
+                              ),
+                              backgroundColor: Colors.blue.shade700,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
 

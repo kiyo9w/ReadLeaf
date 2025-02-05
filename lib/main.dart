@@ -1,38 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:migrated/blocs/FileBloc/file_bloc.dart';
-import 'package:migrated/blocs/SearchBloc/search_bloc.dart';
-import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
-import 'package:migrated/screens/nav_screen.dart';
-import 'package:migrated/screens/pdf_viewer.dart';
-import 'package:migrated/screens/epub_viewer.dart';
-import 'package:migrated/depeninject/injection.dart';
+import 'package:read_leaf/blocs/FileBloc/file_bloc.dart';
+import 'package:read_leaf/blocs/SearchBloc/search_bloc.dart';
+import 'package:read_leaf/blocs/ReaderBloc/reader_bloc.dart';
+import 'package:read_leaf/blocs/AuthBloc/auth_bloc.dart';
+import 'package:read_leaf/blocs/AuthBloc/auth_event.dart';
+import 'package:read_leaf/screens/nav_screen.dart';
+import 'package:read_leaf/screens/pdf_viewer.dart';
+import 'package:read_leaf/screens/epub_viewer.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:migrated/models/ai_character_preference.dart';
-import 'package:migrated/services/ai_character_service.dart';
-import 'package:migrated/models/book_metadata.dart';
+import 'package:read_leaf/models/ai_character_preference.dart';
+import 'package:read_leaf/services/ai_character_service.dart';
+import 'package:read_leaf/models/book_metadata.dart';
 import 'package:provider/provider.dart';
-import 'package:migrated/providers/theme_provider.dart';
+import 'package:read_leaf/providers/theme_provider.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'injection.dart';
+import 'services/deep_link_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Hive
-  await Hive.initFlutter();
+  // Load environment variables first
+  await dotenv.load(fileName: '.env');
 
-  // Register Hive adapters
-  Hive.registerAdapter(AiCharacterPreferenceAdapter());
+  // Initialize Supabase with env variables
+  await Supabase.initialize(
+    url: dotenv.env['SUPABASE_URL'] ?? '',
+    anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
+  );
 
-  // Initialize services
+  // Initialize all dependencies (including Hive and its adapters)
   await configureDependencies();
-
-  // Initialize the AI character service
-  final aiCharacterService = getIt<AiCharacterService>();
-  await aiCharacterService.init();
 
   runApp(
     ChangeNotifierProvider(
-      create: (_) => ThemeProvider(),
+      create: (_) => getIt<ThemeProvider>(),
       child: const MyApp(),
     ),
   );
@@ -53,6 +57,9 @@ class MyApp extends StatelessWidget {
         ),
         BlocProvider<ReaderBloc>(
           create: (context) => getIt<ReaderBloc>(),
+        ),
+        BlocProvider<AuthBloc>(
+          create: (context) => getIt<AuthBloc>()..add(AuthCheckRequested()),
         ),
       ],
       child: Consumer<ThemeProvider>(

@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
-import 'package:migrated/injection.dart';
-import 'package:migrated/models/book_metadata.dart';
-import 'package:migrated/services/book_metadata_repository.dart';
+import 'package:read_leaf/injection.dart';
+import 'package:read_leaf/models/book_metadata.dart';
+import 'package:read_leaf/services/book_metadata_repository.dart';
 import 'package:path/path.dart' as path;
 import 'package:pdfrx/pdfrx.dart';
 

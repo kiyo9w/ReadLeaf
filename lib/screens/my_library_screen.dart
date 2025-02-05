@@ -2,11 +2,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:migrated/blocs/FileBloc/file_bloc.dart';
-import 'package:migrated/widgets/file_card.dart';
-import 'package:migrated/screens/nav_screen.dart';
-import 'package:migrated/models/file_info.dart';
-import 'package:migrated/blocs/ReaderBloc/reader_bloc.dart';
+import 'package:read_leaf/blocs/FileBloc/file_bloc.dart';
+import 'package:read_leaf/widgets/file_card.dart';
+import 'package:read_leaf/screens/nav_screen.dart';
+import 'package:read_leaf/models/file_info.dart';
+import 'package:read_leaf/blocs/ReaderBloc/reader_bloc.dart';
 
 class MyLibraryScreen extends StatefulWidget {
   const MyLibraryScreen({super.key});
