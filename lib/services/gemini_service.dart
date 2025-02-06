@@ -75,7 +75,7 @@ class GeminiService {
       final characterName =
           characterService.getSelectedCharacter()?.name ?? 'Default';
       final List<ChatMessage> messages =
-          await chatService.getBookMessages(characterName, bookId);
+          await chatService.getCharacterMessages(characterName);
       if (messages.isEmpty) return '';
 
       final recentMessages = messages.length <= maxConversations
@@ -244,32 +244,35 @@ $conversationContext""";
         final response = await _model.generateContent(content);
 
         if (response.text != null) {
-          // Store the conversation
+          // Store the conversation in memory
           _addToConversationHistory(
               bookTitle, customPrompt ?? selectedText, response.text!);
 
-          // Also store in chat service for persistence
-          final characterName =
-              characterService.getSelectedCharacter()?.name ?? 'AI Assistant';
+          // Only store in chat service if not an encouragement message (home screen)
+          if (task != 'encouragement') {
+            final characterName =
+                characterService.getSelectedCharacter()?.name ?? 'AI Assistant';
 
-          // Add user message
-          await chatService.addMessage(ChatMessage(
-            text: customPrompt ?? selectedText,
-            isUser: true,
-            timestamp: DateTime.now(),
-            characterName: characterName,
-            bookId: bookTitle,
-          ));
+            // Add user message
+            await chatService.addMessage(ChatMessage(
+              text: customPrompt ?? selectedText,
+              isUser: true,
+              timestamp: DateTime.now(),
+              characterName: characterName,
+              bookId: bookTitle,
+            ));
 
-          // Add AI response
-          await chatService.addMessage(ChatMessage(
-            text: response.text!,
-            isUser: false,
-            timestamp: DateTime.now(),
-            characterName: characterName,
-            bookId: bookTitle,
-            avatarImagePath: characterService.getSelectedCharacter()?.imagePath,
-          ));
+            // Add AI response
+            await chatService.addMessage(ChatMessage(
+              text: response.text!,
+              isUser: false,
+              timestamp: DateTime.now(),
+              characterName: characterName,
+              bookId: bookTitle,
+              avatarImagePath:
+                  characterService.getSelectedCharacter()?.imagePath,
+            ));
+          }
 
           return response.text!;
         }

@@ -63,17 +63,13 @@ class ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _loadMessages() async {
-    if (widget.bookId != null) {
-      final messages = await _chatService.getBookMessages(
-        widget.character.name,
-        widget.bookId,
-      );
-      if (mounted) {
-        setState(() {
-          _messages = messages;
-        });
-        _scrollToBottom();
-      }
+    final messages =
+        await _chatService.getCharacterMessages(widget.character.name);
+    if (mounted) {
+      setState(() {
+        _messages = messages;
+      });
+      _scrollToBottom();
     }
   }
 
@@ -96,15 +92,11 @@ class ChatScreenState extends State<ChatScreen> {
       return;
     }
 
-    // Add message to UI immediately
+    // Add message to UI only
     setState(() {
       _messages.add(message);
     });
     _scrollToBottom();
-
-    // Save to storage asynchronously
-    await _chatService.addMessage(message);
-    await _chatService.debugPrintBoxes();
   }
 
   void _handleSubmitted(String text) async {
@@ -115,9 +107,10 @@ class ChatScreenState extends State<ChatScreen> {
       isUser: true,
       timestamp: DateTime.now(),
       characterName: widget.character.name,
-      bookId: widget.bookId,
+      bookId: widget.bookId, // Keep bookId for context but don't filter by it
     );
 
+    // Only update UI, storage is handled by GeminiService
     setState(() {
       _messages.add(message);
     });
@@ -125,10 +118,7 @@ class ChatScreenState extends State<ChatScreen> {
     _messageController.clear();
     _scrollToBottom();
 
-    // Save the message and get AI response
-    if (widget.bookId != null) {
-      await _chatService.addMessage(message);
-    }
+    // Get AI response
     widget.onSendMessage?.call(text);
   }
 

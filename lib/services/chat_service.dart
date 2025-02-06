@@ -2,10 +2,28 @@ import 'package:hive/hive.dart';
 import 'package:read_leaf/models/chat_message.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
+import 'package:injectable/injectable.dart';
+import 'package:read_leaf/services/sync/sync_manager.dart';
+import 'package:read_leaf/services/sync/sync_types.dart';
+import 'package:uuid/uuid.dart';
+import 'dart:async';
 
+@lazySingleton
 class ChatService {
   static const String _boxPrefix = 'character_chat_';
+  static const int _maxMessagesPerCharacter = 200;
+  static const int _batchSize = 50;
   final Map<String, Box<ChatMessage>> _boxes = {};
+  final SyncManager _syncManager;
+  final _uuid = const Uuid();
+  final Map<String, List<ChatMessage>> _pendingSync = {};
+  Timer? _syncTimer;
+
+  ChatService(this._syncManager) {
+    // Start periodic sync timer
+    _syncTimer = Timer.periodic(
+        const Duration(minutes: 5), (_) => _syncPendingMessages());
+  }
 
   // Generate a box name for a character
   String _getBoxName(String characterName) {
@@ -58,6 +76,26 @@ class ChatService {
     }
   }
 
+  Future<void> _syncPendingMessages() async {
+    for (var entry in _pendingSync.entries) {
+      if (entry.value.isEmpty) continue;
+
+      final messages = entry.value.take(_batchSize).toList();
+      final messageData = messages
+          .map((msg) => {
+                'text': msg.text,
+                'is_user': msg.isUser,
+                'timestamp': msg.timestamp.toIso8601String(),
+                'character_name': msg.characterName,
+                'book_id': msg.bookId,
+              })
+          .toList();
+
+      await _syncManager.syncChatHistory(entry.key, messageData);
+      entry.value.removeRange(0, messages.length);
+    }
+  }
+
   Future<void> addMessage(ChatMessage message) async {
     if (message.characterName == null) {
       throw Exception('Character name is required for chat messages');
@@ -66,19 +104,61 @@ class ChatService {
     try {
       print('Adding message for character: ${message.characterName}');
       final box = await _getBoxForCharacter(message.characterName!);
+
+      // Ensure we don't exceed max messages per character
+      if (box.length >= _maxMessagesPerCharacter) {
+        // Remove oldest messages to maintain limit
+        final keys = box.keys.toList()
+          ..sort(
+              (a, b) => box.get(a)!.timestamp.compareTo(box.get(b)!.timestamp));
+        final keysToDelete =
+            keys.take(box.length - _maxMessagesPerCharacter + 1);
+        await box.deleteAll(keysToDelete);
+      }
+
       await box.add(message);
       print('Added message. New message count: ${box.length}');
+
+      // Queue for sync
+      _pendingSync.putIfAbsent(message.characterName!, () => []).add(message);
     } catch (e) {
       print('Error adding message for character ${message.characterName}: $e');
       rethrow;
     }
   }
 
-  // Get all messages for a character
-  Future<List<ChatMessage>> getAllCharacterMessages(
-      String characterName) async {
+  Future<void> updateFromServer(
+      String characterName, List<Map<String, dynamic>> serverMessages) async {
     try {
-      print('Getting all messages for character: $characterName');
+      final box = await _getBoxForCharacter(characterName);
+
+      // Convert server messages to ChatMessage objects
+      final messages = serverMessages
+          .map((data) => ChatMessage(
+                text: data['text'],
+                isUser: data['is_user'],
+                timestamp: DateTime.parse(data['timestamp']),
+                characterName: data['character_name'],
+                bookId: data['book_id'],
+              ))
+          .toList();
+
+      // Clear existing messages and add server messages
+      await box.clear();
+      await box.addAll(messages);
+
+      print(
+          'Updated ${messages.length} messages from server for $characterName');
+    } catch (e) {
+      print('Error updating messages from server for $characterName: $e');
+      rethrow;
+    }
+  }
+
+  // Get all messages for a character
+  Future<List<ChatMessage>> getCharacterMessages(String characterName) async {
+    try {
+      print('Getting messages for character: $characterName');
       final box = await _getBoxForCharacter(characterName);
       final messages = box.values.toList()
         ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
@@ -86,23 +166,6 @@ class ChatService {
       return messages;
     } catch (e) {
       print('Error getting messages for character $characterName: $e');
-      rethrow;
-    }
-  }
-
-  // Get messages for a specific book and character
-  Future<List<ChatMessage>> getBookMessages(
-      String characterName, String bookId) async {
-    try {
-      print(
-          'Getting book messages for character: $characterName, book: $bookId');
-      final box = await _getBoxForCharacter(characterName);
-      final messages = box.values.where((msg) => msg.bookId == bookId).toList()
-        ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
-      print('Retrieved ${messages.length} book messages for $characterName');
-      return messages;
-    } catch (e) {
-      print('Error getting book messages for character $characterName: $e');
       rethrow;
     }
   }
@@ -131,6 +194,20 @@ class ChatService {
       print('Clearing all messages for character: $characterName');
       final box = await _getBoxForCharacter(characterName);
       await box.clear();
+
+      // Queue empty sync to clear server messages
+      final task = SyncTask(
+        id: _uuid.v4(),
+        type: SyncTaskType.chatHistory,
+        data: {
+          'character_name': characterName,
+          'messages': [],
+        },
+        timestamp: DateTime.now(),
+        priority: SyncPriority.high,
+      );
+      await _syncManager.addTask(task);
+
       print('Cleared messages for $characterName');
     } catch (e) {
       print('Error clearing messages for character $characterName: $e');
@@ -138,26 +215,13 @@ class ChatService {
     }
   }
 
-  Future<void> clearBookMessages(String characterName, String bookId) async {
-    try {
-      print(
-          'Clearing book messages for character: $characterName, book: $bookId');
-      final box = await _getBoxForCharacter(characterName);
-      final keysToDelete = box.values
-          .where((msg) => msg.bookId == bookId)
-          .map((msg) => msg.key)
-          .toList();
-      await box.deleteAll(keysToDelete);
-      print(
-          'Cleared ${keysToDelete.length} messages for $characterName in book $bookId');
-    } catch (e) {
-      print('Error clearing book messages for character $characterName: $e');
-      rethrow;
-    }
-  }
-
+  @override
   Future<void> dispose() async {
     try {
+      // Sync any pending messages before disposing
+      await _syncPendingMessages();
+
+      _syncTimer?.cancel();
       print('Disposing ChatService, closing all boxes');
       for (var entry in _boxes.entries) {
         print('Closing box for character: ${entry.key}');
