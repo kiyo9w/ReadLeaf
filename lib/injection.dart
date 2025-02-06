@@ -24,6 +24,8 @@ import 'package:read_leaf/services/social_auth_service.dart';
 import 'package:read_leaf/services/image_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:read_leaf/models/ai_character_preference.dart';
+import 'package:read_leaf/services/sync/sync_manager.dart';
+import 'package:read_leaf/services/user_preferences_service.dart';
 
 final getIt = GetIt.instance;
 
@@ -65,10 +67,19 @@ Future<void> configureDependencies() async {
   final backendUrl = dotenv.env['BACKEND_URL'] ?? 'http://localhost:8000';
   getIt.registerSingleton<String>(backendUrl, instanceName: 'backendUrl');
 
+  // Create and register sync manager first
+  final syncManager = SyncManager(Supabase.instance.client);
+  getIt.registerSingleton<SyncManager>(syncManager);
+  await syncManager.initialize();
+
+  // Create and register user preferences service
+  final userPreferencesService = UserPreferencesService(syncManager);
+  getIt.registerSingleton<UserPreferencesService>(userPreferencesService);
+  await userPreferencesService.init();
+
   // Create instances of core services
   final fileRepository = FileRepository();
   final bookMetadataRepository = BookMetadataRepository();
-  final chatService = ChatService();
   final geminiService = GeminiService();
   final aiCharacterService = AiCharacterService();
   final storageService = StorageService();
@@ -77,6 +88,7 @@ Future<void> configureDependencies() async {
   final themeProvider = ThemeProvider();
   final ragService = RagService();
   final imageService = ImageService();
+  final chatService = ChatService(syncManager);
 
   // Initialize services that require async initialization
   await Future.wait([
@@ -121,8 +133,12 @@ Future<void> configureDependencies() async {
         annasArchieve: getIt<AnnasArchieve>(),
         fileRepository: getIt<FileRepository>(),
       ));
-  getIt.registerLazySingleton<AuthBloc>(
-      () => AuthBloc(getIt<SupabaseService>()));
+  getIt.registerLazySingleton<AuthBloc>(() => AuthBloc(
+        getIt<SupabaseService>(),
+        getIt<ChatService>(),
+        getIt<BookMetadataRepository>(),
+        getIt<UserPreferencesService>(),
+      ));
 }
 
 Future<void> _initializeHiveAdapters() async {

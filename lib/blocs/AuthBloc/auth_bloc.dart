@@ -6,13 +6,25 @@ import 'auth_event.dart';
 import 'auth_state.dart';
 import 'package:flutter/material.dart';
 import '../../widgets/auth/email_verification_screen.dart';
+import 'package:get_it/get_it.dart';
+import '../../services/chat_service.dart';
+import '../../services/book_metadata_repository.dart';
+import '../../services/user_preferences_service.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final SupabaseService _supabaseService;
   late final StreamSubscription<AuthEvent> _authStateSubscription;
   AuthState? _lastKnownState;
+  final ChatService _chatService;
+  final BookMetadataRepository _bookMetadataRepository;
+  final UserPreferencesService _userPreferencesService;
 
-  AuthBloc(this._supabaseService) : super(AuthInitial()) {
+  AuthBloc(
+    this._supabaseService,
+    this._chatService,
+    this._bookMetadataRepository,
+    this._userPreferencesService,
+  ) : super(AuthInitial()) {
     on<AuthCheckRequested>(_onAuthCheckRequested);
     on<AuthSignUpRequested>(_onAuthSignUpRequested);
     on<AuthSignInRequested>(_onAuthSignInRequested);
@@ -131,7 +143,16 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     try {
+      // Clear all local user data
+      await Future.wait([
+        _chatService.clearAllData(),
+        _bookMetadataRepository.clear(),
+        _userPreferencesService.clear(),
+      ]);
+
+      // Sign out from Supabase
       await _supabaseService.signOut();
+
       _lastKnownState = AuthUnauthenticated();
       emit(_lastKnownState!);
     } catch (e) {

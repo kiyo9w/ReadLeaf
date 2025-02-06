@@ -10,10 +10,13 @@
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'package:get_it/get_it.dart' as _i174;
 import 'package:injectable/injectable.dart' as _i526;
+import 'package:read_leaf/services/chat_service.dart' as _i743;
 import 'package:read_leaf/services/deep_link_service.dart' as _i1035;
 import 'package:read_leaf/services/image_service.dart' as _i649;
 import 'package:read_leaf/services/social_auth_service.dart' as _i524;
 import 'package:read_leaf/services/storage_service.dart' as _i949;
+import 'package:read_leaf/services/sync/sync_manager.dart' as _i589;
+import 'package:read_leaf/services/user_preferences_service.dart' as _i179;
 
 extension GetItInjectableX on _i174.GetIt {
 // initializes the registration of main-scope dependencies inside of GetIt
@@ -30,6 +33,10 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i524.SocialAuthService>(() => _i524.SocialAuthService());
     gh.lazySingleton<_i949.StorageService>(() => _i949.StorageService());
     gh.lazySingleton<_i649.ImageService>(() => _i649.ImageService());
+    gh.lazySingleton<_i179.UserPreferencesService>(
+        () => _i179.UserPreferencesService(gh<_i589.SyncManager>()));
+    gh.lazySingleton<_i743.ChatService>(
+        () => _i743.ChatService(gh<_i589.SyncManager>()));
     return this;
   }
 }
