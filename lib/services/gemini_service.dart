@@ -174,7 +174,24 @@ Past conversations (ordered from most recent to oldest):
         return 'Gemini service is not initialized. Please check your API key configuration.';
       }
 
-      log('Current AI character: ${characterService.getSelectedCharacter()?.name ?? "none"}');
+      final characterName =
+          characterService.getSelectedCharacter()?.name ?? 'AI Assistant';
+
+      // Skip adding messages to chat history for encouragement task
+      if (task != 'encouragement') {
+        final userMessage = customPrompt ?? selectedText;
+        if (userMessage.trim().isNotEmpty) {
+          // Add user message first
+          final userChatMessage = ChatMessage(
+            text: userMessage,
+            isUser: true,
+            timestamp: DateTime.now(),
+            characterName: characterName,
+            bookId: bookTitle,
+          );
+          await chatService.addMessage(userChatMessage);
+        }
+      }
 
       // Get the appropriate prompt template based on task
       String finalPrompt = characterService.getPromptForTask(task);
@@ -207,10 +224,6 @@ $conversationContext""";
 {TEXT}
 
 $conversationContext""";
-      } else if (!finalPrompt.contains(conversationContext)) {
-        finalPrompt = """$finalPrompt
-
-$conversationContext""";
       }
 
       // Clean the selected text if provided
@@ -218,9 +231,6 @@ $conversationContext""";
       if (selectedText.isNotEmpty) {
         cleanedText = selectedText.replaceAll(RegExp(r'\s+'), ' ').trim();
       }
-
-      log('Selected text length: ${cleanedText.length}');
-      log('Final prompt before replacement: $finalPrompt');
 
       // Replace placeholders
       finalPrompt = finalPrompt
@@ -230,67 +240,44 @@ $conversationContext""";
           .replaceAll('{TOTAL_PAGES}', totalPages.toString())
           .replaceAll('{PROGRESS}',
               AiCharacterService.getProgressPercentage(currentPage, totalPages))
-          .replaceAll('{CHARACTER_NAME}',
-              characterService.getSelectedCharacter()?.name ?? 'AI Assistant')
+          .replaceAll('{CHARACTER_NAME}', characterName)
           .replaceAll('{USER_PROMPT}', customPrompt ?? '');
-
-      log('Final prompt after replacement: $finalPrompt');
 
       // Clean up any potential formatting issues
       finalPrompt = finalPrompt.trim().replaceAll(RegExp(r'\n{3,}'), '\n\n');
 
       final content = [Content.text(finalPrompt)];
-      try {
-        final response = await _model.generateContent(content);
+      final response = await _model.generateContent(content);
 
-        if (response.text != null) {
-          // Store the conversation in memory
+      if (response.text != null) {
+        final aiResponse = response.text!;
+
+        // Store the conversation in memory
+        if (task != 'encouragement') {
           _addToConversationHistory(
-              bookTitle, customPrompt ?? selectedText, response.text!);
+              bookTitle, customPrompt ?? selectedText, aiResponse);
 
-          // Only store in chat service if not an encouragement message (home screen)
-          if (task != 'encouragement') {
-            final characterName =
-                characterService.getSelectedCharacter()?.name ?? 'AI Assistant';
-
-            // Add user message
-            await chatService.addMessage(ChatMessage(
-              text: customPrompt ?? selectedText,
-              isUser: true,
-              timestamp: DateTime.now(),
-              characterName: characterName,
-              bookId: bookTitle,
-            ));
-
-            // Add AI response
-            await chatService.addMessage(ChatMessage(
-              text: response.text!,
-              isUser: false,
-              timestamp: DateTime.now(),
-              characterName: characterName,
-              bookId: bookTitle,
-              avatarImagePath:
-                  characterService.getSelectedCharacter()?.imagePath,
-            ));
-          }
-
-          return response.text!;
+          // Add AI response to chat history
+          await chatService.addMessage(ChatMessage(
+            text: aiResponse,
+            isUser: false,
+            timestamp: DateTime.now(),
+            characterName: characterName,
+            bookId: bookTitle,
+            avatarImagePath: characterService.getSelectedCharacter()?.imagePath,
+          ));
         }
 
-        // Check for specific error cases
-        if (response.promptFeedback != null) {
-          log('Prompt feedback: ${response.promptFeedback}');
-          return "I apologize, but I cannot process this request due to content restrictions. Please try rephrasing your question.";
-        }
-
-        return _getDefaultMessage();
-      } catch (e) {
-        log('Error in Gemini API call: $e');
-        if (e.toString().contains('PromptFeedback')) {
-          return "I apologize, but I cannot process this request due to content restrictions. Please try rephrasing your question.";
-        }
-        return _getDefaultMessage();
+        return aiResponse;
       }
+
+      // Check for specific error cases
+      if (response.promptFeedback != null) {
+        log('Prompt feedback: ${response.promptFeedback}');
+        return "I apologize, but I cannot process this request due to content restrictions. Please try rephrasing your question.";
+      }
+
+      return _getDefaultMessage();
     } catch (e) {
       log('Error in askAboutText: $e');
       return _getDefaultMessage();

@@ -1,4 +1,4 @@
-import 'package:hive/hive.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:read_leaf/models/chat_message.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
@@ -7,6 +7,7 @@ import 'package:read_leaf/services/sync/sync_manager.dart';
 import 'package:read_leaf/services/sync/sync_types.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:async';
+import 'package:logging/logging.dart';
 
 @lazySingleton
 class ChatService {
@@ -18,11 +19,14 @@ class ChatService {
   final _uuid = const Uuid();
   final Map<String, List<ChatMessage>> _pendingSync = {};
   Timer? _syncTimer;
+  final _log = Logger('ChatService');
+  final Map<String, List<ChatMessage>> _messageCache = {};
 
   ChatService(this._syncManager) {
-    // Start periodic sync timer
-    _syncTimer = Timer.periodic(
-        const Duration(minutes: 5), (_) => _syncPendingMessages());
+    // Start periodic sync every 5 minutes
+    _syncTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+      _queueMessagesForSync();
+    });
   }
 
   // Generate a box name for a character
@@ -35,52 +39,127 @@ class ChatService {
   }
 
   Future<void> init() async {
+    _log.info('Initializing ChatService');
+    if (!Hive.isAdapterRegistered(3)) {
+      Hive.registerAdapter(ChatMessageAdapter());
+    }
+
     // Close any existing boxes to ensure clean state
     await dispose();
   }
 
   Future<Box<ChatMessage>> _getBoxForCharacter(String characterName) async {
-    print('Getting box for character: $characterName');
-
-    // Always get a fresh box to ensure we have the latest data
-    if (_boxes.containsKey(characterName)) {
-      print('Found existing box for $characterName');
-      final box = _boxes[characterName]!;
-      if (box.isOpen) {
-        print('Box is open, message count: ${box.length}');
-        return box;
-      } else {
-        print('Box was closed, reopening');
-        await box.close();
-        _boxes.remove(characterName);
-      }
-    }
-
     try {
-      final boxName = _getBoxName(characterName);
-      print('Opening box: $boxName');
-
-      // Close existing box with same name if exists
-      if (Hive.isBoxOpen(boxName)) {
-        print('Box was already open, closing first');
-        await Hive.box<ChatMessage>(boxName).close();
+      _log.info('Getting box for character: $characterName');
+      if (_boxes.containsKey(characterName)) {
+        _log.info('Found existing box for $characterName');
+        return _boxes[characterName]!;
       }
 
-      final box = await Hive.openBox<ChatMessage>(boxName);
+      final box = await Hive.openBox<ChatMessage>('chat_$characterName');
       _boxes[characterName] = box;
-      print('Opened box for $characterName, message count: ${box.length}');
+      _log.info('Box is open, message count: ${box.length}');
       return box;
     } catch (e) {
-      print('Error opening box for character $characterName: $e');
+      _log.severe('Error opening box for character $characterName: $e');
       rethrow;
     }
   }
 
   Future<void> _syncPendingMessages() async {
-    for (var entry in _pendingSync.entries) {
-      if (entry.value.isEmpty) continue;
+    if (!_syncManager.isAuthenticated) {
+      _log.info('Skipping sync - user not authenticated');
+      return;
+    }
 
-      final messages = entry.value.take(_batchSize).toList();
+    try {
+      for (var entry in _pendingSync.entries) {
+        if (entry.value.isEmpty) continue;
+
+        final messages = entry.value.take(_batchSize).toList();
+        final messageData = messages
+            .map((msg) => {
+                  'text': msg.text,
+                  'is_user': msg.isUser,
+                  'timestamp': msg.timestamp.toIso8601String(),
+                  'character_name': msg.characterName,
+                  'book_id': msg.bookId,
+                  'avatar_image_path': msg.avatarImagePath,
+                  'sync_version': 1,
+                  'sync_status': 'pending',
+                })
+            .toList();
+
+        try {
+          await _syncManager.syncChatHistory(entry.key, messageData);
+          entry.value.removeRange(0, messages.length);
+          _log.info(
+              'Successfully synced ${messages.length} messages for ${entry.key}');
+        } catch (e) {
+          _log.severe('Error syncing messages for ${entry.key}: $e');
+          // Keep messages in pending queue for retry
+        }
+      }
+    } catch (e) {
+      _log.severe('Error in _syncPendingMessages: $e');
+    }
+  }
+
+  Future<void> addMessage(ChatMessage message) async {
+    if (message.characterName == null) {
+      _log.warning('Character name is required for chat messages');
+      throw Exception('Character name is required for chat messages');
+    }
+
+    try {
+      final box = await _getBoxForCharacter(message.characterName!);
+
+      // Add message with sync status
+      final messageToAdd = message.copyWith(isSynced: false);
+      await box.add(messageToAdd);
+      _log.info('Added message for character: ${message.characterName}');
+
+      // Queue message for sync if online
+      if (_syncManager.isAuthenticated) {
+        final task = SyncTask(
+          id: _uuid.v4(),
+          type: SyncTaskType.chatHistory,
+          data: {
+            'character_name': message.characterName,
+            'messages': [
+              {
+                'text': message.text,
+                'is_user': message.isUser,
+                'timestamp': message.timestamp.toIso8601String(),
+                'book_id': message.bookId,
+                'avatar_image_path': message.avatarImagePath,
+              }
+            ],
+          },
+          timestamp: DateTime.now(),
+          priority: SyncPriority.normal,
+        );
+
+        await _syncManager.addTask(task);
+        _log.info('Created sync task for message');
+      }
+
+      // Clean up old messages if needed
+      await _cleanupOldMessages(message.characterName!);
+    } catch (e) {
+      _log.severe('Error adding message: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _createSyncTask(String characterName) async {
+    try {
+      final messages = _pendingSync[characterName] ?? [];
+      if (messages.isEmpty) return;
+
+      _log.info(
+          'Creating sync task for ${messages.length} messages from $characterName');
+
       final messageData = messages
           .map((msg) => {
                 'text': msg.text,
@@ -88,69 +167,96 @@ class ChatService {
                 'timestamp': msg.timestamp.toIso8601String(),
                 'character_name': msg.characterName,
                 'book_id': msg.bookId,
+                'avatar_image_path': msg.avatarImagePath,
               })
           .toList();
 
-      await _syncManager.syncChatHistory(entry.key, messageData);
-      entry.value.removeRange(0, messages.length);
+      await _syncManager.syncChatHistory(characterName, messageData);
+      _pendingSync[characterName]?.clear();
+    } catch (e) {
+      _log.severe('Error creating sync task: $e');
     }
   }
 
-  Future<void> addMessage(ChatMessage message) async {
-    if (message.characterName == null) {
-      throw Exception('Character name is required for chat messages');
-    }
-
+  Future<void> _cleanupOldMessages(String characterName) async {
     try {
-      print('Adding message for character: ${message.characterName}');
-      final box = await _getBoxForCharacter(message.characterName!);
-
-      // Ensure we don't exceed max messages per character
-      if (box.length >= _maxMessagesPerCharacter) {
-        // Remove oldest messages to maintain limit
-        final keys = box.keys.toList()
-          ..sort(
-              (a, b) => box.get(a)!.timestamp.compareTo(box.get(b)!.timestamp));
-        final keysToDelete =
-            keys.take(box.length - _maxMessagesPerCharacter + 1);
-        await box.deleteAll(keysToDelete);
+      final box = await _getBoxForCharacter(characterName);
+      if (box.length > _maxMessagesPerCharacter) {
+        _log.info('Cleaning up old messages for $characterName');
+        final messagesToDelete = box.length - _maxMessagesPerCharacter;
+        for (var i = 0; i < messagesToDelete; i++) {
+          await box.deleteAt(0); // Delete oldest messages
+        }
+        _log.info('Deleted $messagesToDelete old messages');
       }
-
-      await box.add(message);
-      print('Added message. New message count: ${box.length}');
-
-      // Queue for sync
-      _pendingSync.putIfAbsent(message.characterName!, () => []).add(message);
     } catch (e) {
-      print('Error adding message for character ${message.characterName}: $e');
-      rethrow;
+      _log.severe('Error cleaning up old messages: $e');
     }
   }
 
   Future<void> updateFromServer(
       String characterName, List<Map<String, dynamic>> serverMessages) async {
     try {
+      _log.info('Updating messages from server for $characterName');
       final box = await _getBoxForCharacter(characterName);
 
+      // Get current local messages
+      final localMessages = box.values.toList();
+      _log.info('Found ${localMessages.length} local messages');
+
+      // Create a map of existing messages by timestamp for quick lookup
+      final existingMessageMap = {
+        for (var msg in localMessages) msg.timestamp.toIso8601String(): msg
+      };
+
       // Convert server messages to ChatMessage objects
-      final messages = serverMessages
-          .map((data) => ChatMessage(
-                text: data['text'],
-                isUser: data['is_user'],
-                timestamp: DateTime.parse(data['timestamp']),
-                characterName: data['character_name'],
-                bookId: data['book_id'],
-              ))
+      final serverChatMessages = serverMessages
+          .map((data) {
+            try {
+              final timestamp = DateTime.parse(data['timestamp']);
+              return ChatMessage(
+                text: data['text'] as String,
+                isUser: data['is_user'] as bool,
+                timestamp: timestamp,
+                characterName: data['character_name'] as String,
+                bookId: data['book_id'] as String?,
+                avatarImagePath: data['avatar_image_path'] as String?,
+                isSynced: true,
+                lastSyncedAt: DateTime.now(),
+              );
+            } catch (e) {
+              _log.warning('Error converting server message: $e');
+              _log.warning('Message data: $data');
+              return null;
+            }
+          })
+          .whereType<ChatMessage>()
           .toList();
 
-      // Clear existing messages and add server messages
-      await box.clear();
-      await box.addAll(messages);
+      _log.info('Converted ${serverChatMessages.length} server messages');
 
-      print(
-          'Updated ${messages.length} messages from server for $characterName');
-    } catch (e) {
-      print('Error updating messages from server for $characterName: $e');
+      // Add or update messages from server
+      for (var serverMsg in serverChatMessages) {
+        final existingMsg =
+            existingMessageMap[serverMsg.timestamp.toIso8601String()];
+        if (existingMsg == null) {
+          // Message doesn't exist locally, add it
+          await box.add(serverMsg);
+          _log.fine('Added new message from server: ${serverMsg.text}');
+        } else if (!existingMsg.isSynced ||
+            existingMsg.text != serverMsg.text ||
+            existingMsg.isUser != serverMsg.isUser) {
+          // Message exists but needs update
+          final index = localMessages.indexOf(existingMsg);
+          await box.putAt(index, serverMsg);
+          _log.fine('Updated existing message from server: ${serverMsg.text}');
+        }
+      }
+
+      _log.info('Successfully updated messages from server for $characterName');
+    } catch (e, stackTrace) {
+      _log.severe('Error updating messages from server for $characterName', e,
+          stackTrace);
       rethrow;
     }
   }
@@ -158,14 +264,16 @@ class ChatService {
   // Get all messages for a character
   Future<List<ChatMessage>> getCharacterMessages(String characterName) async {
     try {
-      print('Getting messages for character: $characterName');
+      _log.info('Getting messages for character: $characterName');
       final box = await _getBoxForCharacter(characterName);
+
       final messages = box.values.toList()
         ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
-      print('Retrieved ${messages.length} messages for $characterName');
+
+      _log.info('Retrieved ${messages.length} messages for $characterName');
       return messages;
     } catch (e) {
-      print('Error getting messages for character $characterName: $e');
+      _log.severe('Error getting messages for character $characterName: $e');
       rethrow;
     }
   }
@@ -191,9 +299,14 @@ class ChatService {
 
   Future<void> clearCharacterMessages(String characterName) async {
     try {
-      print('Clearing all messages for character: $characterName');
+      _log.info('Clearing messages for character: $characterName');
       final box = await _getBoxForCharacter(characterName);
       await box.clear();
+
+      // Clear cache
+      _messageCache.remove(characterName);
+
+      _log.info('Cleared messages successfully');
 
       // Queue empty sync to clear server messages
       final task = SyncTask(
@@ -207,10 +320,8 @@ class ChatService {
         priority: SyncPriority.high,
       );
       await _syncManager.addTask(task);
-
-      print('Cleared messages for $characterName');
     } catch (e) {
-      print('Error clearing messages for character $characterName: $e');
+      _log.severe('Error clearing messages: $e');
       rethrow;
     }
   }
@@ -218,6 +329,10 @@ class ChatService {
   @override
   Future<void> dispose() async {
     try {
+      _log.info('Disposing ChatService');
+      // Clear cache
+      _messageCache.clear();
+
       // Sync any pending messages before disposing
       await _syncPendingMessages();
 
@@ -228,6 +343,7 @@ class ChatService {
         await entry.value.close();
       }
       _boxes.clear();
+      _pendingSync.clear();
       print('All boxes closed');
     } catch (e) {
       print('Error disposing chat service: $e');
@@ -247,5 +363,155 @@ class ChatService {
       print('---');
     }
     print('============================\n');
+  }
+
+  Future<void> retryFailedSync() async {
+    await _syncPendingMessages();
+  }
+
+  // Force sync method for debug purposes
+  Future<void> forceSync() async {
+    _log.info('Force sync requested');
+    try {
+      // Check authentication first
+      if (!_syncManager.isAuthenticated) {
+        _log.warning('Cannot sync - user not authenticated');
+        throw Exception('User not authenticated');
+      }
+
+      // Cancel any existing sync timer
+      _syncTimer?.cancel();
+
+      // Queue all messages for sync
+      await _queueMessagesForSync();
+
+      // Process pending tasks immediately
+      await _syncManager.processPendingTasks();
+
+      // Restart periodic sync timer
+      _syncTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+        _queueMessagesForSync();
+      });
+
+      _log.info('Force sync completed successfully');
+    } catch (e) {
+      _log.severe('Force sync failed: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _queueMessagesForSync() async {
+    if (!_syncManager.isAuthenticated) {
+      _log.info('Skipping sync - user not authenticated');
+      return;
+    }
+
+    try {
+      for (final characterName in _boxes.keys) {
+        final box = _boxes[characterName];
+        if (box == null) continue;
+
+        // Get only unsynced messages
+        final messages = box.values.where((msg) => !msg.isSynced).toList();
+        if (messages.isEmpty) {
+          _log.info('No unsynced messages for $characterName');
+          continue;
+        }
+
+        _log.info(
+            'Found ${messages.length} unsynced messages for $characterName');
+
+        // Create sync task for this batch of messages
+        final task = SyncTask(
+          id: _uuid.v4(),
+          type: SyncTaskType.chatHistory,
+          data: {
+            'character_name': characterName,
+            'messages': messages
+                .map((msg) => {
+                      'text': msg.text,
+                      'is_user': msg.isUser,
+                      'timestamp': msg.timestamp.toIso8601String(),
+                      'book_id': msg.bookId,
+                      'avatar_image_path': msg.avatarImagePath,
+                    })
+                .toList(),
+          },
+          timestamp: DateTime.now(),
+          priority: SyncPriority.normal,
+        );
+
+        await _syncManager.addTask(task);
+        _log.info(
+            'Created sync task for ${messages.length} messages from $characterName');
+      }
+    } catch (e) {
+      _log.severe('Error queueing messages for sync: $e');
+      rethrow;
+    }
+  }
+
+  /// Clears all local chat data and optionally syncs the cleared state to server
+  Future<void> clearAllData({bool syncToServer = true}) async {
+    try {
+      _log.info('Clearing all chat data');
+
+      // Get all box names to clear
+      final chatBoxes = _boxes.keys;
+
+      // Clear each chat box
+      for (final characterName in chatBoxes) {
+        final box = await _getBoxForCharacter(characterName);
+        await box.clear();
+        await box.close();
+      }
+      _boxes.clear();
+      _pendingSync.clear();
+
+      if (syncToServer && _syncManager.isAuthenticated) {
+        // Create a sync task to clear server data
+        final task = SyncTask(
+          id: _uuid.v4(),
+          type: SyncTaskType.chatHistory,
+          data: {
+            'clear_all': true,
+            'timestamp': DateTime.now().toIso8601String(),
+          },
+          timestamp: DateTime.now(),
+          priority: SyncPriority.high,
+        );
+        await _syncManager.addTask(task);
+      }
+
+      _log.info('Successfully cleared all chat data');
+    } catch (e) {
+      _log.severe('Error clearing chat data: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> markMessagesAsSynced(
+      String characterName, List<DateTime> timestamps) async {
+    try {
+      final box = await _getBoxForCharacter(characterName);
+      final messages = box.values.toList();
+
+      for (var timestamp in timestamps) {
+        final index = messages.indexWhere((msg) => msg.timestamp == timestamp);
+        if (index != -1) {
+          final message = messages[index];
+          await box.putAt(
+              index,
+              message.copyWith(
+                isSynced: true,
+                lastSyncedAt: DateTime.now(),
+              ));
+        }
+      }
+      _log.info(
+          'Marked ${timestamps.length} messages as synced for $characterName');
+    } catch (e) {
+      _log.severe('Error marking messages as synced: $e');
+    }
   }
 }

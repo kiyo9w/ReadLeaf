@@ -199,15 +199,7 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
   void addUserMessage(String message) {
     print('Adding user message for character: ${widget.character.name}');
     if (_chatScreenKey.currentState != null) {
-      _chatScreenKey.currentState!.addMessage(
-        ChatMessage(
-          text: message,
-          isUser: true,
-          timestamp: DateTime.now(),
-          characterName: widget.character.name,
-          bookId: widget.bookId,
-        ),
-      );
+      _chatScreenKey.currentState!.loadMessages(); // Use public method
     }
   }
 
@@ -215,16 +207,7 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
   void addAiResponse(String message) {
     print('Adding AI response for character: ${widget.character.name}');
     if (_chatScreenKey.currentState != null) {
-      _chatScreenKey.currentState!.addMessage(
-        ChatMessage(
-          text: message,
-          isUser: false,
-          timestamp: DateTime.now(),
-          avatarImagePath: widget.character.imagePath,
-          characterName: widget.character.name,
-          bookId: widget.bookId,
-        ),
-      );
+      _chatScreenKey.currentState!.loadMessages(); // Use public method
     }
   }
 

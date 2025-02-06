@@ -2,6 +2,10 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:read_leaf/widgets/ai_character_slider.dart';
 import 'package:read_leaf/models/ai_character.dart';
 import 'package:read_leaf/models/ai_character_preference.dart';
+import 'package:get_it/get_it.dart';
+import 'package:read_leaf/services/sync/sync_manager.dart';
+import 'package:read_leaf/injection.dart';
+import 'package:read_leaf/services/chat_service.dart';
 
 class AiCharacterService {
   static const String _boxName = 'ai_character_preferences';
@@ -10,12 +14,16 @@ class AiCharacterService {
   late Box<Map> _customCharactersBox;
   AiCharacter? _selectedCharacter;
   List<AiCharacter> _customCharacters = [];
+  late final SyncManager _syncManager;
 
   Future<void> init() async {
     try {
       // Open the Hive boxes with retry logic
       _box = await _openBox<AiCharacterPreference>(_boxName);
       _customCharactersBox = await _openBox<Map>(_customCharactersBoxName);
+
+      // Initialize sync manager
+      _syncManager = getIt<SyncManager>();
 
       // Load custom characters
       _loadCustomCharacters();
@@ -105,7 +113,35 @@ class AiCharacterService {
   }
 
   List<AiCharacter> getAllCharacters() {
-    return [...defaultCharacters, ..._customCharacters];
+    // Get all characters
+    final allCharacters = [...defaultCharacters, ..._customCharacters];
+
+    // Get preferences for sorting
+    final preferences = _box.values.toList();
+
+    // Create a map of character name to last used time
+    final lastUsedMap = Map.fromEntries(
+        preferences.map((pref) => MapEntry(pref.characterName, pref.lastUsed)));
+
+    // Sort characters by last used time
+    allCharacters.sort((a, b) {
+      final aTime = lastUsedMap[a.name];
+      final bTime = lastUsedMap[b.name];
+
+      // If both have been used, sort by time
+      if (aTime != null && bTime != null) {
+        return bTime.compareTo(aTime); // Most recent first
+      }
+
+      // If only one has been used, put the used one first
+      if (aTime != null) return -1;
+      if (bTime != null) return 1;
+
+      // If neither has been used, maintain original order
+      return 0;
+    });
+
+    return allCharacters;
   }
 
   // List of default characters
@@ -359,13 +395,37 @@ ROLEPLAY TRAITS & SPEAKING STYLE:
     ),
   ];
 
-  void setSelectedCharacter(AiCharacter character) {
+  void setSelectedCharacter(AiCharacter character) async {
     _selectedCharacter = character;
+    final now = DateTime.now();
+
     // Save to Hive
-    _box.add(AiCharacterPreference(
+    await _box.add(AiCharacterPreference(
       characterName: character.name,
-      lastUsed: DateTime.now(),
+      lastUsed: now,
     ));
+
+    // Preload messages for this character
+    final chatService = GetIt.I<ChatService>();
+    await chatService.init();
+    await chatService.getCharacterMessages(character.name);
+
+    // Sync to server
+    await _syncManager.syncCharacterPreferences(
+      character.name,
+      {
+        'character_name': character.name,
+        'last_used': now.toIso8601String(),
+        'custom_settings': character.categories.contains('Custom')
+            ? {
+                'personality': character.personality,
+                'trait': character.trait,
+                'prompt_template': character.promptTemplate,
+                'task_prompts': character.taskPrompts,
+              }
+            : {},
+      },
+    );
   }
 
   AiCharacter? getSelectedCharacter() {
@@ -483,6 +543,69 @@ Task Guidelines:
 
       default:
         return _getDefaultPromptTemplate();
+    }
+  }
+
+  Future<void> updatePreferenceFromServer(
+    String characterName,
+    DateTime lastUsed,
+    Map<String, dynamic> customSettings,
+  ) async {
+    try {
+      // Update the preference in Hive
+      await _box.add(AiCharacterPreference(
+        characterName: characterName,
+        lastUsed: lastUsed,
+      ));
+
+      // If this is a custom character, update or add it
+      if (customSettings.isNotEmpty) {
+        bool found = false;
+        // Check if character exists
+        for (var i = 0; i < _customCharactersBox.length; i++) {
+          final map = _customCharactersBox.getAt(i);
+          if (map != null && map['name'] == characterName) {
+            // Update existing character
+            await _customCharactersBox.putAt(i, {
+              'name': characterName,
+              'imagePath': map['imagePath'],
+              'personality':
+                  customSettings['personality'] ?? map['personality'],
+              'trait': customSettings['trait'] ?? map['trait'],
+              'categories': ['Custom'],
+              'promptTemplate':
+                  customSettings['prompt_template'] ?? map['promptTemplate'],
+              'taskPrompts':
+                  customSettings['task_prompts'] ?? map['taskPrompts'],
+            });
+            found = true;
+            break;
+          }
+        }
+
+        // If character not found and has all required fields, add it
+        if (!found &&
+            customSettings.containsKey('personality') &&
+            customSettings.containsKey('trait') &&
+            customSettings.containsKey('prompt_template')) {
+          await _customCharactersBox.add({
+            'name': characterName,
+            'imagePath':
+                'assets/images/ai_characters/custom.png', // Default image for custom characters
+            'personality': customSettings['personality'],
+            'trait': customSettings['trait'],
+            'categories': ['Custom'],
+            'promptTemplate': customSettings['prompt_template'],
+            'taskPrompts': customSettings['task_prompts'] ?? {},
+          });
+        }
+
+        // Reload custom characters
+        _loadCustomCharacters();
+      }
+    } catch (e) {
+      print('Error updating preference from server: $e');
+      rethrow;
     }
   }
 }
