@@ -6,6 +6,9 @@ import 'sync_types.dart';
 import 'sync_queue.dart';
 import 'offline_manager.dart';
 import 'package:rxdart/rxdart.dart';
+import 'package:get_it/get_it.dart';
+import '../chat_service.dart';
+import '../ai_character_service.dart';
 
 class SyncManager {
   final _log = Logger('SyncManager');
@@ -56,6 +59,14 @@ class SyncManager {
         processPendingTasks();
       },
     );
+
+    // Listen to auth state changes and sync from server when user logs in
+    _supabase.auth.onAuthStateChange.listen((data) async {
+      if (data.event == AuthChangeEvent.signedIn) {
+        _log.info('User signed in, syncing data from server');
+        await syncFromServer();
+      }
+    });
 
     _initialized = true;
     _log.info('SyncManager initialized successfully');
@@ -315,66 +326,182 @@ class SyncManager {
       throw Exception('User not authenticated');
     }
 
-    _log.info('Syncing chat history for character: ${data['character_name']}');
-    _log.info('Received ${(data['messages'] as List).length} messages to sync');
+    _log.info('Processing chat history sync task');
 
     try {
-      // Get existing messages for this character
-      final existingMessages = await _supabase
-          .from('chat_history')
-          .select()
-          .eq('user_id', userId)
-          .eq('character_name', data['character_name'])
-          .order('timestamp', ascending: false)
-          .limit(200);
+      // Handle clear all request
+      if (data['clear_all'] == true) {
+        _log.info('Clearing all chat history from server');
+        await _supabase.from('chat_history').delete().eq('user_id', userId);
+        _log.info('Successfully cleared all chat history from server');
+        return;
+      }
 
-      _log.info(
-          'Found ${existingMessages.length} existing messages in Supabase');
-
-      // Format messages according to the table schema
-      final List<Map<String, dynamic>> messages =
-          (data['messages'] as List).map((m) {
-        // Ensure timestamp is properly formatted
-        final timestamp = m['timestamp'] is DateTime
-            ? m['timestamp'].toIso8601String()
-            : m['timestamp'];
-
-        return {
-          'id': _uuid.v4(), // Generate a unique ID for each message
-          'user_id': userId,
-          'character_name': data['character_name'],
-          'message_text': m['text'], // Map 'text' to 'message_text'
-          'is_user': m['is_user'],
-          'timestamp': timestamp,
-          'book_id': m['book_id'],
-          'avatar_image_path': m['avatar_image_path'],
-          'sync_status': 'synced',
-          'sync_version': 1,
-          'last_synced_at': DateTime.now().toIso8601String(),
-          'created_at': DateTime.now().toIso8601String(),
-          'updated_at': DateTime.now().toIso8601String(),
-        };
-      }).toList();
-
-      _log.info('Preparing to sync ${messages.length} messages to Supabase');
-      _log.info('Sample message payload: ${messages.first}');
+      final characterName = data['character_name'];
+      final messages = data['messages'] as List;
+      _log.info('Syncing chat history for character: $characterName');
+      _log.info('Received ${messages.length} messages to sync');
 
       try {
-        // First verify we're still authenticated
-        if (_supabase.auth.currentUser == null) {
-          throw Exception('Lost authentication during sync process');
+        // Get existing messages for this character
+        final existingMessages = await _supabase
+            .from('chat_history')
+            .select()
+            .eq('user_id', userId)
+            .eq('character_name', characterName);
+
+        _log.info(
+            'Found ${existingMessages.length} existing messages in Supabase');
+
+        // Create a map of existing messages by timestamp for deduplication
+        final existingMessageMap = {
+          for (var msg in existingMessages) msg['timestamp']: msg
+        };
+
+        // Format messages according to the table schema, skipping duplicates
+        final List<Map<String, dynamic>> messagesToSync = [];
+        final List<DateTime> syncedTimestamps = [];
+
+        for (var m in messages) {
+          final timestamp = m['timestamp'] is DateTime
+              ? m['timestamp'].toIso8601String()
+              : m['timestamp'];
+
+          // Skip if message already exists
+          if (existingMessageMap.containsKey(timestamp)) {
+            syncedTimestamps.add(DateTime.parse(timestamp));
+            continue;
+          }
+
+          messagesToSync.add({
+            'id': _uuid.v4(),
+            'user_id': userId,
+            'character_name': characterName,
+            'message_text': m['text'],
+            'is_user': m['is_user'],
+            'timestamp': timestamp,
+            'book_id': m['book_id'],
+            'avatar_image_path': m['avatar_image_path'],
+            'sync_status': 'synced',
+            'sync_version': 1,
+            'last_synced_at': DateTime.now().toIso8601String(),
+            'created_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
+          });
         }
 
-        final response =
-            await _supabase.from('chat_history').upsert(messages).select();
+        if (messagesToSync.isEmpty) {
+          _log.info('No new messages to sync');
+          return;
+        }
+
         _log.info(
-            'Successfully synced messages. Response length: ${response.length}');
+            'Preparing to sync ${messagesToSync.length} messages to Supabase');
+        _log.info('Sample message payload: ${messagesToSync.first}');
+
+        try {
+          // First verify we're still authenticated
+          if (_supabase.auth.currentUser == null) {
+            throw Exception('Lost authentication during sync process');
+          }
+
+          final response = await _supabase
+              .from('chat_history')
+              .upsert(messagesToSync)
+              .select();
+
+          _log.info(
+              'Successfully synced messages. Response length: ${response.length}');
+
+          // Mark messages as synced in local storage
+          if (syncedTimestamps.isNotEmpty) {
+            final chatService = GetIt.instance<ChatService>();
+            await chatService.markMessagesAsSynced(
+                characterName, syncedTimestamps);
+          }
+        } catch (e) {
+          _log.severe('Failed to upsert messages to Supabase: $e');
+          rethrow;
+        }
       } catch (e) {
-        _log.severe('Failed to upsert messages to Supabase: $e');
+        _log.severe('Error in _syncChatHistoryToServer: $e');
         rethrow;
       }
     } catch (e) {
       _log.severe('Error in _syncChatHistoryToServer: $e');
+      rethrow;
+    }
+  }
+
+  /// Syncs all data from server to local storage
+  Future<void> syncFromServer() async {
+    if (!isAuthenticated) {
+      _log.warning('Cannot sync from server: User not authenticated');
+      return;
+    }
+
+    try {
+      _log.info('Starting sync from server');
+      _statusController.add(SyncStatus.syncing);
+
+      // Get user ID
+      final userId = _supabase.auth.currentUser!.id;
+
+      // Fetch chat history from server with proper ordering and filtering
+      final chatHistory = await _supabase
+          .from('chat_history')
+          .select()
+          .eq('user_id', userId)
+          .order('timestamp', ascending: true)
+          .limit(1000); // Increased limit to ensure we get all messages
+
+      _log.info('Fetched ${chatHistory.length} messages from server');
+
+      // Group messages by character
+      final messagesByCharacter = <String, List<Map<String, dynamic>>>{};
+      for (final message in chatHistory) {
+        final characterName = message['character_name'] as String;
+        messagesByCharacter.putIfAbsent(characterName, () => []).add({
+          'text': message['message_text'],
+          'is_user': message['is_user'],
+          'timestamp': message['timestamp'],
+          'character_name': message['character_name'],
+          'book_id': message['book_id'],
+          'avatar_image_path': message['avatar_image_path'],
+        });
+      }
+
+      // Notify chat service to update local storage
+      final chatService = GetIt.instance<ChatService>();
+      for (final entry in messagesByCharacter.entries) {
+        final characterName = entry.key;
+        final messages = entry.value;
+        _log.info(
+            'Syncing ${messages.length} messages for character $characterName');
+        await chatService.updateFromServer(characterName, messages);
+      }
+
+      // Fetch character preferences from server
+      final characterPrefs = await _supabase
+          .from('character_preferences')
+          .select()
+          .eq('user_id', userId);
+
+      // Update character preferences in local storage
+      final aiCharacterService = GetIt.instance<AiCharacterService>();
+      for (final pref in characterPrefs) {
+        await aiCharacterService.updatePreferenceFromServer(
+          pref['character_name'],
+          DateTime.parse(pref['last_used']),
+          pref['custom_settings'] ?? {},
+        );
+      }
+
+      _log.info('Server sync completed successfully');
+      _statusController.add(SyncStatus.completed);
+    } catch (e, stackTrace) {
+      _log.severe('Error syncing from server', e, stackTrace);
+      _statusController.add(SyncStatus.failed);
       rethrow;
     }
   }

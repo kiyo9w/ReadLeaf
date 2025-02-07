@@ -111,4 +111,15 @@ class BookMetadataRepository {
   Future<void> close() async {
     await _box.close();
   }
+
+  /// Clears all local book metadata
+  Future<void> clear() async {
+    try {
+      await _box.clear();
+      print('Cleared all local book metadata');
+    } catch (e) {
+      print('Error clearing book metadata: $e');
+      rethrow;
+    }
+  }
 }
