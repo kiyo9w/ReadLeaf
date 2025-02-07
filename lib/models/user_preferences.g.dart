@@ -15,7 +15,7 @@ _$UserPreferencesImpl _$$UserPreferencesImplFromJson(
       showReadingProgress: json['showReadingProgress'] as bool? ?? true,
       enableAutoSync: json['enableAutoSync'] as bool? ?? false,
       customSettings:
-          json['customSettings'] as Map<String, dynamic>? ?? const {},
+          (json['customSettings'] as Map<dynamic, dynamic>?)?.cast<String, dynamic>() ?? const <String, dynamic>{},
     );
 
 Map<String, dynamic> _$$UserPreferencesImplToJson(
