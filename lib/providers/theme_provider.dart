@@ -2,36 +2,53 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:read_leaf/themes/custom_theme_extension.dart';
+import 'package:read_leaf/services/user_preferences_service.dart';
+import 'package:read_leaf/models/user_preferences.dart';
+import 'package:read_leaf/injection.dart';
 
 class ThemeProvider extends ChangeNotifier {
   static const String _themeBoxName = 'theme_box';
   static const String _isDarkModeKey = 'is_dark_mode';
-  bool _isDarkMode = false;
+  late final UserPreferencesService _preferencesService;
+  late ThemeData _theme;
+  bool _isDarkMode;
 
-  ThemeProvider() {
-    _loadTheme();
+  ThemeProvider() : _isDarkMode = false {
+    _preferencesService = getIt<UserPreferencesService>();
+    _loadPreferences();
   }
 
+  ThemeData get theme => _theme;
   bool get isDarkMode => _isDarkMode;
 
-  Future<void> _loadTheme() async {
-    final box = await Hive.openBox(_themeBoxName);
-    _isDarkMode = box.get(_isDarkModeKey, defaultValue: false);
-    notifyListeners();
+  void _loadPreferences() {
+    final preferences = _preferencesService.getPreferences();
+    _isDarkMode = preferences.darkMode;
+    _updateTheme();
   }
 
-  Future<void> toggleTheme() async {
-    final box = await Hive.openBox(_themeBoxName);
+  void toggleTheme() {
     _isDarkMode = !_isDarkMode;
-    await box.put(_isDarkModeKey, _isDarkMode);
+    _updateTheme();
+    _savePreferences();
+  }
+
+  void _updateTheme() {
+    if (_isDarkMode) {
+      _theme = _darkTheme;
+    } else {
+      _theme = _lightTheme;
+    }
     notifyListeners();
   }
 
-  ThemeData get theme {
-    return _isDarkMode ? darkTheme : lightTheme;
+  Future<void> _savePreferences() async {
+    final currentPrefs = _preferencesService.getPreferences();
+    final updatedPrefs = currentPrefs.copyWith(darkMode: _isDarkMode);
+    await _preferencesService.savePreferences(updatedPrefs);
   }
 
-  static final lightTheme = ThemeData(
+  static final _lightTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
     primaryColor: Colors.blue,
@@ -145,7 +162,7 @@ class ThemeProvider extends ChangeNotifier {
     ],
   );
 
-  static final darkTheme = ThemeData(
+  static final _darkTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
     primaryColor: Color(0xFF9C27B0), // Mystic purple for AI character
