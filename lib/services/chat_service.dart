@@ -456,32 +456,37 @@ class ChatService {
     try {
       _log.info('Clearing all chat data');
 
-      // Get all box names to clear
-      final chatBoxes = _boxes.keys;
+      final chatBoxNames = await Hive.lazyBox<ChatMessage>('chat_boxes')
+          .keys
+          .where((name) => name.toString().startsWith('chat_'))
+          .toList();
 
-      // Clear each chat box
-      for (final characterName in chatBoxes) {
-        final box = await _getBoxForCharacter(characterName);
+      // Iterate over each chat box on disk, clear and delete it.
+      for (final boxName in chatBoxNames) {
+        // Open the box (in case it is not already open)
+        final box = await Hive.openBox<ChatMessage>(boxName);
         await box.clear();
         await box.close();
+        await Hive.deleteBoxFromDisk(boxName);
+        _log.info('Cleared and deleted box: $boxName');
       }
       _boxes.clear();
       _pendingSync.clear();
 
-      if (syncToServer && _syncManager.isAuthenticated) {
-        // Create a sync task to clear server data
-        final task = SyncTask(
-          id: _uuid.v4(),
-          type: SyncTaskType.chatHistory,
-          data: {
-            'clear_all': true,
-            'timestamp': DateTime.now().toIso8601String(),
-          },
-          timestamp: DateTime.now(),
-          priority: SyncPriority.high,
-        );
-        await _syncManager.addTask(task);
-      }
+      // if (syncToServer && _syncManager.isAuthenticated) {
+      //   // Create a sync task to clear server data
+      //   final task = SyncTask(
+      //     id: _uuid.v4(),
+      //     type: SyncTaskType.chatHistory,
+      //     data: {
+      //       'clear_all': true,
+      //       'timestamp': DateTime.now().toIso8601String(),
+      //     },
+      //     timestamp: DateTime.now(),
+      //     priority: SyncPriority.high,
+      //   );
+      //   await _syncManager.addTask(task);
+      // }
 
       _log.info('Successfully cleared all chat data');
     } catch (e) {
