@@ -4,17 +4,15 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:read_leaf/themes/custom_theme_extension.dart';
 import 'package:read_leaf/services/user_preferences_service.dart';
 import 'package:read_leaf/models/user_preferences.dart';
-import 'package:read_leaf/injection.dart';
 
 class ThemeProvider extends ChangeNotifier {
   static const String _themeBoxName = 'theme_box';
   static const String _isDarkModeKey = 'is_dark_mode';
-  late final UserPreferencesService _preferencesService;
+  final UserPreferencesService _preferencesService;
   late ThemeData _theme;
   bool _isDarkMode;
 
-  ThemeProvider() : _isDarkMode = false {
-    _preferencesService = getIt<UserPreferencesService>();
+  ThemeProvider(this._preferencesService) : _isDarkMode = false {
     _loadPreferences();
   }
 

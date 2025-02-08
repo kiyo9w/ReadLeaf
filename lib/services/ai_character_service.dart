@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:read_leaf/widgets/ai_character_slider.dart';
 import 'package:read_leaf/models/ai_character.dart';
@@ -23,7 +24,7 @@ class AiCharacterService {
       _customCharactersBox = await _openBox<Map>(_customCharactersBoxName);
 
       // Initialize sync manager
-      _syncManager = getIt<SyncManager>();
+      _syncManager = GetIt.I<SyncManager>();
 
       // Load custom characters
       _loadCustomCharacters();

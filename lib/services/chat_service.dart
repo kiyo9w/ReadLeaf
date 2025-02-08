@@ -2,14 +2,12 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:read_leaf/models/chat_message.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
-import 'package:injectable/injectable.dart';
-import 'package:read_leaf/services/sync/sync_manager.dart';
-import 'package:read_leaf/services/sync/sync_types.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:async';
 import 'package:logging/logging.dart';
+import 'package:read_leaf/services/sync/sync_manager.dart';
+import 'package:read_leaf/services/sync/sync_types.dart';
 
-@lazySingleton
 class ChatService {
   static const String _boxPrefix = 'character_chat_';
   static const int _maxMessagesPerCharacter = 200;

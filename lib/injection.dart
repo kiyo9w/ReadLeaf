@@ -51,6 +51,8 @@ Future<void> configureDependencies() async {
           "user-agent":
               "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36",
         },
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
       ),
     );
   });
@@ -80,15 +82,15 @@ Future<void> configureDependencies() async {
   // Create instances of core services
   final fileRepository = FileRepository();
   final bookMetadataRepository = BookMetadataRepository();
-  final geminiService = GeminiService();
   final aiCharacterService = AiCharacterService();
   final storageService = StorageService();
   final storageScannerService = StorageScannerService();
   final socialAuthService = SocialAuthService();
-  final themeProvider = ThemeProvider();
+  final themeProvider = ThemeProvider(getIt<UserPreferencesService>());
   final ragService = RagService();
   final imageService = ImageService();
   final chatService = ChatService(syncManager);
+  final geminiService = GeminiService(aiCharacterService, chatService);
 
   // Initialize services that require async initialization
   await Future.wait([
@@ -148,4 +150,75 @@ Future<void> _initializeHiveAdapters() async {
   if (!Hive.isAdapterRegistered(6)) {
     Hive.registerAdapter(AiCharacterPreferenceAdapter());
   }
+}
+
+@module
+abstract class RegisterModule {
+  @lazySingleton
+  Dio get dio => Dio(BaseOptions(
+        headers: {
+          "user-agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36",
+        },
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+      ));
+
+  @lazySingleton
+  String get backendUrl => dotenv.env['BACKEND_URL'] ?? 'http://localhost:8000';
+
+  @lazySingleton
+  SupabaseClient get supabaseClient => Supabase.instance.client;
+
+  @lazySingleton
+  AiCharacterService get aiCharacterService => AiCharacterService();
+
+  @lazySingleton
+  ChatService get chatService => ChatService(getIt<SyncManager>());
+
+  @lazySingleton
+  GeminiService get geminiService =>
+      GeminiService(aiCharacterService, chatService);
+
+  @lazySingleton
+  BookMetadataRepository get bookMetadataRepository => BookMetadataRepository();
+
+  @lazySingleton
+  ThemeProvider get themeProvider =>
+      ThemeProvider(getIt<UserPreferencesService>());
+
+  @lazySingleton
+  FileRepository get fileRepository => FileRepository();
+
+  @lazySingleton
+  StorageScannerService get storageScannerService => StorageScannerService();
+
+  @lazySingleton
+  RagService get ragService => RagService();
+
+  @lazySingleton
+  AnnasArchieve get annasArchieve => AnnasArchieve(dio: dio);
+
+  @lazySingleton
+  ReaderBloc get readerBloc => ReaderBloc();
+
+  @lazySingleton
+  FileBloc get fileBloc => FileBloc(
+        fileRepository: fileRepository,
+        storageScannerService: storageScannerService,
+      );
+
+  @lazySingleton
+  SearchBloc get searchBloc => SearchBloc(
+        annasArchieve: annasArchieve,
+        fileRepository: fileRepository,
+      );
+
+  @lazySingleton
+  AuthBloc get authBloc => AuthBloc(
+        SupabaseService(supabaseClient),
+        chatService,
+        bookMetadataRepository,
+        UserPreferencesService(getIt<SyncManager>()),
+      );
 }

@@ -9,7 +9,9 @@ import 'package:rxdart/rxdart.dart';
 import 'package:get_it/get_it.dart';
 import '../chat_service.dart';
 import '../ai_character_service.dart';
+import 'package:injectable/injectable.dart';
 
+@injectable
 class SyncManager {
   final _log = Logger('SyncManager');
   final SupabaseClient _supabase;

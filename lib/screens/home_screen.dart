@@ -38,7 +38,7 @@ class HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _geminiService = GeminiService();
+    _geminiService = getIt<GeminiService>();
     _annasArchieve = getIt<AnnasArchieve>();
     _initializeScreen();
   }
