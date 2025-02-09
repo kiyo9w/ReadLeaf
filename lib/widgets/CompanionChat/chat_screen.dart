@@ -144,7 +144,7 @@ class ChatScreenState extends State<ChatScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         CircleAvatar(
-          backgroundImage: AssetImage(widget.character.imagePath),
+          backgroundImage: AssetImage(widget.character.avatarImagePath),
           radius: 16,
         ),
         const SizedBox(width: 8),
@@ -364,7 +364,7 @@ class ChatScreenState extends State<ChatScreen> {
               padding: const EdgeInsets.only(right: 8),
               child: CircleAvatar(
                 radius: ResponsiveConstants.isTablet(context) ? 20 : 16,
-                backgroundImage: AssetImage(widget.character.imagePath),
+                backgroundImage: AssetImage(widget.character.avatarImagePath),
               ),
             ),
           Flexible(
