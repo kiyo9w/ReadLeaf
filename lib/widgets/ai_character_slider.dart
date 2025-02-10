@@ -26,7 +26,8 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
   bool _isExpanded = false;
   bool _isTextExpanded = false;
   late int _selectedIndex;
-  late List<AiCharacter> characters;
+  late List<AiCharacter> characters = [];
+  bool _isLoading = true;
   late ScrollController _scrollController;
   late AnimationController _expandController;
   late Animation<double> _expandAnimation;
@@ -44,13 +45,19 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
   final double _buttonMargin = 8.0;
 
   late final AiCharacterService _characterService;
-  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _characterService = getIt<AiCharacterService>();
     _loadCharacters();
+
+    // Subscribe to character updates
+    _characterService.onCharacterUpdate.listen((_) {
+      if (mounted) {
+        _loadCharacters();
+      }
+    });
 
     _expandController = AnimationController(
       duration: const Duration(milliseconds: 300),
@@ -63,9 +70,6 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
     );
 
     _scrollController = ScrollController();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scrollToSelectedCharacter(animate: false);
-    });
   }
 
   @override
@@ -95,50 +99,67 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
       final loadedCharacters = await _characterService.getAllCharacters();
       final selectedCharacter = _characterService.getSelectedCharacter();
 
+      if (!mounted) return;
+
       setState(() {
         characters = loadedCharacters;
         _selectedIndex = characters
             .indexWhere((char) => char.name == selectedCharacter?.name);
+        if (_selectedIndex == -1 && characters.isNotEmpty) {
+          _selectedIndex =
+              characters.indexWhere((char) => char.name == 'Amelia');
+          if (_selectedIndex == -1) {
+            _selectedIndex = 0;
+          }
+        }
         _isLoading = false;
+      });
+
+      // Scroll to selected character after layout
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToSelectedCharacter(animate: false);
       });
     } catch (e) {
       print('Error loading characters: $e');
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
+        characters = [];
+        _selectedIndex = -1;
       });
     }
   }
 
-  void _selectCharacter(int index) async {
-    if (index == _selectedIndex) return;
-
-    setState(() => _selectedIndex = index);
-    await _characterService.setSelectedCharacter(characters[index]);
-    widget.onCharacterSelected?.call();
+  // Add a new character to the slider
+  void addCharacter(AiCharacter character) {
+    setState(() {
+      characters.add(character);
+      _selectedIndex = characters.length - 1;
+    });
   }
 
-  /// Expand into the row of characters.
-  void _expand() {
-    setState(() {
-      _isExpanded = true;
-    });
-    _expandController.forward();
-  }
-
-  /// Collapse back to a single avatar.
-  void _collapse() {
-    setState(() {
-      _isExpanded = false;
-    });
-    _expandController.reverse();
+  // Force a refresh of the character list
+  void refreshCharacters() {
+    _loadCharacters();
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const SizedBox(
+        height: 200,
+        child: Center(child: CircularProgressIndicator()),
+      );
     }
 
+    if (characters.isEmpty) {
+      return const SizedBox(
+        height: 200,
+        child: Center(child: Text('No characters available')),
+      );
+    }
+
+    final theme = Theme.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final height = _calculateHeight(context);
@@ -149,7 +170,7 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOut,
             decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
+              color: theme.cardColor,
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
@@ -344,78 +365,61 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
     final isTablet = ResponsiveConstants.isTablet(context);
 
     return GestureDetector(
-      onTap: () => _selectCharacter(index),
-      onLongPress: isCustom ? () => _showDeleteDialog(index) : null,
+      onTap: () => _onCharacterTap(index),
       child: Container(
-        width: isTablet ? 100 : 80,
-        margin: EdgeInsets.symmetric(
-          horizontal: isTablet ? 8 : 4,
-          vertical: isTablet ? 16 : 8,
+        width: 140,
+        margin: const EdgeInsets.symmetric(horizontal: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? theme.primaryColor.withOpacity(0.1)
+              : theme.cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? theme.primaryColor : theme.dividerColor,
+            width: isSelected ? 2 : 1,
+          ),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: Stack(
           children: [
-            Stack(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: isTablet ? 80 : 60,
-                  height: isTablet ? 80 : 60,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: isSelected
-                        ? Border.all(
-                            color: theme.primaryColor,
-                            width: isTablet ? 3 : 2,
-                          )
-                        : null,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: isTablet ? 8 : 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: ClipOval(
-                    child: Image.asset(
-                      character.avatarImagePath,
-                      fit: BoxFit.cover,
+                Center(
+                  child: _buildCharacterAvatar(index),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  character.name,
+                  style: theme.textTheme.titleMedium,
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  character.trait,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+            if (isCustom)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: GestureDetector(
+                  onTap: () => _deleteCharacter(index),
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 16,
                     ),
                   ),
                 ),
-                if (isSelected)
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: theme.primaryColor,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.check,
-                        size: isTablet ? 16 : 12,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              character.name,
-              style: TextStyle(
-                fontSize: isTablet ? 14 : 12,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected
-                    ? theme.primaryColor
-                    : theme.textTheme.bodyMedium?.color,
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-            ),
           ],
         ),
       ),
@@ -454,19 +458,43 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
     );
   }
 
-  Future<void> _showDeleteDialog(int index) async {
+  void _onCharacterTap(int index) {
+    if (_selectedIndex != index) {
+      setState(() {
+        _selectedIndex = index;
+      });
+      _characterService.setSelectedCharacter(characters[index]);
+
+      // Only generate new message if the character actually changed
+      if (context.mounted) {
+        final homeScreen = context.findAncestorStateOfType<HomeScreenState>();
+        if (homeScreen != null) {
+          // Use microtask to ensure state updates are complete
+          Future.microtask(() {
+            homeScreen.generateNewAIMessage();
+          });
+        }
+      }
+    }
+    _collapse();
+  }
+
+  Future<void> _deleteCharacter(int index) async {
+    // Show confirmation dialog
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Character'),
-        content: const Text('Are you sure you want to delete this character?'),
+        content:
+            Text('Are you sure you want to delete ${characters[index].name}?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.of(context).pop(false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Delete'),
           ),
         ],
@@ -480,13 +508,27 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
       // Update UI
       setState(() {
         characters.removeAt(index);
-        if (_selectedIndex == index) {
-          _selectedIndex = -1;
-        } else if (_selectedIndex > index) {
-          _selectedIndex--;
+        if (_selectedIndex >= characters.length) {
+          _selectedIndex = characters.length - 1;
         }
       });
     }
+  }
+
+  /// Expand into the row of characters.
+  void _expand() {
+    setState(() {
+      _isExpanded = true;
+    });
+    _expandController.forward();
+  }
+
+  /// Collapse back to a single avatar.
+  void _collapse() {
+    setState(() {
+      _isExpanded = false;
+    });
+    _expandController.reverse();
   }
 
   // Calculate height based on content
@@ -509,8 +551,8 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
           color: Theme.of(context).textTheme.bodyMedium?.color,
         ),
       ),
-      maxLines: _isTextExpanded ? null : 3,
       textDirection: TextDirection.ltr,
+      maxLines: _isTextExpanded ? null : 3,
     );
 
     // Calculate available width for text

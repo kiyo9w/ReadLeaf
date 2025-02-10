@@ -1631,10 +1631,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                   fontSize: 13,
                                   fontWeight: FontWeight.w400,
                                 ),
-                                labelPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 8,
-                                ),
                               ),
                             ),
                             Expanded(
@@ -1790,20 +1786,25 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                     character: _characterService.getSelectedCharacter() ??
                         AiCharacter(
                           name: 'Amelia',
-                          imagePath: 'assets/images/ai_characters/amelia.png',
+                          avatarImagePath:
+                              'assets/images/ai_characters/amelia.png',
                           personality: 'A friendly and helpful AI assistant.',
-                          trait: 'Friendly and helpful',
-                          categories: ['Default'],
-                          promptTemplate:
-                              'You are Amelia, a friendly AI assistant.\n\nCURRENT TASK:\n{USER_PROMPT}',
-                          taskPrompts: {
-                            'greeting':
-                                'Hello! I\'m Amelia. How can I help you today?',
-                            'analyze_text':
-                                'I\'ll help you understand this text.',
-                            'encouragement':
-                                'You\'re doing great! Keep reading!',
-                          },
+                          summary:
+                              'Amelia is a friendly AI assistant who helps readers understand and engage with their books.',
+                          scenario:
+                              'You are reading with Amelia, who is eager to help you understand and enjoy your book.',
+                          greetingMessage:
+                              'Hello! I\'m Amelia. How can I help you with your reading today?',
+                          exampleMessages: [
+                            'Can you explain this passage?',
+                            'What are your thoughts on this chapter?',
+                            'Help me understand the main themes.'
+                          ],
+                          characterVersion: '1',
+                          tags: ['Default', 'Reading Assistant'],
+                          creator: 'ReadLeaf',
+                          createdAt: DateTime.now(),
+                          updatedAt: DateTime.now(),
                         ),
                     onSendMessage: _handleChatMessage,
                     bookId: file.path,

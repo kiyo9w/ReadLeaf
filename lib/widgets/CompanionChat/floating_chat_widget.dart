@@ -436,7 +436,7 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
               ),
               child: ClipOval(
                 child: Image.asset(
-                  widget.character.imagePath,
+                  widget.character.avatarImagePath,
                   width: _chatHeadSize,
                   height: _chatHeadSize,
                   fit: BoxFit.cover,

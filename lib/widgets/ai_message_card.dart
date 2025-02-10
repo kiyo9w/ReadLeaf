@@ -23,7 +23,7 @@ class AIMessageCard extends StatelessWidget {
     final character = getIt<AiCharacterService>().getSelectedCharacter();
     final characterName = character?.name ?? 'Leafy AI';
     final characterImage =
-        character?.imagePath ?? 'assets/images/leafy_icon.png';
+        character?.avatarImagePath ?? 'assets/images/leafy_icon.png';
 
     // Sanitize the message to prevent UTF-16 errors
     final sanitizedMessage = message.replaceAll(RegExp(r'[^\x00-\x7F]+'), '');
