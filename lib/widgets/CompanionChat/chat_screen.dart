@@ -121,81 +121,6 @@ class ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: _buildAppBar(),
-      body: _buildChatBody(),
-    );
-  }
-
-  PreferredSize _buildAppBar() {
-    return PreferredSize(
-      preferredSize: const Size.fromHeight(kToolbarHeight),
-      child: AppBar(
-        automaticallyImplyLeading: false,
-        title: _buildAppBarTitle(),
-        actions: _buildAppBarActions(),
-      ),
-    );
-  }
-
-  Widget _buildAppBarTitle() {
-    final theme = Theme.of(context);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        CircleAvatar(
-          backgroundImage: AssetImage(widget.character.avatarImagePath),
-          radius: 16,
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                widget.character.name,
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                overflow: TextOverflow.ellipsis,
-              ),
-              Text(
-                widget.character.trait,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: theme.colorScheme.onSurface.withOpacity(0.7),
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  List<Widget> _buildAppBarActions() {
-    return [
-      if (kDebugMode)
-        IconButton(
-          icon: _isSyncing
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.sync),
-          tooltip: 'Force Sync',
-          onPressed: _isSyncing ? null : _debugForceSync,
-        ),
-      IconButton(
-        icon: const Icon(Icons.close),
-        onPressed: widget.onClose,
-      ),
-    ];
-  }
-
-  Widget _buildChatBody() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -213,134 +138,157 @@ class ChatScreenState extends State<ChatScreen> {
           fit: BoxFit.cover,
           opacity: isDark ? 0.05 : 0.1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: ResponsiveConstants.isTablet(context) ? 16 : 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         children: [
-          Expanded(
-            child: _buildMessageList(),
-          ),
-          _buildInputField(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMessageList() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_messages.isEmpty) {
-      return _buildEmptyState();
-    }
-
-    return ListView.builder(
-      controller: _scrollController,
-      padding: EdgeInsets.symmetric(
-        horizontal: ResponsiveConstants.isTablet(context) ? 24 : 16,
-        vertical: ResponsiveConstants.isTablet(context) ? 16 : 12,
-      ),
-      itemCount: _messages.length,
-      itemBuilder: (context, index) => _buildMessageBubble(_messages[index]),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.chat_bubble_outline,
-              size: 48,
-              color: theme.colorScheme.onSurface.withOpacity(0.4),
+          // Chat header
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: ResponsiveConstants.isTablet(context) ? 24 : 16,
+              vertical: ResponsiveConstants.isTablet(context) ? 16 : 12,
             ),
-            const SizedBox(height: 16),
-            Text(
-              'No messages yet',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: theme.colorScheme.onSurface.withOpacity(0.6),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? const Color(0xFF352A3B).withOpacity(0.95)
+                  : const Color(0xFFF8F1F1).withOpacity(0.95),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(
+                    ResponsiveConstants.isTablet(context) ? 24 : 16),
+                topRight: Radius.circular(
+                    ResponsiveConstants.isTablet(context) ? 24 : 16),
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Start a conversation with ${widget.character.name}!',
-              style: TextStyle(
-                fontSize: 14,
-                color: theme.colorScheme.onSurface.withOpacity(0.5),
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInputField() {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: ResponsiveConstants.isTablet(context) ? 24 : 16,
-        vertical: ResponsiveConstants.isTablet(context) ? 16 : 12,
-      ),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF352A3B) : const Color(0xFFF8F1F1),
-        borderRadius: BorderRadius.only(
-          bottomLeft:
-              Radius.circular(ResponsiveConstants.isTablet(context) ? 24 : 16),
-          bottomRight:
-              Radius.circular(ResponsiveConstants.isTablet(context) ? 24 : 16),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _messageController,
-              focusNode: _focusNode,
-              style: TextStyle(
-                fontSize: ResponsiveConstants.getBodyFontSize(context),
-                color: isDark ? Colors.white : Colors.black87,
-              ),
-              decoration: InputDecoration(
-                hintText: 'Type a message...',
-                hintStyle: TextStyle(
-                  color: isDark ? Colors.white60 : Colors.black45,
-                  fontSize: ResponsiveConstants.getBodyFontSize(context),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: ResponsiveConstants.isTablet(context) ? 24 : 20,
+                  backgroundImage: AssetImage(widget.character.avatarImagePath),
                 ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(
-                      ResponsiveConstants.isTablet(context) ? 16 : 12),
-                  borderSide: BorderSide.none,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.character.name,
+                        style: TextStyle(
+                          fontSize:
+                              ResponsiveConstants.getTitleFontSize(context),
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      Text(
+                        widget.character.trait,
+                        style: TextStyle(
+                          fontSize:
+                              ResponsiveConstants.getBodyFontSize(context),
+                          color: isDark ? Colors.white70 : Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                filled: true,
-                fillColor: isDark ? const Color(0xFF251B2F) : Colors.white,
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: ResponsiveConstants.isTablet(context) ? 20 : 16,
-                  vertical: ResponsiveConstants.isTablet(context) ? 16 : 12,
+                IconButton(
+                  icon: Icon(
+                    Icons.close,
+                    size: ResponsiveConstants.getIconSize(context),
+                    color: isDark ? Colors.white70 : Colors.black54,
+                  ),
+                  onPressed: widget.onClose,
                 ),
-              ),
-              minLines: 1,
-              maxLines: 5,
-              onSubmitted: _handleSubmitted,
+              ],
             ),
           ),
-          SizedBox(width: ResponsiveConstants.isTablet(context) ? 16 : 12),
-          IconButton(
-            icon: Icon(
-              Icons.send,
-              size: ResponsiveConstants.getIconSize(context),
-              color: isDark ? Colors.white70 : Colors.black54,
+
+          // Chat messages
+          Expanded(
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: ResponsiveConstants.isTablet(context) ? 24 : 16,
+                vertical: ResponsiveConstants.isTablet(context) ? 16 : 12,
+              ),
+              child: ListView.builder(
+                controller: _scrollController,
+                itemCount: _messages.length,
+                itemBuilder: (context, index) {
+                  final message = _messages[index];
+                  return _buildMessageBubble(message);
+                },
+              ),
             ),
-            onPressed: () => _handleSubmitted(_messageController.text),
+          ),
+
+          // Input field
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: ResponsiveConstants.isTablet(context) ? 24 : 16,
+              vertical: ResponsiveConstants.isTablet(context) ? 16 : 12,
+            ),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF352A3B) : const Color(0xFFF8F1F1),
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(
+                    ResponsiveConstants.isTablet(context) ? 24 : 16),
+                bottomRight: Radius.circular(
+                    ResponsiveConstants.isTablet(context) ? 24 : 16),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _messageController,
+                    focusNode: _focusNode,
+                    style: TextStyle(
+                      fontSize: ResponsiveConstants.getBodyFontSize(context),
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Type a message...',
+                      hintStyle: TextStyle(
+                        color: isDark ? Colors.white60 : Colors.black45,
+                        fontSize: ResponsiveConstants.getBodyFontSize(context),
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(
+                            ResponsiveConstants.isTablet(context) ? 16 : 12),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor:
+                          isDark ? const Color(0xFF251B2F) : Colors.white,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal:
+                            ResponsiveConstants.isTablet(context) ? 20 : 16,
+                        vertical:
+                            ResponsiveConstants.isTablet(context) ? 16 : 12,
+                      ),
+                    ),
+                    minLines: 1,
+                    maxLines: 5,
+                    onSubmitted: _handleSubmitted,
+                  ),
+                ),
+                SizedBox(
+                    width: ResponsiveConstants.isTablet(context) ? 16 : 12),
+                IconButton(
+                  icon: Icon(
+                    Icons.send,
+                    size: ResponsiveConstants.getIconSize(context),
+                    color: isDark ? Colors.white70 : Colors.black54,
+                  ),
+                  onPressed: () => _handleSubmitted(_messageController.text),
+                ),
+              ],
+            ),
           ),
         ],
       ),

@@ -313,43 +313,26 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
       _yPosition = _topPadding;
     }
 
-    // Ensure chat stays within screen bounds
-    if (isKeyboardVisible) {
-      if (chatY + _chatHeight > availableHeight) {
-        // First try to move chat head up if possible
-        double newHeadY =
-            availableHeight - _chatHeight - _chatHeadSize - _minSpacing;
-        if (newHeadY >= _topPadding) {
-          _yPosition = newHeadY;
-          chatY = _yPosition + _chatHeadSize + _minSpacing;
-        } else {
-          // If can't move head up, adjust chat height
-          chatY = _topPadding + _chatHeadSize + _minSpacing;
-          _chatHeight = math.max(
-              ResponsiveConstants.isTablet(context) ? 500.0 : 400.0,
-              availableHeight - chatY);
-        }
-      }
-    }
-
-    // Adjust chat height when keyboard is visible
+    // Calculate chat container height
     double adjustedChatHeight = _chatHeight;
     if (isKeyboardVisible) {
-      final maxHeight = availableHeight - chatY;
-      // Ensure we don't go below minimum height
-      if (maxHeight < 400.0) {
-        // Move chat head up if possible
-        double newHeadY = availableHeight - 400.0 - _chatHeadSize - _minSpacing;
-        if (newHeadY >= _topPadding) {
-          _yPosition = newHeadY;
+      // When keyboard is visible, we want to ensure the chat container
+      // stays within the visible area while keeping the input field visible
+      final maxVisibleHeight = availableHeight - chatY;
+      if (maxVisibleHeight < _chatHeight) {
+        // Try to move the chat head up first
+        final potentialNewY =
+            availableHeight - _chatHeight - _chatHeadSize - _minSpacing;
+        if (potentialNewY >= _topPadding) {
+          _yPosition = potentialNewY;
           chatY = _yPosition + _chatHeadSize + _minSpacing;
-          adjustedChatHeight = 400.0;
+          adjustedChatHeight = _chatHeight;
         } else {
-          // If we can't move up, use maximum available space
-          adjustedChatHeight = math.max(400.0, maxHeight);
+          // If we can't move up enough, adjust the height
+          adjustedChatHeight = math.max(
+              ResponsiveConstants.isTablet(context) ? 500.0 : 400.0,
+              maxVisibleHeight);
         }
-      } else {
-        adjustedChatHeight = math.min(_chatHeight, maxHeight);
       }
     }
 
@@ -368,44 +351,49 @@ class FloatingChatWidgetState extends State<FloatingChatWidget> {
             right: _xPosition < screenSize.width / 2 ? null : 16,
             left: _xPosition < screenSize.width / 2 ? 16 : null,
             top: chatY,
-            child: Stack(
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 100),
-                  width: _chatWidth,
-                  height: adjustedChatHeight,
-                  child: ChatScreen(
-                    character: widget.character,
-                    onClose: _toggleChat,
-                    onSendMessage: widget.onSendMessage,
-                    bookId: widget.bookId,
-                    bookTitle: widget.bookTitle,
-                    key: _chatScreenKey,
+            child: Material(
+              elevation: 8,
+              borderRadius: BorderRadius.circular(
+                  ResponsiveConstants.isTablet(context) ? 24 : 16),
+              child: Stack(
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 100),
+                    width: _chatWidth,
+                    height: adjustedChatHeight,
+                    child: ChatScreen(
+                      character: widget.character,
+                      onClose: _toggleChat,
+                      onSendMessage: widget.onSendMessage,
+                      bookId: widget.bookId,
+                      bookTitle: widget.bookTitle,
+                      key: _chatScreenKey,
+                    ),
                   ),
-                ),
-                // Resize handle
-                if (!isKeyboardVisible)
-                  Positioned(
-                    left: _xPosition < screenSize.width / 2 ? null : 0,
-                    right: _xPosition < screenSize.width / 2 ? 0 : null,
-                    bottom: 0,
-                    child: GestureDetector(
-                      onPanStart: (_) => setState(() => _isResizing = true),
-                      onPanUpdate: _handleResize,
-                      onPanEnd: (_) => setState(() => _isResizing = false),
-                      child: Container(
-                        width: 20,
-                        height: 20,
-                        alignment: Alignment.bottomRight,
-                        child: Icon(
-                          Icons.open_with,
-                          size: 20,
-                          color: Colors.grey[400],
+                  // Resize handle
+                  if (!isKeyboardVisible)
+                    Positioned(
+                      left: _xPosition < screenSize.width / 2 ? null : 0,
+                      right: _xPosition < screenSize.width / 2 ? 0 : null,
+                      bottom: 0,
+                      child: GestureDetector(
+                        onPanStart: (_) => setState(() => _isResizing = true),
+                        onPanUpdate: _handleResize,
+                        onPanEnd: (_) => setState(() => _isResizing = false),
+                        child: Container(
+                          width: 20,
+                          height: 20,
+                          alignment: Alignment.bottomRight,
+                          child: Icon(
+                            Icons.open_with,
+                            size: 20,
+                            color: Colors.grey[400],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         AnimatedPositioned(
