@@ -4,6 +4,7 @@ import 'package:read_leaf/services/ai_character_service.dart';
 import 'package:read_leaf/injection.dart';
 import 'package:read_leaf/screens/create_character_screen.dart';
 import 'package:read_leaf/screens/home_screen.dart';
+import 'dart:async';
 
 class CharacterScreen extends StatefulWidget {
   final VoidCallback? onCharacterChanged;
@@ -23,6 +24,7 @@ class _CharacterScreenState extends State<CharacterScreen>
   final AiCharacterService _characterService = getIt<AiCharacterService>();
   late AiCharacter? _selectedCharacter;
   bool _showVoices = false;
+  StreamSubscription? _characterUpdateSubscription;
 
   // Categories for characters
   final List<String> _categories = [
@@ -92,12 +94,30 @@ class _CharacterScreenState extends State<CharacterScreen>
     super.initState();
     _tabController = TabController(length: _categories.length, vsync: this);
     _selectedCharacter = _characterService.getSelectedCharacter();
+
+    // Subscribe to character updates
+    _characterUpdateSubscription =
+        _characterService.onCharacterUpdate.listen((_) {
+      if (mounted) {
+        _refreshCharacters();
+      }
+    });
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _characterUpdateSubscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> _refreshCharacters() async {
+    final characters = await _characterService.getAllCharacters();
+    if (mounted) {
+      setState(() {
+        _selectedCharacter = _characterService.getSelectedCharacter();
+      });
+    }
   }
 
   void _selectCharacter(AiCharacter character) {
@@ -300,20 +320,34 @@ class _CharacterScreenState extends State<CharacterScreen>
   }
 
   Widget _buildCategoryContent(String category, ThemeData theme) {
-    final characters = _getCharactersByCategory(category);
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildFeaturedCharacters(theme, characters),
-          const SizedBox(height: 16),
-          _buildAllCharacters(theme, characters),
-          const SizedBox(height: 16),
-          _buildRecentCharacters(theme, characters),
-          const SizedBox(height: 80), // Add bottom padding for FAB
-        ],
-      ),
+    return FutureBuilder<List<AiCharacter>>(
+      future: _getCharactersByCategory(category),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+
+        final characters = snapshot.data ?? [];
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildFeaturedCharacters(theme, characters),
+              const SizedBox(height: 16),
+              _buildAllCharacters(theme, characters),
+              const SizedBox(height: 16),
+              _buildRecentCharacters(theme, characters),
+              const SizedBox(height: 80), // Add bottom padding for FAB
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -375,12 +409,10 @@ class _CharacterScreenState extends State<CharacterScreen>
     );
   }
 
-  List<AiCharacter> _getCharactersByCategory(String category) {
-    final allCharacters = _characterService.getAllCharacters();
+  Future<List<AiCharacter>> _getCharactersByCategory(String category) async {
+    final allCharacters = await _characterService.getAllCharacters();
     if (category == 'All') return allCharacters;
-    return allCharacters
-        .where((char) => char.categories.contains(category))
-        .toList();
+    return allCharacters.where((char) => char.tags.contains(category)).toList();
   }
 
   Widget _buildFeaturedCharacters(
@@ -480,8 +512,8 @@ class _CharacterScreenState extends State<CharacterScreen>
     return GestureDetector(
       onTap: () => _selectCharacter(character),
       child: Container(
-        width: 110, // Reduced width
-        margin: const EdgeInsets.only(right: 8), // Reduced margin
+        width: 110,
+        margin: const EdgeInsets.only(right: 8),
         decoration: BoxDecoration(
           color: theme.cardColor,
           borderRadius: BorderRadius.circular(12),
@@ -496,14 +528,14 @@ class _CharacterScreenState extends State<CharacterScreen>
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(12)),
               child: Image.asset(
-                character.imagePath,
-                height: 85, // Reduced height
+                character.avatarImagePath,
+                height: 85,
                 width: double.infinity,
                 fit: BoxFit.cover,
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(6), // Reduced padding
+              padding: const EdgeInsets.all(6),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -511,77 +543,17 @@ class _CharacterScreenState extends State<CharacterScreen>
                     character.name,
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.bold,
-                      fontSize: 13, // Smaller font
+                      fontSize: 13,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    character.trait,
+                    character.summary,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
-                      fontSize: 11, // Smaller font
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCharacterGridCard(
-    AiCharacter character,
-    ThemeData theme, {
-    bool isSelected = false,
-  }) {
-    return GestureDetector(
-      onTap: () => _selectCharacter(character),
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(12),
-          border: isSelected
-              ? Border.all(color: theme.primaryColor, width: 2)
-              : null,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(12)),
-                child: Image.asset(
-                  character.imagePath,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    character.name,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    character.trait,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                      fontSize: 11,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -615,7 +587,7 @@ class _CharacterScreenState extends State<CharacterScreen>
           contentPadding: const EdgeInsets.all(8),
           leading: CircleAvatar(
             radius: 24,
-            backgroundImage: AssetImage(character.imagePath),
+            backgroundImage: AssetImage(character.avatarImagePath),
           ),
           title: Text(
             character.name,
@@ -624,7 +596,7 @@ class _CharacterScreenState extends State<CharacterScreen>
             ),
           ),
           subtitle: Text(
-            character.trait,
+            character.summary,
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
             ),
@@ -632,6 +604,66 @@ class _CharacterScreenState extends State<CharacterScreen>
           trailing: isSelected
               ? Icon(Icons.check_circle, color: theme.primaryColor)
               : const Icon(Icons.chevron_right),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCharacterGridCard(
+    AiCharacter character,
+    ThemeData theme, {
+    bool isSelected = false,
+  }) {
+    return GestureDetector(
+      onTap: () => _selectCharacter(character),
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.cardColor,
+          borderRadius: BorderRadius.circular(12),
+          border: isSelected
+              ? Border.all(color: theme.primaryColor, width: 2)
+              : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(12)),
+                child: Image.asset(
+                  character.avatarImagePath,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    character.name,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    character.summary,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
