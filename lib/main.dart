@@ -7,17 +7,11 @@ import 'package:read_leaf/blocs/AuthBloc/auth_bloc.dart';
 import 'package:read_leaf/blocs/AuthBloc/auth_event.dart';
 import 'package:read_leaf/screens/nav_screen.dart';
 import 'package:read_leaf/screens/pdf_viewer.dart';
-import 'package:read_leaf/screens/epub_viewer.dart';
-import 'package:hive_flutter/hive_flutter.dart';
-import 'package:read_leaf/models/ai_character_preference.dart';
-import 'package:read_leaf/services/ai_character_service.dart';
-import 'package:read_leaf/models/book_metadata.dart';
 import 'package:provider/provider.dart';
 import 'package:read_leaf/providers/theme_provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'injection.dart';
-import 'services/deep_link_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

@@ -2,6 +2,52 @@ import 'package:json_annotation/json_annotation.dart';
 
 part 'ai_character.g.dart';
 
+class AiGenerationParams {
+  final double temperature;
+  final int maxLength;
+  final double topP;
+  final int topK;
+  final double repetitionPenalty;
+  final int repetitionPenaltyRange;
+  final double typicalP;
+  final double tailFreeSampling;
+
+  const AiGenerationParams({
+    this.temperature = 0.69,
+    this.maxLength = 2048,
+    this.topP = 0.9,
+    this.topK = 0,
+    this.repetitionPenalty = 1.06,
+    this.repetitionPenaltyRange = 2048,
+    this.typicalP = 1,
+    this.tailFreeSampling = 1.0,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'temperature': temperature,
+        'maxLength': maxLength,
+        'topP': topP,
+        'topK': topK,
+        'repetitionPenalty': repetitionPenalty,
+        'repetitionPenaltyRange': repetitionPenaltyRange,
+        'typicalP': typicalP,
+        'tailFreeSampling': tailFreeSampling,
+      };
+
+  factory AiGenerationParams.fromJson(Map<String, dynamic> json) {
+    return AiGenerationParams(
+      temperature: json['temperature'] ?? 0.69,
+      maxLength: json['maxLength'] ?? 2048,
+      topP: json['topP'] ?? 0.9,
+      topK: json['topK'] ?? 0,
+      repetitionPenalty: json['repetitionPenalty'] ?? 1.06,
+      repetitionPenaltyRange: json['repetitionPenaltyRange'] ?? 2048,
+      typicalP: json['typicalP'] ?? 1,
+      tailFreeSampling: json['tailFreeSampling'] ?? 1.0,
+    );
+  }
+}
+
 @JsonSerializable()
 class AiCharacter {
   final String name;
@@ -25,6 +71,7 @@ class AiCharacter {
   final DateTime createdAt;
   @JsonKey(name: 'updated_at')
   final DateTime updatedAt;
+  final AiGenerationParams generationParams;
 
   const AiCharacter({
     required this.name,
@@ -40,6 +87,7 @@ class AiCharacter {
     required this.creator,
     required this.createdAt,
     required this.updatedAt,
+    this.generationParams = const AiGenerationParams(),
   });
 
   // Factory constructor to create an AiCharacter from JSON
@@ -64,6 +112,7 @@ class AiCharacter {
     String? creator,
     DateTime? createdAt,
     DateTime? updatedAt,
+    AiGenerationParams? generationParams,
   }) {
     return AiCharacter(
       name: name ?? this.name,
@@ -79,6 +128,7 @@ class AiCharacter {
       creator: creator ?? this.creator,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      generationParams: generationParams ?? this.generationParams,
     );
   }
 
