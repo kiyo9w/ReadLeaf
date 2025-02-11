@@ -31,6 +31,7 @@ import 'package:read_leaf/constants/responsive_constants.dart';
 import 'package:read_leaf/blocs/AuthBloc/auth_bloc.dart';
 import 'package:read_leaf/services/auth_dialog_service.dart';
 import 'package:read_leaf/blocs/AuthBloc/auth_state.dart';
+import 'dart:async';
 
 class PDFViewerScreen extends StatefulWidget {
   const PDFViewerScreen({Key? key}) : super(key: key);
@@ -59,6 +60,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   final outline = ValueNotifier<List<PdfOutlineNode>?>(null);
   final documentRef = ValueNotifier<PdfDocumentRef?>(null);
   Key _searchViewKey = UniqueKey();
+  Timer? _sliderDwellTimer;
+  int? _lastSliderValue;
 
   String get _currentTitle {
     switch (_tabController.index) {
@@ -190,7 +193,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   @override
   void dispose() {
     _tabController.dispose();
-    // Remove listeners safely
+    _sliderDwellTimer?.cancel();
     try {
       _controller.removeListener(_onControllerReady);
       _textSearcher.removeListener(_update);
@@ -932,11 +935,11 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
               enableTextSelection: true,
               maxScale: 4.0,
               minScale: 0.5,
-              onPageChanged: (page) {
-                if (mounted && page != null) {
-                  context.read<ReaderBloc>().add(JumpToPage(page));
-                }
-              },
+              // onPageChanged: (page) {
+              //   if (mounted && page != null) {
+              //     context.read<ReaderBloc>().add(JumpToPage(page));
+              //   }
+              // },
               onTextSelectionChange: _handleTextSelectionChange,
               selectableRegionInjector: (context, child) {
                 return SelectionArea(
@@ -1498,8 +1501,28 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                   min: 1,
                                   max: totalPages.toDouble(),
                                   onChanged: (value) {
-                                    final page = value.toInt();
-                                    _controller.goToPage(pageNumber: page);
+                                    final intValue = value.toInt();
+                                    context
+                                        .read<ReaderBloc>()
+                                        .add(JumpToPage(intValue));
+                                    if (_lastSliderValue != intValue) {
+                                      _sliderDwellTimer?.cancel();
+                                      _lastSliderValue = intValue;
+                                      _sliderDwellTimer = Timer(
+                                          const Duration(milliseconds: 850),
+                                          () {
+                                        if (mounted &&
+                                            _lastSliderValue == intValue) {
+                                          _controller.goToPage(
+                                              pageNumber: intValue);
+                                        }
+                                      });
+                                    }
+                                  },
+                                  onChangeEnd: (value) {
+                                    _sliderDwellTimer?.cancel();
+                                    final intValue = value.toInt();
+                                    _controller.goToPage(pageNumber: intValue);
                                   },
                                 ),
                               ),
