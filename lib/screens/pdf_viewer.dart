@@ -33,6 +33,8 @@ import 'package:read_leaf/services/auth_dialog_service.dart';
 import 'package:read_leaf/blocs/AuthBloc/auth_state.dart';
 import 'dart:async';
 
+enum PdfLayoutMode { vertical, horizontal, facing }
+
 class PDFViewerScreen extends StatefulWidget {
   const PDFViewerScreen({Key? key}) : super(key: key);
 
@@ -62,6 +64,10 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   Key _searchViewKey = UniqueKey();
   Timer? _sliderDwellTimer;
   int? _lastSliderValue;
+  bool _isSliderInteracting = false;
+  PdfLayoutMode _layoutMode = PdfLayoutMode.vertical;
+  bool _isRightToLeftReadingOrder = false;
+  bool _needCoverPage = true;
 
   String get _currentTitle {
     switch (_tabController.index) {
@@ -899,6 +905,125 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
     );
   }
 
+  PdfPageLayout _handleLayoutPages(
+      List<PdfPage> pages, PdfViewerParams params) {
+    switch (_layoutMode) {
+      case PdfLayoutMode.horizontal:
+        final height =
+            pages.fold(0.0, (prev, page) => max(prev, page.size.height)) +
+                params.margin * 2;
+        final pageLayouts = <Rect>[];
+        double x = params.margin;
+        for (var page in pages) {
+          pageLayouts.add(
+            Rect.fromLTWH(
+              x,
+              (height - page.size.height) / 2, // center vertically
+              page.size.width,
+              page.size.height,
+            ),
+          );
+          x += page.size.width + params.margin;
+        }
+        return PdfPageLayout(
+          pageLayouts: pageLayouts,
+          documentSize: Size(x, height),
+        );
+
+      case PdfLayoutMode.facing:
+        final width =
+            pages.fold(0.0, (prev, page) => max(prev, page.size.width));
+        final pageLayouts = <Rect>[];
+        final offset = _needCoverPage ? 1 : 0;
+        double y = params.margin;
+
+        for (int i = 0; i < pages.length; i++) {
+          final page = pages[i];
+          final pos = i + offset;
+          final isLeft =
+              _isRightToLeftReadingOrder ? (pos & 1) == 1 : (pos & 1) == 0;
+
+          final otherSide = (pos ^ 1) - offset;
+          final h = 0 <= otherSide && otherSide < pages.length
+              ? max(page.size.height, pages[otherSide].size.height)
+              : page.size.height;
+
+          pageLayouts.add(
+            Rect.fromLTWH(
+              isLeft
+                  ? width + params.margin - page.size.width
+                  : params.margin * 2 + width,
+              y + (h - page.size.height) / 2,
+              page.size.width,
+              page.size.height,
+            ),
+          );
+          if (pos & 1 == 1 || i + 1 == pages.length) {
+            y += h + params.margin;
+          }
+        }
+        return PdfPageLayout(
+          pageLayouts: pageLayouts,
+          documentSize: Size(
+            (params.margin + width) * 2 + params.margin,
+            y,
+          ),
+        );
+
+      case PdfLayoutMode.vertical:
+      default:
+        // For vertical layout, use standard layout
+        final pageLayouts = <Rect>[];
+        double y = params.margin;
+        for (var page in pages) {
+          pageLayouts.add(
+            Rect.fromLTWH(
+              params.margin,
+              y,
+              page.size.width,
+              page.size.height,
+            ),
+          );
+          y += page.size.height + params.margin;
+        }
+        return PdfPageLayout(
+          pageLayouts: pageLayouts,
+          documentSize: Size(
+            params.margin * 2 +
+                pages.fold(0.0, (prev, page) => max(prev, page.size.width)),
+            y,
+          ),
+        );
+    }
+  }
+
+  // Add this method to handle page navigation
+  void _handlePageNavigation(Offset localPosition, Size viewportSize) {
+    if (context.read<ReaderBloc>().state is! ReaderLoaded) return;
+    final state = context.read<ReaderBloc>().state as ReaderLoaded;
+    final currentPage = state.currentPage;
+    final totalPages = state.totalPages;
+
+    final tapArea =
+        viewportSize.width * 0.2; // 20% of screen width for tap zones
+
+    if (localPosition.dx < tapArea) {
+      // Left tap zone - go to previous page
+      if (_layoutMode == PdfLayoutMode.facing) {
+        _controller.goToPage(pageNumber: max(1, currentPage - 2));
+      } else {
+        _controller.goToPage(pageNumber: max(1, currentPage - 1));
+      }
+    } else if (localPosition.dx > viewportSize.width - tapArea) {
+      // Right tap zone - go to next page
+      if (_layoutMode == PdfLayoutMode.facing) {
+        _controller.goToPage(pageNumber: min(totalPages, currentPage + 2));
+      } else {
+        _controller.goToPage(pageNumber: min(totalPages, currentPage + 1));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<ReaderBloc, ReaderState>(
@@ -935,11 +1060,15 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
               enableTextSelection: true,
               maxScale: 4.0,
               minScale: 0.5,
-              // onPageChanged: (page) {
-              //   if (mounted && page != null) {
-              //     context.read<ReaderBloc>().add(JumpToPage(page));
-              //   }
-              // },
+              onPageChanged: (page) {
+                if (mounted &&
+                    page != null &&
+                    !_isSliderInteracting &&
+                    _lastSliderValue == null) {
+                  context.read<ReaderBloc>().add(JumpToPage(page));
+                }
+              },
+              layoutPages: _handleLayoutPages,
               onTextSelectionChange: _handleTextSelectionChange,
               selectableRegionInjector: (context, child) {
                 return SelectionArea(
@@ -977,6 +1106,16 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                   ? Colors.black
                   : Colors.white,
             ),
+          );
+
+          // Wrap the pdfViewer with GestureDetector for page navigation
+          pdfViewer = GestureDetector(
+            onTapUp: (details) => _handlePageNavigation(
+              details.localPosition,
+              MediaQuery.of(context).size,
+            ),
+            behavior: HitTestBehavior.translucent,
+            child: pdfViewer,
           );
 
           pdfViewer = ColorFiltered(
@@ -1107,6 +1246,120 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                             position: PopupMenuPosition.under,
                             onSelected: (val) async {
                               switch (val) {
+                                case 'layout_mode':
+                                  final RenderBox button =
+                                      context.findRenderObject() as RenderBox;
+                                  final RenderBox overlay =
+                                      Navigator.of(context)
+                                          .overlay!
+                                          .context
+                                          .findRenderObject() as RenderBox;
+                                  final RelativeRect position =
+                                      RelativeRect.fromRect(
+                                    Rect.fromPoints(
+                                      button.localToGlobal(Offset.zero),
+                                      button.localToGlobal(
+                                          button.size.bottomRight(Offset.zero)),
+                                    ),
+                                    Offset.zero & overlay.size,
+                                  );
+
+                                  showMenu<PdfLayoutMode>(
+                                    context: context,
+                                    position: position,
+                                    color: Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? const Color(0xFF352A3B)
+                                        : const Color(0xFFF8F1F1),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    items: [
+                                      PopupMenuItem(
+                                        value: PdfLayoutMode.vertical,
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.vertical_distribute,
+                                              color: _layoutMode ==
+                                                      PdfLayoutMode.vertical
+                                                  ? Theme.of(context)
+                                                      .primaryColor
+                                                  : null,
+                                              size: 20,
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Text('Vertical Scroll',
+                                                style: TextStyle(
+                                                  color: _layoutMode ==
+                                                          PdfLayoutMode.vertical
+                                                      ? Theme.of(context)
+                                                          .primaryColor
+                                                      : null,
+                                                )),
+                                          ],
+                                        ),
+                                      ),
+                                      PopupMenuItem(
+                                        value: PdfLayoutMode.horizontal,
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.horizontal_distribute,
+                                              color: _layoutMode ==
+                                                      PdfLayoutMode.horizontal
+                                                  ? Theme.of(context)
+                                                      .primaryColor
+                                                  : null,
+                                              size: 20,
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Text('Horizontal Scroll',
+                                                style: TextStyle(
+                                                  color: _layoutMode ==
+                                                          PdfLayoutMode
+                                                              .horizontal
+                                                      ? Theme.of(context)
+                                                          .primaryColor
+                                                      : null,
+                                                )),
+                                          ],
+                                        ),
+                                      ),
+                                      PopupMenuItem(
+                                        value: PdfLayoutMode.facing,
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.book_outlined,
+                                              color: _layoutMode ==
+                                                      PdfLayoutMode.facing
+                                                  ? Theme.of(context)
+                                                      .primaryColor
+                                                  : null,
+                                              size: 20,
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Text('Facing Pages',
+                                                style: TextStyle(
+                                                  color: _layoutMode ==
+                                                          PdfLayoutMode.facing
+                                                      ? Theme.of(context)
+                                                          .primaryColor
+                                                      : null,
+                                                )),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ).then((PdfLayoutMode? mode) {
+                                    if (mode != null && mounted) {
+                                      setState(() {
+                                        _layoutMode = mode;
+                                      });
+                                    }
+                                  });
+                                  break;
                                 case 'reading_mode':
                                   final RenderBox button =
                                       context.findRenderObject() as RenderBox;
@@ -1314,6 +1567,40 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                             },
                             itemBuilder: (context) => [
                               PopupMenuItem(
+                                value: 'layout_mode',
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.view_agenda_outlined,
+                                      color: Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? const Color(0xFFF2F2F7)
+                                          : const Color(0xFF1C1C1E),
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      'Page Layout',
+                                      style: TextStyle(
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFF2F2F7)
+                                            : const Color(0xFF1C1C1E),
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    Icon(
+                                      Icons.arrow_right,
+                                      color: Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? const Color(0xFFF2F2F7)
+                                          : const Color(0xFF1C1C1E),
+                                      size: 20,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              PopupMenuItem(
                                 value: 'reading_mode',
                                 child: Row(
                                   children: [
@@ -1348,31 +1635,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                 ),
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 16, vertical: 8),
-                              ),
-                              PopupMenuItem(
-                                value: 'toggle_star',
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.star_outline,
-                                      color: Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFFF2F2F7)
-                                          : const Color(0xFF1C1C1E),
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      'Add to starred',
-                                      style: TextStyle(
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                      ),
-                                    ),
-                                  ],
-                                ),
                               ),
                               PopupMenuItem(
                                 value: 'move_trash',
@@ -1500,6 +1762,11 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                   value: currentPage.toDouble(),
                                   min: 1,
                                   max: totalPages.toDouble(),
+                                  onChangeStart: (value) {
+                                    _sliderDwellTimer?.cancel();
+                                    _lastSliderValue = value.toInt();
+                                    _isSliderInteracting = true;
+                                  },
                                   onChanged: (value) {
                                     final intValue = value.toInt();
                                     context
@@ -1509,7 +1776,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                       _sliderDwellTimer?.cancel();
                                       _lastSliderValue = intValue;
                                       _sliderDwellTimer = Timer(
-                                          const Duration(milliseconds: 850),
+                                          const Duration(milliseconds: 550),
                                           () {
                                         if (mounted &&
                                             _lastSliderValue == intValue) {
@@ -1523,6 +1790,13 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                     _sliderDwellTimer?.cancel();
                                     final intValue = value.toInt();
                                     _controller.goToPage(pageNumber: intValue);
+                                    Future.delayed(
+                                        const Duration(milliseconds: 1200), () {
+                                      if (mounted) {
+                                        _isSliderInteracting = false;
+                                        _lastSliderValue = null;
+                                      }
+                                    });
                                   },
                                 ),
                               ),
