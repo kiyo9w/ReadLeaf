@@ -7,6 +7,8 @@ import 'dart:async';
 import 'package:logging/logging.dart';
 import 'package:read_leaf/services/sync/sync_manager.dart';
 import 'package:read_leaf/services/sync/sync_types.dart';
+import 'package:get_it/get_it.dart';
+import 'package:read_leaf/services/ai_character_service.dart';
 
 class ChatService {
   static const String _boxPrefix = 'character_chat_';
@@ -267,6 +269,26 @@ class ChatService {
 
       final messages = box.values.toList()
         ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+      // If this is the first conversation, add the greeting message
+      if (messages.isEmpty) {
+        final aiCharacterService = GetIt.I<AiCharacterService>();
+        final character = aiCharacterService.getSelectedCharacter();
+        if (character != null &&
+            character.name == characterName &&
+            character.greetingMessage.isNotEmpty) {
+          final greetingMessage = ChatMessage(
+            text: character.greetingMessage,
+            isUser: false,
+            timestamp: DateTime.now(),
+            characterName: characterName,
+            bookId: null,
+            avatarImagePath: character.avatarImagePath,
+          );
+          await addMessage(greetingMessage);
+          messages.add(greetingMessage);
+        }
+      }
 
       _log.info('Retrieved ${messages.length} messages for $characterName');
       return messages;
