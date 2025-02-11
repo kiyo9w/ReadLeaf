@@ -337,15 +337,18 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   }
 
   void _handleTap() {
-    context.read<ReaderBloc>().add(ToggleUIVisibility());
+    // Close any open side widgets first
     if (_showSearchPanel) {
       _closeSearchPanel();
-      _textSearcher.resetTextSearch();
     }
     if (context.read<ReaderBloc>().state is ReaderLoaded) {
       final state = context.read<ReaderBloc>().state as ReaderLoaded;
-      if (state.showSideNav) _closeSideNav(context);
+      if (state.showSideNav) {
+        _closeSideNav(context);
+      }
     }
+    // Toggle UI visibility after handling side widgets
+    context.read<ReaderBloc>().add(ToggleUIVisibility());
   }
 
   void _handleTextSelectionChange(List<PdfTextRanges> selections) {
@@ -997,33 +1000,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
     }
   }
 
-  // Add this method to handle page navigation
-  void _handlePageNavigation(Offset localPosition, Size viewportSize) {
-    if (context.read<ReaderBloc>().state is! ReaderLoaded) return;
-    final state = context.read<ReaderBloc>().state as ReaderLoaded;
-    final currentPage = state.currentPage;
-    final totalPages = state.totalPages;
-
-    final tapArea =
-        viewportSize.width * 0.2; // 20% of screen width for tap zones
-
-    if (localPosition.dx < tapArea) {
-      // Left tap zone - go to previous page
-      if (_layoutMode == PdfLayoutMode.facing) {
-        _controller.goToPage(pageNumber: max(1, currentPage - 2));
-      } else {
-        _controller.goToPage(pageNumber: max(1, currentPage - 1));
-      }
-    } else if (localPosition.dx > viewportSize.width - tapArea) {
-      // Right tap zone - go to next page
-      if (_layoutMode == PdfLayoutMode.facing) {
-        _controller.goToPage(pageNumber: min(totalPages, currentPage + 2));
-      } else {
-        _controller.goToPage(pageNumber: min(totalPages, currentPage + 1));
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<ReaderBloc, ReaderState>(
@@ -1061,15 +1037,63 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
               maxScale: 4.0,
               minScale: 0.5,
               onPageChanged: (page) {
-                if (mounted &&
-                    page != null &&
-                    !_isSliderInteracting &&
-                    _lastSliderValue == null) {
-                  context.read<ReaderBloc>().add(JumpToPage(page));
+                if (mounted && page != null && _lastSliderValue == null) {
+                  // Only update if the page actually changed and it's not the initial load
+                  if (page != currentPage && _controller.isReady) {
+                    context.read<ReaderBloc>().add(JumpToPage(page));
+                  }
                 }
               },
               layoutPages: _handleLayoutPages,
               onTextSelectionChange: _handleTextSelectionChange,
+              viewerOverlayBuilder: (context, size, handleLinkTap) => [
+                GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTapUp: (details) {
+                    // Handle link tap first
+                    handleLinkTap(details.localPosition);
+
+                    // Only handle page navigation if no side panels are open
+                    if (!_showSearchPanel && !(state.showSideNav)) {
+                      final tapArea =
+                          size.width * 0.2; // 20% of screen width for tap zones
+                      if (details.localPosition.dx < tapArea) {
+                        // Left tap zone - go to previous page
+                        if (_layoutMode == PdfLayoutMode.facing) {
+                          _controller.goToPage(
+                              pageNumber: max(1, currentPage - 2));
+                        } else {
+                          _controller.goToPage(
+                              pageNumber: max(1, currentPage - 1));
+                        }
+                      } else if (details.localPosition.dx >
+                          size.width - tapArea) {
+                        // Right tap zone - go to next page
+                        if (_layoutMode == PdfLayoutMode.facing) {
+                          _controller.goToPage(
+                              pageNumber: min(totalPages, currentPage + 2));
+                        } else {
+                          _controller.goToPage(
+                              pageNumber: min(totalPages, currentPage + 1));
+                        }
+                      } else {
+                        // Center area - toggle UI
+                        _handleTap();
+                      }
+                    } else {
+                      // If side panels are open, only handle center taps to close them
+                      if (details.localPosition.dx >
+                          ResponsiveConstants.getSideNavWidth(context)) {
+                        _handleTap();
+                      }
+                    }
+                  },
+                  // Cover entire viewer area but let events pass through
+                  child: IgnorePointer(
+                    child: SizedBox(width: size.width, height: size.height),
+                  ),
+                ),
+              ],
               selectableRegionInjector: (context, child) {
                 return SelectionArea(
                   onSelectionChanged: (selection) {
@@ -1100,22 +1124,23 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                 if (mounted) {
                   documentRef.value = controller.documentRef;
                   outline.value = await document.loadOutline();
+
+                  // Ensure we maintain the correct page after initialization
+                  if (currentPage > 1) {
+                    // Small delay to ensure the viewer is fully ready
+                    await Future.delayed(const Duration(milliseconds: 100));
+                    if (mounted) {
+                      _controller.goToPage(pageNumber: currentPage);
+                      // Update the ReaderBloc to ensure slider stays in sync
+                      context.read<ReaderBloc>().add(JumpToPage(currentPage));
+                    }
+                  }
                 }
               },
               backgroundColor: state.readingMode == ReadingMode.dark
                   ? Colors.black
                   : Colors.white,
             ),
-          );
-
-          // Wrap the pdfViewer with GestureDetector for page navigation
-          pdfViewer = GestureDetector(
-            onTapUp: (details) => _handlePageNavigation(
-              details.localPosition,
-              MediaQuery.of(context).size,
-            ),
-            behavior: HitTestBehavior.translucent,
-            child: pdfViewer,
           );
 
           pdfViewer = ColorFiltered(
@@ -1150,364 +1175,432 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                 context.read<FileBloc>().add(CloseViewer());
               }
             },
-            child: Scaffold(
-              resizeToAvoidBottomInset: false,
-              body: Stack(
-                children: [
-                  pdfViewer,
+            child: GestureDetector(
+              onTapDown: (details) {
+                // Check if tap is outside side widgets
+                if (_showSearchPanel || (state.showSideNav)) {
+                  final sideNavWidth =
+                      ResponsiveConstants.getSideNavWidth(context);
+                  if (details.globalPosition.dx > sideNavWidth) {
+                    // Close side widgets if tap is outside their area
+                    if (_showSearchPanel) {
+                      _closeSearchPanel();
+                    }
+                    if (state.showSideNav) {
+                      _closeSideNav(context);
+                    }
+                  }
+                }
+              },
+              child: Scaffold(
+                resizeToAvoidBottomInset: false,
+                body: Stack(
+                  children: [
+                    pdfViewer,
 
-                  // Top app bar nav
-                  if (showUI)
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      child: AppBar(
-                        backgroundColor:
-                            Theme.of(context).brightness == Brightness.dark
-                                ? const Color(0xFF251B2F).withOpacity(0.95)
-                                : const Color(0xFFFAF9F7).withOpacity(0.95),
-                        elevation: 0,
-                        toolbarHeight:
-                            ResponsiveConstants.getBottomBarHeight(context),
-                        leading: IconButton(
-                          icon: Icon(
-                            Icons.arrow_back,
-                            color:
-                                Theme.of(context).brightness == Brightness.dark
+                    // Top app bar nav
+                    if (showUI)
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: AppBar(
+                          backgroundColor:
+                              Theme.of(context).brightness == Brightness.dark
+                                  ? const Color(0xFF251B2F).withOpacity(0.95)
+                                  : const Color(0xFFFAF9F7).withOpacity(0.95),
+                          elevation: 0,
+                          toolbarHeight:
+                              ResponsiveConstants.getBottomBarHeight(context),
+                          leading: IconButton(
+                            icon: Icon(
+                              Icons.arrow_back,
+                              color: Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? const Color(0xFFF2F2F7)
+                                  : const Color(0xFF1C1C1E),
+                              size: ResponsiveConstants.getIconSize(context),
+                            ),
+                            onPressed: () {
+                              context.read<ReaderBloc>().add(CloseReader());
+                              context.read<FileBloc>().add(CloseViewer());
+                              Navigator.pop(context);
+                            },
+                          ),
+                          title: Text(
+                            path.basename(state.file.path),
+                            style: TextStyle(
+                              fontSize:
+                                  ResponsiveConstants.getBodyFontSize(context),
+                              color: Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? const Color(0xFFF2F2F7)
+                                  : const Color(0xFF1C1C1E),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          actions: [
+                            IconButton(
+                              icon: Icon(
+                                Icons.search,
+                                color: Theme.of(context).brightness ==
+                                        Brightness.dark
                                     ? const Color(0xFFF2F2F7)
                                     : const Color(0xFF1C1C1E),
-                            size: ResponsiveConstants.getIconSize(context),
-                          ),
-                          onPressed: () {
-                            context.read<ReaderBloc>().add(CloseReader());
-                            context.read<FileBloc>().add(CloseViewer());
-                            Navigator.pop(context);
-                          },
-                        ),
-                        title: Text(
-                          path.basename(state.file.path),
-                          style: TextStyle(
-                            fontSize:
-                                ResponsiveConstants.getBodyFontSize(context),
-                            color:
-                                Theme.of(context).brightness == Brightness.dark
+                                size: ResponsiveConstants.getIconSize(context),
+                              ),
+                              onPressed: _toggleSearchPanel,
+                              padding: EdgeInsets.all(
+                                  ResponsiveConstants.isTablet(context)
+                                      ? 12
+                                      : 8),
+                            ),
+                            IconButton(
+                              icon: Icon(
+                                Icons.menu,
+                                color: Theme.of(context).brightness ==
+                                        Brightness.dark
                                     ? const Color(0xFFF2F2F7)
                                     : const Color(0xFF1C1C1E),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        actions: [
-                          IconButton(
-                            icon: Icon(
-                              Icons.search,
+                                size: ResponsiveConstants.getIconSize(context),
+                              ),
+                              onPressed: () => _toggleSideNav(),
+                              padding: EdgeInsets.all(
+                                  ResponsiveConstants.isTablet(context)
+                                      ? 12
+                                      : 8),
+                            ),
+                            PopupMenuButton<String>(
+                              elevation: 8,
                               color: Theme.of(context).brightness ==
                                       Brightness.dark
-                                  ? const Color(0xFFF2F2F7)
-                                  : const Color(0xFF1C1C1E),
-                              size: ResponsiveConstants.getIconSize(context),
-                            ),
-                            onPressed: _toggleSearchPanel,
-                            padding: EdgeInsets.all(
-                                ResponsiveConstants.isTablet(context) ? 12 : 8),
-                          ),
-                          IconButton(
-                            icon: Icon(
-                              Icons.menu,
-                              color: Theme.of(context).brightness ==
-                                      Brightness.dark
-                                  ? const Color(0xFFF2F2F7)
-                                  : const Color(0xFF1C1C1E),
-                              size: ResponsiveConstants.getIconSize(context),
-                            ),
-                            onPressed: () => _toggleSideNav(),
-                            padding: EdgeInsets.all(
-                                ResponsiveConstants.isTablet(context) ? 12 : 8),
-                          ),
-                          PopupMenuButton<String>(
-                            elevation: 8,
-                            color:
-                                Theme.of(context).brightness == Brightness.dark
-                                    ? const Color(0xFF352A3B)
-                                    : const Color(0xFFF8F1F1),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            icon: Icon(
-                              Icons.more_vert,
-                              color: Theme.of(context).brightness ==
-                                      Brightness.dark
-                                  ? const Color(0xFFF2F2F7)
-                                  : const Color(0xFF1C1C1E),
-                              size: ResponsiveConstants.getIconSize(context),
-                            ),
-                            padding: EdgeInsets.all(
-                                ResponsiveConstants.isTablet(context) ? 12 : 8),
-                            position: PopupMenuPosition.under,
-                            onSelected: (val) async {
-                              switch (val) {
-                                case 'layout_mode':
-                                  final RenderBox button =
-                                      context.findRenderObject() as RenderBox;
-                                  final RenderBox overlay =
-                                      Navigator.of(context)
-                                          .overlay!
-                                          .context
-                                          .findRenderObject() as RenderBox;
-                                  final RelativeRect position =
-                                      RelativeRect.fromRect(
-                                    Rect.fromPoints(
-                                      button.localToGlobal(Offset.zero),
-                                      button.localToGlobal(
-                                          button.size.bottomRight(Offset.zero)),
-                                    ),
-                                    Offset.zero & overlay.size,
-                                  );
+                                  ? const Color(0xFF352A3B)
+                                  : const Color(0xFFF8F1F1),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              icon: Icon(
+                                Icons.more_vert,
+                                color: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? const Color(0xFFF2F2F7)
+                                    : const Color(0xFF1C1C1E),
+                                size: ResponsiveConstants.getIconSize(context),
+                              ),
+                              padding: EdgeInsets.all(
+                                  ResponsiveConstants.isTablet(context)
+                                      ? 12
+                                      : 8),
+                              position: PopupMenuPosition.under,
+                              onSelected: (val) async {
+                                switch (val) {
+                                  case 'layout_mode':
+                                    final RenderBox button =
+                                        context.findRenderObject() as RenderBox;
+                                    final RenderBox overlay =
+                                        Navigator.of(context)
+                                            .overlay!
+                                            .context
+                                            .findRenderObject() as RenderBox;
+                                    final RelativeRect position =
+                                        RelativeRect.fromRect(
+                                      Rect.fromPoints(
+                                        button.localToGlobal(Offset.zero),
+                                        button.localToGlobal(button.size
+                                            .bottomRight(Offset.zero)),
+                                      ),
+                                      Offset.zero & overlay.size,
+                                    );
 
-                                  showMenu<PdfLayoutMode>(
-                                    context: context,
-                                    position: position,
-                                    color: Theme.of(context).brightness ==
-                                            Brightness.dark
-                                        ? const Color(0xFF352A3B)
-                                        : const Color(0xFFF8F1F1),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    items: [
-                                      PopupMenuItem(
-                                        value: PdfLayoutMode.vertical,
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              Icons.vertical_distribute,
-                                              color: _layoutMode ==
-                                                      PdfLayoutMode.vertical
-                                                  ? Theme.of(context)
-                                                      .primaryColor
-                                                  : null,
-                                              size: 20,
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Text('Vertical Scroll',
-                                                style: TextStyle(
-                                                  color: _layoutMode ==
-                                                          PdfLayoutMode.vertical
-                                                      ? Theme.of(context)
-                                                          .primaryColor
-                                                      : null,
-                                                )),
-                                          ],
+                                    showMenu<PdfLayoutMode>(
+                                      context: context,
+                                      position: position,
+                                      color: Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? const Color(0xFF352A3B)
+                                          : const Color(0xFFF8F1F1),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      items: [
+                                        PopupMenuItem(
+                                          value: PdfLayoutMode.vertical,
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.vertical_distribute,
+                                                color: _layoutMode ==
+                                                        PdfLayoutMode.vertical
+                                                    ? Theme.of(context)
+                                                        .primaryColor
+                                                    : null,
+                                                size: 20,
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Text('Vertical Scroll',
+                                                  style: TextStyle(
+                                                    color: _layoutMode ==
+                                                            PdfLayoutMode
+                                                                .vertical
+                                                        ? Theme.of(context)
+                                                            .primaryColor
+                                                        : null,
+                                                  )),
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                      PopupMenuItem(
-                                        value: PdfLayoutMode.horizontal,
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              Icons.horizontal_distribute,
-                                              color: _layoutMode ==
-                                                      PdfLayoutMode.horizontal
-                                                  ? Theme.of(context)
-                                                      .primaryColor
-                                                  : null,
-                                              size: 20,
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Text('Horizontal Scroll',
-                                                style: TextStyle(
-                                                  color: _layoutMode ==
-                                                          PdfLayoutMode
-                                                              .horizontal
-                                                      ? Theme.of(context)
-                                                          .primaryColor
-                                                      : null,
-                                                )),
-                                          ],
+                                        PopupMenuItem(
+                                          value: PdfLayoutMode.horizontal,
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.horizontal_distribute,
+                                                color: _layoutMode ==
+                                                        PdfLayoutMode.horizontal
+                                                    ? Theme.of(context)
+                                                        .primaryColor
+                                                    : null,
+                                                size: 20,
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Text('Horizontal Scroll',
+                                                  style: TextStyle(
+                                                    color: _layoutMode ==
+                                                            PdfLayoutMode
+                                                                .horizontal
+                                                        ? Theme.of(context)
+                                                            .primaryColor
+                                                        : null,
+                                                  )),
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                      PopupMenuItem(
-                                        value: PdfLayoutMode.facing,
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              Icons.book_outlined,
-                                              color: _layoutMode ==
-                                                      PdfLayoutMode.facing
-                                                  ? Theme.of(context)
-                                                      .primaryColor
-                                                  : null,
-                                              size: 20,
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Text('Facing Pages',
-                                                style: TextStyle(
-                                                  color: _layoutMode ==
-                                                          PdfLayoutMode.facing
-                                                      ? Theme.of(context)
-                                                          .primaryColor
-                                                      : null,
-                                                )),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ).then((PdfLayoutMode? mode) {
-                                    if (mode != null && mounted) {
-                                      setState(() {
-                                        _layoutMode = mode;
-                                      });
-                                    }
-                                  });
-                                  break;
-                                case 'reading_mode':
-                                  final RenderBox button =
-                                      context.findRenderObject() as RenderBox;
-                                  final RenderBox overlay =
-                                      Navigator.of(context)
-                                          .overlay!
-                                          .context
-                                          .findRenderObject() as RenderBox;
-                                  final Offset offset =
-                                      button.localToGlobal(Offset.zero);
-                                  final RelativeRect position =
-                                      RelativeRect.fromRect(
-                                    Rect.fromPoints(
-                                      offset,
-                                      offset.translate(0, button.size.height),
-                                    ),
-                                    Offset.zero & overlay.size,
-                                  );
-
-                                  final readingMode =
-                                      await showMenu<ReadingMode>(
-                                    context: context,
-                                    position: position,
-                                    color: Theme.of(context).brightness ==
-                                            Brightness.dark
-                                        ? const Color(0xFF352A3B)
-                                        : const Color(0xFFF8F1F1),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    items: [
-                                      PopupMenuItem(
-                                        value: ReadingMode.light,
-                                        child: Text('Light',
-                                            style: TextStyle(
-                                                color: Theme.of(context)
-                                                            .brightness ==
-                                                        Brightness.dark
-                                                    ? const Color(0xFFF2F2F7)
-                                                    : const Color(0xFF1C1C1E))),
-                                      ),
-                                      PopupMenuItem(
-                                        value: ReadingMode.dark,
-                                        child: Text('Dark',
-                                            style: TextStyle(
-                                                color: Theme.of(context)
-                                                            .brightness ==
-                                                        Brightness.dark
-                                                    ? const Color(0xFFF2F2F7)
-                                                    : const Color(0xFF1C1C1E))),
-                                      ),
-                                      PopupMenuItem(
-                                        value: ReadingMode.darkContrast,
-                                        child: Text('Dark Contrast',
-                                            style: TextStyle(
-                                                color: Theme.of(context)
-                                                            .brightness ==
-                                                        Brightness.dark
-                                                    ? const Color(0xFFF2F2F7)
-                                                    : const Color(0xFF1C1C1E))),
-                                      ),
-                                      PopupMenuItem(
-                                        value: ReadingMode.sepia,
-                                        child: Text('Sepia',
-                                            style: TextStyle(
-                                                color: Theme.of(context)
-                                                            .brightness ==
-                                                        Brightness.dark
-                                                    ? const Color(0xFFF2F2F7)
-                                                    : const Color(0xFF1C1C1E))),
-                                      ),
-                                      PopupMenuItem(
-                                        value: ReadingMode.twilight,
-                                        child: Text('Twilight',
-                                            style: TextStyle(
-                                                color: Theme.of(context)
-                                                            .brightness ==
-                                                        Brightness.dark
-                                                    ? const Color(0xFFF2F2F7)
-                                                    : const Color(0xFF1C1C1E))),
-                                      ),
-                                      PopupMenuItem(
-                                        value: ReadingMode.console,
-                                        child: Text('Console',
-                                            style: TextStyle(
-                                                color: Theme.of(context)
-                                                            .brightness ==
-                                                        Brightness.dark
-                                                    ? const Color(0xFFF2F2F7)
-                                                    : const Color(0xFF1C1C1E))),
-                                      ),
-                                      PopupMenuItem(
-                                        value: ReadingMode.birthday,
-                                        child: Text('Birthday',
-                                            style: TextStyle(
-                                                color: Theme.of(context)
-                                                            .brightness ==
-                                                        Brightness.dark
-                                                    ? const Color(0xFFF2F2F7)
-                                                    : const Color(0xFF1C1C1E))),
-                                      ),
-                                    ],
-                                  ).then((ReadingMode? mode) {
-                                    if (mode != null) {
-                                      context
-                                          .read<ReaderBloc>()
-                                          .add(setReadingMode(mode));
-                                    }
-                                  });
-                                  break;
-                                case 'move_trash':
-                                  final shouldDelete = await showDialog<bool>(
-                                    context: context,
-                                    builder: (context) => AlertDialog(
-                                      title: const Text('Delete File'),
-                                      content: const Text(
-                                          'Are you sure you want to delete this file? This action cannot be undone.'),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.of(context).pop(false),
-                                          child: const Text('Cancel'),
-                                        ),
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.of(context).pop(true),
-                                          style: TextButton.styleFrom(
-                                              foregroundColor: Colors.red),
-                                          child: const Text('Delete'),
+                                        PopupMenuItem(
+                                          value: PdfLayoutMode.facing,
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.book_outlined,
+                                                color: _layoutMode ==
+                                                        PdfLayoutMode.facing
+                                                    ? Theme.of(context)
+                                                        .primaryColor
+                                                    : null,
+                                                size: 20,
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Text('Facing Pages',
+                                                  style: TextStyle(
+                                                    color: _layoutMode ==
+                                                            PdfLayoutMode.facing
+                                                        ? Theme.of(context)
+                                                            .primaryColor
+                                                        : null,
+                                                  )),
+                                            ],
+                                          ),
                                         ),
                                       ],
-                                    ),
-                                  );
+                                    ).then((PdfLayoutMode? mode) {
+                                      if (mode != null && mounted) {
+                                        final currentPage = context
+                                                .read<ReaderBloc>()
+                                                .state is ReaderLoaded
+                                            ? (context.read<ReaderBloc>().state
+                                                    as ReaderLoaded)
+                                                .currentPage
+                                            : 1;
+                                        setState(() {
+                                          _layoutMode = mode;
+                                        });
+                                        // Ensure we stay on the same page after layout change
+                                        WidgetsBinding.instance
+                                            .addPostFrameCallback((_) {
+                                          if (mounted) {
+                                            _controller.goToPage(
+                                                pageNumber: currentPage);
+                                          }
+                                        });
+                                      }
+                                    });
+                                    break;
+                                  case 'reading_mode':
+                                    final RenderBox button =
+                                        context.findRenderObject() as RenderBox;
+                                    final RenderBox overlay =
+                                        Navigator.of(context)
+                                            .overlay!
+                                            .context
+                                            .findRenderObject() as RenderBox;
+                                    final Offset offset =
+                                        button.localToGlobal(Offset.zero);
+                                    final RelativeRect position =
+                                        RelativeRect.fromRect(
+                                      Rect.fromPoints(
+                                        offset,
+                                        offset.translate(0, button.size.height),
+                                      ),
+                                      Offset.zero & overlay.size,
+                                    );
 
-                                  if (shouldDelete == true && mounted) {
+                                    final readingMode =
+                                        await showMenu<ReadingMode>(
+                                      context: context,
+                                      position: position,
+                                      color: Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? const Color(0xFF352A3B)
+                                          : const Color(0xFFF8F1F1),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      items: [
+                                        PopupMenuItem(
+                                          value: ReadingMode.light,
+                                          child: Text('Light',
+                                              style: TextStyle(
+                                                  color: Theme.of(context)
+                                                              .brightness ==
+                                                          Brightness.dark
+                                                      ? const Color(0xFFF2F2F7)
+                                                      : const Color(
+                                                          0xFF1C1C1E))),
+                                        ),
+                                        PopupMenuItem(
+                                          value: ReadingMode.dark,
+                                          child: Text('Dark',
+                                              style: TextStyle(
+                                                  color: Theme.of(context)
+                                                              .brightness ==
+                                                          Brightness.dark
+                                                      ? const Color(0xFFF2F2F7)
+                                                      : const Color(
+                                                          0xFF1C1C1E))),
+                                        ),
+                                        PopupMenuItem(
+                                          value: ReadingMode.darkContrast,
+                                          child: Text('Dark Contrast',
+                                              style: TextStyle(
+                                                  color: Theme.of(context)
+                                                              .brightness ==
+                                                          Brightness.dark
+                                                      ? const Color(0xFFF2F2F7)
+                                                      : const Color(
+                                                          0xFF1C1C1E))),
+                                        ),
+                                        PopupMenuItem(
+                                          value: ReadingMode.sepia,
+                                          child: Text('Sepia',
+                                              style: TextStyle(
+                                                  color: Theme.of(context)
+                                                              .brightness ==
+                                                          Brightness.dark
+                                                      ? const Color(0xFFF2F2F7)
+                                                      : const Color(
+                                                          0xFF1C1C1E))),
+                                        ),
+                                        PopupMenuItem(
+                                          value: ReadingMode.twilight,
+                                          child: Text('Twilight',
+                                              style: TextStyle(
+                                                  color: Theme.of(context)
+                                                              .brightness ==
+                                                          Brightness.dark
+                                                      ? const Color(0xFFF2F2F7)
+                                                      : const Color(
+                                                          0xFF1C1C1E))),
+                                        ),
+                                        PopupMenuItem(
+                                          value: ReadingMode.console,
+                                          child: Text('Console',
+                                              style: TextStyle(
+                                                  color: Theme.of(context)
+                                                              .brightness ==
+                                                          Brightness.dark
+                                                      ? const Color(0xFFF2F2F7)
+                                                      : const Color(
+                                                          0xFF1C1C1E))),
+                                        ),
+                                        PopupMenuItem(
+                                          value: ReadingMode.birthday,
+                                          child: Text('Birthday',
+                                              style: TextStyle(
+                                                  color: Theme.of(context)
+                                                              .brightness ==
+                                                          Brightness.dark
+                                                      ? const Color(0xFFF2F2F7)
+                                                      : const Color(
+                                                          0xFF1C1C1E))),
+                                        ),
+                                      ],
+                                    ).then((ReadingMode? mode) {
+                                      if (mode != null) {
+                                        context
+                                            .read<ReaderBloc>()
+                                            .add(setReadingMode(mode));
+                                      }
+                                    });
+                                    break;
+                                  case 'move_trash':
+                                    final shouldDelete = await showDialog<bool>(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        title: const Text('Delete File'),
+                                        content: const Text(
+                                            'Are you sure you want to delete this file? This action cannot be undone.'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.of(context)
+                                                    .pop(false),
+                                            child: const Text('Cancel'),
+                                          ),
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.of(context).pop(true),
+                                            style: TextButton.styleFrom(
+                                                foregroundColor: Colors.red),
+                                            child: const Text('Delete'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+
+                                    if (shouldDelete == true && mounted) {
+                                      try {
+                                        final file = File(state.file.path);
+                                        if (await file.exists()) {
+                                          await file.delete();
+                                          if (mounted) {
+                                            context.read<FileBloc>().add(
+                                                RemoveFile(state.file.path));
+                                            context
+                                                .read<ReaderBloc>()
+                                                .add(CloseReader());
+                                            Navigator.of(context).pop();
+                                          }
+                                        }
+                                      } catch (e) {
+                                        if (mounted) {
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            SnackBar(
+                                                content: Text(
+                                                    'Error deleting file: $e')),
+                                          );
+                                        }
+                                      }
+                                    }
+                                    break;
+                                  case 'share':
                                     try {
                                       final file = File(state.file.path);
                                       if (await file.exists()) {
-                                        await file.delete();
-                                        if (mounted) {
-                                          context
-                                              .read<FileBloc>()
-                                              .add(RemoveFile(state.file.path));
-                                          context
-                                              .read<ReaderBloc>()
-                                              .add(CloseReader());
-                                          Navigator.of(context).pop();
-                                        }
+                                        await Share.share(
+                                          state.file.path,
+                                          subject:
+                                              path.basename(state.file.path),
+                                        );
                                       }
                                     } catch (e) {
                                       if (mounted) {
@@ -1515,602 +1608,609 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                             .showSnackBar(
                                           SnackBar(
                                               content: Text(
-                                                  'Error deleting file: $e')),
+                                                  'Error sharing file: $e')),
                                         );
                                       }
                                     }
-                                  }
-                                  break;
-                                case 'share':
-                                  try {
-                                    final file = File(state.file.path);
-                                    if (await file.exists()) {
-                                      await Share.share(
-                                        state.file.path,
-                                        subject: path.basename(state.file.path),
-                                      );
-                                    }
-                                  } catch (e) {
-                                    if (mounted) {
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        SnackBar(
-                                            content:
-                                                Text('Error sharing file: $e')),
-                                      );
-                                    }
-                                  }
-                                  break;
-                                case 'toggle_star':
-                                  context
-                                      .read<FileBloc>()
-                                      .add(ToggleStarred(state.file.path));
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Updated starred status'),
-                                      duration: Duration(seconds: 1),
-                                    ),
-                                  );
-                                  break;
-                                case 'mark_as_read':
-                                  context
-                                      .read<FileBloc>()
-                                      .add(ViewFile(state.file.path));
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Marked as read'),
-                                      duration: Duration(seconds: 1),
-                                    ),
-                                  );
-                                  break;
-                              }
-                            },
-                            itemBuilder: (context) => [
-                              PopupMenuItem(
-                                value: 'layout_mode',
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.view_agenda_outlined,
-                                      color: Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFFF2F2F7)
-                                          : const Color(0xFF1C1C1E),
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      'Page Layout',
-                                      style: TextStyle(
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                      ),
-                                    ),
-                                    const Spacer(),
-                                    Icon(
-                                      Icons.arrow_right,
-                                      color: Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFFF2F2F7)
-                                          : const Color(0xFF1C1C1E),
-                                      size: 20,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              PopupMenuItem(
-                                value: 'reading_mode',
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.palette_outlined,
-                                      color: Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFFF2F2F7)
-                                          : const Color(0xFF1C1C1E),
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      'Reading Mode',
-                                      style: TextStyle(
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                      ),
-                                    ),
-                                    const Spacer(),
-                                    Icon(
-                                      Icons.arrow_right,
-                                      color: Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFFF2F2F7)
-                                          : const Color(0xFF1C1C1E),
-                                      size: 20,
-                                    ),
-                                  ],
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 8),
-                              ),
-                              PopupMenuItem(
-                                value: 'move_trash',
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.delete_outline,
-                                      color: Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFFF2F2F7)
-                                          : const Color(0xFF1C1C1E),
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      'Move to trash',
-                                      style: TextStyle(
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              PopupMenuItem(
-                                value: 'share',
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.share_outlined,
-                                      color: Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFFF2F2F7)
-                                          : const Color(0xFF1C1C1E),
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      'Share file',
-                                      style: TextStyle(
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                  // bottom book nav
-                  if (showUI)
-                    Positioned(
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      child: Container(
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? const Color(0xFF251B2F).withOpacity(0.95)
-                            : const Color(0xFFFAF9F7).withOpacity(0.95),
-                        padding: ResponsiveConstants.getContentPadding(context),
-                        height: ResponsiveConstants.getBottomBarHeight(context),
-                        child: Row(
-                          children: [
-                            Text(
-                              '$currentPage',
-                              style: TextStyle(
-                                color: Theme.of(context).brightness ==
-                                        Brightness.dark
-                                    ? const Color(0xFFF2F2F7)
-                                    : const Color(0xFF1C1C1E),
-                                fontSize: ResponsiveConstants.getBodyFontSize(
-                                    context),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: SliderTheme(
-                                data: SliderThemeData(
-                                  trackHeight:
-                                      ResponsiveConstants.isTablet(context)
-                                          ? 4
-                                          : 2,
-                                  activeTrackColor:
-                                      Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFFAA96B6)
-                                          : const Color(0xFF9E7B80),
-                                  inactiveTrackColor:
-                                      Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFF352A3B)
-                                          : const Color(0xFFF8F1F1),
-                                  thumbColor: Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? const Color(0xFFAA96B6)
-                                      : const Color(0xFF9E7B80),
-                                  overlayColor: Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? const Color(0xFFAA96B6)
-                                          .withOpacity(0.12)
-                                      : const Color(0xFF9E7B80)
-                                          .withOpacity(0.12),
-                                  thumbShape: RoundSliderThumbShape(
-                                    enabledThumbRadius:
-                                        ResponsiveConstants.isTablet(context)
-                                            ? 8
-                                            : 6,
-                                  ),
-                                  overlayShape: RoundSliderOverlayShape(
-                                    overlayRadius:
-                                        ResponsiveConstants.isTablet(context)
-                                            ? 16
-                                            : 12,
-                                  ),
-                                ),
-                                child: Slider(
-                                  value: currentPage.toDouble(),
-                                  min: 1,
-                                  max: totalPages.toDouble(),
-                                  onChangeStart: (value) {
-                                    _sliderDwellTimer?.cancel();
-                                    _lastSliderValue = value.toInt();
-                                    _isSliderInteracting = true;
-                                  },
-                                  onChanged: (value) {
-                                    final intValue = value.toInt();
+                                    break;
+                                  case 'toggle_star':
                                     context
-                                        .read<ReaderBloc>()
-                                        .add(JumpToPage(intValue));
-                                    if (_lastSliderValue != intValue) {
-                                      _sliderDwellTimer?.cancel();
-                                      _lastSliderValue = intValue;
-                                      _sliderDwellTimer = Timer(
-                                          const Duration(milliseconds: 550),
-                                          () {
-                                        if (mounted &&
-                                            _lastSliderValue == intValue) {
-                                          _controller.goToPage(
-                                              pageNumber: intValue);
-                                        }
-                                      });
-                                    }
-                                  },
-                                  onChangeEnd: (value) {
-                                    _sliderDwellTimer?.cancel();
-                                    final intValue = value.toInt();
-                                    _controller.goToPage(pageNumber: intValue);
-                                    Future.delayed(
-                                        const Duration(milliseconds: 1200), () {
-                                      if (mounted) {
-                                        _isSliderInteracting = false;
-                                        _lastSliderValue = null;
-                                      }
-                                    });
-                                  },
+                                        .read<FileBloc>()
+                                        .add(ToggleStarred(state.file.path));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Updated starred status'),
+                                        duration: Duration(seconds: 1),
+                                      ),
+                                    );
+                                    break;
+                                  case 'mark_as_read':
+                                    context
+                                        .read<FileBloc>()
+                                        .add(ViewFile(state.file.path));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Marked as read'),
+                                        duration: Duration(seconds: 1),
+                                      ),
+                                    );
+                                    break;
+                                }
+                              },
+                              itemBuilder: (context) => [
+                                PopupMenuItem(
+                                  value: 'layout_mode',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.view_agenda_outlined,
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFF2F2F7)
+                                            : const Color(0xFF1C1C1E),
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        'Page Layout',
+                                        style: TextStyle(
+                                          color: Theme.of(context).brightness ==
+                                                  Brightness.dark
+                                              ? const Color(0xFFF2F2F7)
+                                              : const Color(0xFF1C1C1E),
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      Icon(
+                                        Icons.arrow_right,
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFF2F2F7)
+                                            : const Color(0xFF1C1C1E),
+                                        size: 20,
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              '$totalPages',
-                              style: TextStyle(
-                                color: Theme.of(context).brightness ==
-                                        Brightness.dark
-                                    ? const Color(0xFFF2F2F7)
-                                    : const Color(0xFF1C1C1E),
-                                fontSize: ResponsiveConstants.getBodyFontSize(
-                                    context),
-                              ),
+                                PopupMenuItem(
+                                  value: 'reading_mode',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.palette_outlined,
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFF2F2F7)
+                                            : const Color(0xFF1C1C1E),
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        'Reading Mode',
+                                        style: TextStyle(
+                                          color: Theme.of(context).brightness ==
+                                                  Brightness.dark
+                                              ? const Color(0xFFF2F2F7)
+                                              : const Color(0xFF1C1C1E),
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      Icon(
+                                        Icons.arrow_right,
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFF2F2F7)
+                                            : const Color(0xFF1C1C1E),
+                                        size: 20,
+                                      ),
+                                    ],
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 8),
+                                ),
+                                PopupMenuItem(
+                                  value: 'move_trash',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.delete_outline,
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFF2F2F7)
+                                            : const Color(0xFF1C1C1E),
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        'Move to trash',
+                                        style: TextStyle(
+                                          color: Theme.of(context).brightness ==
+                                                  Brightness.dark
+                                              ? const Color(0xFFF2F2F7)
+                                              : const Color(0xFF1C1C1E),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'share',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.share_outlined,
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFF2F2F7)
+                                            : const Color(0xFF1C1C1E),
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        'Share file',
+                                        style: TextStyle(
+                                          color: Theme.of(context).brightness ==
+                                                  Brightness.dark
+                                              ? const Color(0xFFF2F2F7)
+                                              : const Color(0xFF1C1C1E),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
                       ),
-                    ),
 
-                  // Side navigation
-                  AnimatedPositioned(
-                    duration: const Duration(milliseconds: 300),
-                    top: 0,
-                    bottom: 0,
-                    left: showSideNav
-                        ? 0
-                        : -ResponsiveConstants.getSideNavWidth(context),
-                    child: Container(
-                      width: ResponsiveConstants.getSideNavWidth(context),
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? const Color(0xFF251B2F).withOpacity(0.98)
-                          : const Color(0xFFFAF9F7).withOpacity(0.98),
-                      child: SafeArea(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal:
-                                    ResponsiveConstants.isTablet(context)
-                                        ? 24
-                                        : 16,
-                                vertical: ResponsiveConstants.isTablet(context)
-                                    ? 16
-                                    : 12,
-                              ),
-                              child: Row(
-                                children: [
-                                  Text(
-                                    _currentTitle,
-                                    style: TextStyle(
-                                      color: Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFFF2F2F7)
-                                          : const Color(0xFF1C1C1E),
-                                      fontSize:
-                                          ResponsiveConstants.getTitleFontSize(
-                                              context),
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  IconButton(
-                                    padding: EdgeInsets.zero,
-                                    constraints: BoxConstraints(
-                                      minWidth: ResponsiveConstants.getIconSize(
-                                          context),
-                                      minHeight:
-                                          ResponsiveConstants.getIconSize(
-                                              context),
-                                    ),
-                                    icon: Icon(
-                                      Icons.close,
-                                      color: Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFF8E8E93)
-                                          : const Color(0xFF6E6E73),
-                                      size: ResponsiveConstants.getIconSize(
-                                          context),
-                                    ),
-                                    onPressed: () {
-                                      context
-                                          .read<ReaderBloc>()
-                                          .add(ToggleSideNav());
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  bottom: BorderSide(
-                                    color: Theme.of(context).brightness ==
-                                            Brightness.dark
-                                        ? const Color(0xFF2C2C2E)
-                                        : const Color(0xFFF8F1F1),
-                                  ),
-                                ),
-                              ),
-                              child: TabBar(
-                                controller: _tabController,
-                                tabs: const [
-                                  Tab(text: 'Chapters'),
-                                  Tab(text: 'Bookmarks'),
-                                  Tab(text: 'Pages'),
-                                ],
-                                labelColor: Theme.of(context).brightness ==
-                                        Brightness.dark
-                                    ? const Color(0xFFAA96B6)
-                                    : const Color(0xFF9E7B80),
-                                unselectedLabelColor:
-                                    Theme.of(context).brightness ==
-                                            Brightness.dark
-                                        ? const Color(0xFF8E8E93)
-                                        : const Color(0xFF6E6E73),
-                                indicatorColor: Theme.of(context).brightness ==
-                                        Brightness.dark
-                                    ? const Color(0xFFAA96B6)
-                                    : const Color(0xFF9E7B80),
-                                indicatorWeight: 2,
-                                labelStyle: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                unselectedLabelStyle: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w400,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: Container(
-                                color: Theme.of(context).brightness ==
-                                        Brightness.dark
-                                    ? const Color(0xFF352A3B).withOpacity(0.5)
-                                    : const Color(0xFFF8F1F1).withOpacity(0.5),
-                                child: TabBarView(
-                                  controller: _tabController,
-                                  children: [
-                                    ValueListenableBuilder(
-                                      valueListenable: outline,
-                                      builder: (context, outline, child) =>
-                                          OutlineView(
-                                        outline: outline,
-                                        controller: _controller,
-                                      ),
-                                    ),
-                                    MarkersView(
-                                      markers: _markers.values
-                                          .expand((e) => e)
-                                          .toList(),
-                                      onTap: (marker) {
-                                        final rect = _controller
-                                            .calcRectForRectInsidePage(
-                                          pageNumber:
-                                              marker.ranges.pageText.pageNumber,
-                                          rect: marker.ranges.bounds,
-                                        );
-                                        _controller.ensureVisible(rect);
-                                        context
-                                            .read<ReaderBloc>()
-                                            .add(ToggleSideNav());
-                                      },
-                                      onDeleteTap: (marker) =>
-                                          _deleteMarker(marker),
-                                    ),
-                                    ValueListenableBuilder(
-                                      valueListenable: documentRef,
-                                      builder: (context, docRef, child) =>
-                                          ThumbnailsView(
-                                        documentRef: docRef,
-                                        controller: _controller,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // Search panel
-                  AnimatedPositioned(
-                    duration: const Duration(milliseconds: 300),
-                    top: 0,
-                    bottom: 0,
-                    left: _showSearchPanel
-                        ? 0
-                        : -ResponsiveConstants.getSideNavWidth(context),
-                    child: SizedBox(
-                      width: ResponsiveConstants.getSideNavWidth(context),
-                      child: _showSearchPanel
-                          ? TextSearchView(
-                              key: _searchViewKey,
-                              textSearcher: _textSearcher,
-                              onClose: _closeSearchPanel,
-                            )
-                          : const SizedBox(),
-                    ),
-                  ),
-
-                  // Highlight controls
-                  if (_showAskAiButton && _selectedText?.isNotEmpty == true)
-                    Positioned(
-                      bottom: state.showUI
-                          ? ResponsiveConstants.getBottomBarHeight(context) + 15
-                          : 16,
-                      right: ResponsiveConstants.getContentPadding(context)
-                              .horizontal /
-                          2,
-                      child: Material(
-                        type: MaterialType.transparency,
-                        child: Row(
-                          children: [
-                            FloatingActionButton(
-                              heroTag: 'highlight_yellow_${file.path}',
-                              mini: !ResponsiveConstants.isTablet(context),
-                              backgroundColor: Colors.yellow.withOpacity(0.9),
-                              child: Icon(
-                                Icons.brush,
-                                color: Colors.black87,
-                                size: ResponsiveConstants.isTablet(context)
-                                    ? 24
-                                    : 20,
-                              ),
-                              onPressed: () =>
-                                  _addCurrentSelectionToMarkers(Colors.yellow),
-                            ),
-                            SizedBox(
-                                width: ResponsiveConstants.isTablet(context)
-                                    ? 16
-                                    : 8),
-                            FloatingActionButton(
-                              heroTag: 'highlight_red_${file.path}',
-                              mini: !ResponsiveConstants.isTablet(context),
-                              backgroundColor: Colors.red.withOpacity(0.9),
-                              child: Icon(
-                                Icons.brush,
-                                color: Colors.white,
-                                size: ResponsiveConstants.isTablet(context)
-                                    ? 24
-                                    : 20,
-                              ),
-                              onPressed: () =>
-                                  _addCurrentSelectionToMarkers(Colors.red),
-                            ),
-                            SizedBox(
-                                width: ResponsiveConstants.isTablet(context)
-                                    ? 16
-                                    : 8),
-                            FloatingActionButton.extended(
-                              heroTag: 'ask_ai_${file.path}',
-                              onPressed: _handleAskAi,
-                              icon: Icon(
-                                Icons.chat,
-                                color: Colors.white,
-                                size: ResponsiveConstants.isTablet(context)
-                                    ? 24
-                                    : 20,
-                              ),
-                              label: Text(
-                                'Ask AI',
+                    // bottom book nav
+                    if (showUI)
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: Container(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF251B2F).withOpacity(0.95)
+                              : const Color(0xFFFAF9F7).withOpacity(0.95),
+                          padding:
+                              ResponsiveConstants.getContentPadding(context),
+                          height:
+                              ResponsiveConstants.getBottomBarHeight(context),
+                          child: Row(
+                            children: [
+                              Text(
+                                '$currentPage',
                                 style: TextStyle(
-                                  color: Colors.white,
+                                  color: Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? const Color(0xFFF2F2F7)
+                                      : const Color(0xFF1C1C1E),
                                   fontSize: ResponsiveConstants.getBodyFontSize(
                                       context),
                                 ),
                               ),
-                              backgroundColor: Colors.blue.shade700,
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: SliderTheme(
+                                  data: SliderThemeData(
+                                    trackHeight:
+                                        ResponsiveConstants.isTablet(context)
+                                            ? 4
+                                            : 2,
+                                    activeTrackColor:
+                                        Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFAA96B6)
+                                            : const Color(0xFF9E7B80),
+                                    inactiveTrackColor:
+                                        Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFF352A3B)
+                                            : const Color(0xFFF8F1F1),
+                                    thumbColor: Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? const Color(0xFFAA96B6)
+                                        : const Color(0xFF9E7B80),
+                                    overlayColor:
+                                        Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFAA96B6)
+                                                .withOpacity(0.12)
+                                            : const Color(0xFF9E7B80)
+                                                .withOpacity(0.12),
+                                    thumbShape: RoundSliderThumbShape(
+                                      enabledThumbRadius:
+                                          ResponsiveConstants.isTablet(context)
+                                              ? 8
+                                              : 6,
+                                    ),
+                                    overlayShape: RoundSliderOverlayShape(
+                                      overlayRadius:
+                                          ResponsiveConstants.isTablet(context)
+                                              ? 16
+                                              : 12,
+                                    ),
+                                  ),
+                                  child: Slider(
+                                    value: currentPage.toDouble(),
+                                    min: 1,
+                                    max: totalPages.toDouble(),
+                                    onChangeStart: (value) {
+                                      _sliderDwellTimer?.cancel();
+                                      _lastSliderValue = value.toInt();
+                                      _isSliderInteracting = true;
+                                    },
+                                    onChanged: (value) {
+                                      final intValue = value.toInt();
+                                      context
+                                          .read<ReaderBloc>()
+                                          .add(JumpToPage(intValue));
+                                      if (_lastSliderValue != intValue) {
+                                        _sliderDwellTimer?.cancel();
+                                        _lastSliderValue = intValue;
+                                        _sliderDwellTimer = Timer(
+                                            const Duration(milliseconds: 550),
+                                            () {
+                                          if (mounted &&
+                                              _lastSliderValue == intValue) {
+                                            _controller.goToPage(
+                                                pageNumber: intValue);
+                                          }
+                                        });
+                                      }
+                                    },
+                                    onChangeEnd: (value) {
+                                      _sliderDwellTimer?.cancel();
+                                      final intValue = value.toInt();
+                                      _controller.goToPage(
+                                          pageNumber: intValue);
+                                      Future.delayed(
+                                          const Duration(milliseconds: 1200),
+                                          () {
+                                        if (mounted) {
+                                          _isSliderInteracting = false;
+                                          _lastSliderValue = null;
+                                        }
+                                      });
+                                    },
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                '$totalPages',
+                                style: TextStyle(
+                                  color: Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? const Color(0xFFF2F2F7)
+                                      : const Color(0xFF1C1C1E),
+                                  fontSize: ResponsiveConstants.getBodyFontSize(
+                                      context),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                    // Side navigation
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 300),
+                      top: 0,
+                      bottom: 0,
+                      left: showSideNav
+                          ? 0
+                          : -ResponsiveConstants.getSideNavWidth(context),
+                      child: GestureDetector(
+                        onHorizontalDragUpdate: (details) {
+                          if (details.delta.dx < 0) {
+                            // Only handle left swipes
+                            _closeSideNav(context);
+                          }
+                        },
+                        child: Container(
+                          width: ResponsiveConstants.getSideNavWidth(context),
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF251B2F).withOpacity(0.98)
+                              : const Color(0xFFFAF9F7).withOpacity(0.98),
+                          child: SafeArea(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal:
+                                        ResponsiveConstants.isTablet(context)
+                                            ? 24
+                                            : 16,
+                                    vertical:
+                                        ResponsiveConstants.isTablet(context)
+                                            ? 16
+                                            : 12,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        _currentTitle,
+                                        style: TextStyle(
+                                          color: Theme.of(context).brightness ==
+                                                  Brightness.dark
+                                              ? const Color(0xFFF2F2F7)
+                                              : const Color(0xFF1C1C1E),
+                                          fontSize: ResponsiveConstants
+                                              .getTitleFontSize(context),
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      IconButton(
+                                        padding: EdgeInsets.zero,
+                                        constraints: BoxConstraints(
+                                          minWidth:
+                                              ResponsiveConstants.getIconSize(
+                                                  context),
+                                          minHeight:
+                                              ResponsiveConstants.getIconSize(
+                                                  context),
+                                        ),
+                                        icon: Icon(
+                                          Icons.close,
+                                          color: Theme.of(context).brightness ==
+                                                  Brightness.dark
+                                              ? const Color(0xFF8E8E93)
+                                              : const Color(0xFF6E6E73),
+                                          size: ResponsiveConstants.getIconSize(
+                                              context),
+                                        ),
+                                        onPressed: () {
+                                          context
+                                              .read<ReaderBloc>()
+                                              .add(ToggleSideNav());
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      bottom: BorderSide(
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFF2C2C2E)
+                                            : const Color(0xFFF8F1F1),
+                                      ),
+                                    ),
+                                  ),
+                                  child: TabBar(
+                                    controller: _tabController,
+                                    tabs: const [
+                                      Tab(text: 'Chapters'),
+                                      Tab(text: 'Bookmarks'),
+                                      Tab(text: 'Pages'),
+                                    ],
+                                    labelColor: Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? const Color(0xFFAA96B6)
+                                        : const Color(0xFF9E7B80),
+                                    unselectedLabelColor:
+                                        Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFF8E8E93)
+                                            : const Color(0xFF6E6E73),
+                                    indicatorColor:
+                                        Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFAA96B6)
+                                            : const Color(0xFF9E7B80),
+                                    indicatorWeight: 2,
+                                    labelStyle: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    unselectedLabelStyle: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Container(
+                                    color: Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? const Color(0xFF352A3B)
+                                            .withOpacity(0.5)
+                                        : const Color(0xFFF8F1F1)
+                                            .withOpacity(0.5),
+                                    child: TabBarView(
+                                      controller: _tabController,
+                                      children: [
+                                        ValueListenableBuilder(
+                                          valueListenable: outline,
+                                          builder: (context, outline, child) =>
+                                              OutlineView(
+                                            outline: outline,
+                                            controller: _controller,
+                                          ),
+                                        ),
+                                        MarkersView(
+                                          markers: _markers.values
+                                              .expand((e) => e)
+                                              .toList(),
+                                          onTap: (marker) {
+                                            final rect = _controller
+                                                .calcRectForRectInsidePage(
+                                              pageNumber: marker
+                                                  .ranges.pageText.pageNumber,
+                                              rect: marker.ranges.bounds,
+                                            );
+                                            _controller.ensureVisible(rect);
+                                            context
+                                                .read<ReaderBloc>()
+                                                .add(ToggleSideNav());
+                                          },
+                                          onDeleteTap: (marker) =>
+                                              _deleteMarker(marker),
+                                        ),
+                                        ValueListenableBuilder(
+                                          valueListenable: documentRef,
+                                          builder: (context, docRef, child) =>
+                                              ThumbnailsView(
+                                            documentRef: docRef,
+                                            controller: _controller,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
 
-                  // Floating chat widget with keyboard info
-                  FloatingChatWidget(
-                    character: _characterService.getSelectedCharacter() ??
-                        AiCharacter(
-                          name: 'Amelia',
-                          avatarImagePath:
-                              'assets/images/ai_characters/amelia.png',
-                          personality: 'A friendly and helpful AI assistant.',
-                          summary:
-                              'Amelia is a friendly AI assistant who helps readers understand and engage with their books.',
-                          scenario:
-                              'You are reading with Amelia, who is eager to help you understand and enjoy your book.',
-                          greetingMessage:
-                              'Hello! I\'m Amelia. How can I help you with your reading today?',
-                          exampleMessages: [
-                            'Can you explain this passage?',
-                            'What are your thoughts on this chapter?',
-                            'Help me understand the main themes.'
-                          ],
-                          characterVersion: '1',
-                          tags: ['Default', 'Reading Assistant'],
-                          creator: 'ReadLeaf',
-                          createdAt: DateTime.now(),
-                          updatedAt: DateTime.now(),
+                    // Search panel
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 300),
+                      top: 0,
+                      bottom: 0,
+                      left: _showSearchPanel
+                          ? 0
+                          : -ResponsiveConstants.getSideNavWidth(context),
+                      child: GestureDetector(
+                        onHorizontalDragUpdate: (details) {
+                          if (details.delta.dx < 0) {
+                            // Only handle left swipes
+                            _closeSearchPanel();
+                          }
+                        },
+                        child: SizedBox(
+                          width: ResponsiveConstants.getSideNavWidth(context),
+                          child: _showSearchPanel
+                              ? TextSearchView(
+                                  key: _searchViewKey,
+                                  textSearcher: _textSearcher,
+                                  onClose: _closeSearchPanel,
+                                )
+                              : const SizedBox(),
                         ),
-                    onSendMessage: _handleChatMessage,
-                    bookId: file.path,
-                    bookTitle: path.basename(file.path),
-                    keyboardHeight: keyboardHeight,
-                    isKeyboardVisible: isKeyboardVisible,
-                    key: _floatingChatKey,
-                  ),
-                ],
+                      ),
+                    ),
+
+                    // Highlight controls
+                    if (_showAskAiButton && _selectedText?.isNotEmpty == true)
+                      Positioned(
+                        bottom: state.showUI
+                            ? ResponsiveConstants.getBottomBarHeight(context) +
+                                15
+                            : 16,
+                        right: ResponsiveConstants.getContentPadding(context)
+                                .horizontal /
+                            2,
+                        child: Material(
+                          type: MaterialType.transparency,
+                          child: Row(
+                            children: [
+                              FloatingActionButton(
+                                heroTag: 'highlight_yellow_${file.path}',
+                                mini: !ResponsiveConstants.isTablet(context),
+                                backgroundColor: Colors.yellow.withOpacity(0.9),
+                                child: Icon(
+                                  Icons.brush,
+                                  color: Colors.black87,
+                                  size: ResponsiveConstants.isTablet(context)
+                                      ? 24
+                                      : 20,
+                                ),
+                                onPressed: () => _addCurrentSelectionToMarkers(
+                                    Colors.yellow),
+                              ),
+                              SizedBox(
+                                  width: ResponsiveConstants.isTablet(context)
+                                      ? 16
+                                      : 8),
+                              FloatingActionButton(
+                                heroTag: 'highlight_red_${file.path}',
+                                mini: !ResponsiveConstants.isTablet(context),
+                                backgroundColor: Colors.red.withOpacity(0.9),
+                                child: Icon(
+                                  Icons.brush,
+                                  color: Colors.white,
+                                  size: ResponsiveConstants.isTablet(context)
+                                      ? 24
+                                      : 20,
+                                ),
+                                onPressed: () =>
+                                    _addCurrentSelectionToMarkers(Colors.red),
+                              ),
+                              SizedBox(
+                                  width: ResponsiveConstants.isTablet(context)
+                                      ? 16
+                                      : 8),
+                              FloatingActionButton.extended(
+                                heroTag: 'ask_ai_${file.path}',
+                                onPressed: _handleAskAi,
+                                icon: Icon(
+                                  Icons.chat,
+                                  color: Colors.white,
+                                  size: ResponsiveConstants.isTablet(context)
+                                      ? 24
+                                      : 20,
+                                ),
+                                label: Text(
+                                  'Ask AI',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize:
+                                        ResponsiveConstants.getBodyFontSize(
+                                            context),
+                                  ),
+                                ),
+                                backgroundColor: Colors.blue.shade700,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                    // Floating chat widget with keyboard info
+                    FloatingChatWidget(
+                      character: _characterService.getSelectedCharacter() ??
+                          AiCharacter(
+                            name: 'Amelia',
+                            avatarImagePath:
+                                'assets/images/ai_characters/amelia.png',
+                            personality: 'A friendly and helpful AI assistant.',
+                            summary:
+                                'Amelia is a friendly AI assistant who helps readers understand and engage with their books.',
+                            scenario:
+                                'You are reading with Amelia, who is eager to help you understand and enjoy your book.',
+                            greetingMessage:
+                                'Hello! I\'m Amelia. How can I help you with your reading today?',
+                            exampleMessages: [
+                              'Can you explain this passage?',
+                              'What are your thoughts on this chapter?',
+                              'Help me understand the main themes.'
+                            ],
+                            characterVersion: '1',
+                            tags: ['Default', 'Reading Assistant'],
+                            creator: 'ReadLeaf',
+                            createdAt: DateTime.now(),
+                            updatedAt: DateTime.now(),
+                          ),
+                      onSendMessage: _handleChatMessage,
+                      bookId: file.path,
+                      bookTitle: path.basename(file.path),
+                      keyboardHeight: keyboardHeight,
+                      isKeyboardVisible: isKeyboardVisible,
+                      key: _floatingChatKey,
+                    ),
+                  ],
+                ),
               ),
             ),
           );
