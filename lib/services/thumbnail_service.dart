@@ -30,6 +30,10 @@ class ThumbnailService {
     'app_development_flutter.pdf':
         'assets/images/thumbnails/app_development_flutter_thumb.jpg',
     'gietconchimnhan.pdf': 'assets/images/thumbnails/gietconchimnhan_thumb.jpg',
+    'lewis-lion-the-witch-and-the-wardrobe.epub':
+        'assets/images/thumbnails/lion_the_witch_thumb.jpg',
+    'steinbeck-of-mice-and-men.epub':
+        'assets/images/thumbnails/mice_and_men_thumb.jpg',
   };
 
   Future<String> _getThumbnailPath(String originalPath) async {

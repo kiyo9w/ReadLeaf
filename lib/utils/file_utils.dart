@@ -72,7 +72,7 @@ class FileUtils {
   }
 
   static Future<List<String>> copyDefaultPDFs() async {
-    print('Starting to link default PDFs...');
+    print('Starting to link default PDFs and EPUBs...');
     final appDir = await getApplicationDocumentsDirectory();
     final linksDir = Directory('${appDir.path}/FileLinks');
 
@@ -90,8 +90,14 @@ class FileUtils {
       'gietconchimnhan.pdf',
     ];
 
+    final defaultEpubs = [
+      'lewis-lion-the-witch-and-the-wardrobe.epub',
+      'steinbeck-of-mice-and-men.epub',
+    ];
+
     List<String> linkedPaths = [];
 
+    // Process default PDFs
     for (String pdfName in defaultPDFs) {
       try {
         print('Processing default PDF: $pdfName');
@@ -129,8 +135,45 @@ class FileUtils {
       }
     }
 
+    // Process default EPUBs
+    for (String epubName in defaultEpubs) {
+      try {
+        print('Processing default EPUB: $epubName');
+        final assetPath = 'assets/epubs/$epubName';
+
+        // Store default EPUBs in a dedicated directory
+        final defaultEpubsDir = Directory('${appDir.path}/DefaultEPUBs');
+        if (!await defaultEpubsDir.exists()) {
+          await defaultEpubsDir.create(recursive: true);
+        }
+
+        final defaultEpubPath = path.join(defaultEpubsDir.path, epubName);
+        final defaultEpubFile = File(defaultEpubPath);
+
+        if (!await defaultEpubFile.exists()) {
+          final ByteData data = await rootBundle.load(assetPath);
+          final bytes = data.buffer.asUint8List();
+          await defaultEpubFile.writeAsBytes(bytes);
+          print('Extracted default EPUB to: $defaultEpubPath');
+        }
+
+        // Create symlink to the extracted default EPUB
+        final linkPath = path.join(linksDir.path, epubName);
+        final linkFile = Link(linkPath);
+        if (await linkFile.exists()) {
+          await linkFile.delete();
+        }
+        await linkFile.create(defaultEpubPath);
+        print('Created symlink at: $linkPath');
+
+        linkedPaths.add(defaultEpubPath);
+      } catch (e) {
+        print('Error processing default EPUB $epubName: $e');
+      }
+    }
+
     print(
-        'Finished linking PDFs. Successfully linked: ${linkedPaths.length} files');
+        'Finished linking files. Successfully linked: ${linkedPaths.length} files');
     return linkedPaths;
   }
 

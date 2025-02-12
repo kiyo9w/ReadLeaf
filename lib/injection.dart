@@ -26,6 +26,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:read_leaf/models/ai_character_preference.dart';
 import 'package:read_leaf/services/sync/sync_manager.dart';
 import 'package:read_leaf/services/user_preferences_service.dart';
+import 'package:read_leaf/services/thumbnail_service.dart';
 
 final getIt = GetIt.instance;
 
@@ -91,6 +92,7 @@ Future<void> configureDependencies() async {
   final imageService = ImageService();
   final chatService = ChatService(syncManager);
   final geminiService = GeminiService(aiCharacterService, chatService);
+  final thumbnailService = ThumbnailService();
 
   // Initialize services that require async initialization
   await Future.wait([
@@ -106,6 +108,7 @@ Future<void> configureDependencies() async {
   getIt.registerSingleton<FileRepository>(fileRepository);
   getIt.registerSingleton<StorageScannerService>(storageScannerService);
   getIt.registerSingleton<StorageService>(storageService);
+  getIt.registerSingleton<ThumbnailService>(thumbnailService);
 
   // Authentication services
   getIt.registerSingleton<SocialAuthService>(socialAuthService);
@@ -221,4 +224,7 @@ abstract class RegisterModule {
         bookMetadataRepository,
         UserPreferencesService(getIt<SyncManager>()),
       );
+
+  @lazySingleton
+  ThumbnailService get thumbnailService => ThumbnailService();
 }
