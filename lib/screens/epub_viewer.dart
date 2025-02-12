@@ -1,6 +1,7 @@
 import 'dart:io';
-import 'dart:typed_data';
-import 'package:flutter/material.dart' hide Image;
+import 'dart:convert';
+import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:read_leaf/blocs/FileBloc/file_bloc.dart';
 import 'package:read_leaf/blocs/ReaderBloc/reader_bloc.dart';
@@ -12,12 +13,11 @@ import 'package:read_leaf/services/ai_character_service.dart';
 import 'package:read_leaf/models/ai_character.dart';
 import 'package:read_leaf/utils/utils.dart';
 import 'package:path/path.dart' as path;
-import 'package:epubx/epubx.dart';
-import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
-import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:read_leaf/services/book_metadata_repository.dart';
 import 'package:read_leaf/models/book_metadata.dart';
 import 'package:read_leaf/services/thumbnail_service.dart';
+import 'package:read_leaf/constants/responsive_constants.dart';
+import 'package:vocsy_epub_viewer/epub_viewer.dart';
 
 class EPUBViewerScreen extends StatefulWidget {
   const EPUBViewerScreen({super.key});
@@ -32,79 +32,76 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
   late final _metadataRepository = GetIt.I<BookMetadataRepository>();
   late final _thumbnailService = GetIt.I<ThumbnailService>();
   final GlobalKey<FloatingChatWidgetState> _floatingChatKey = GlobalKey();
-  final ItemScrollController _scrollController = ItemScrollController();
-  final ItemPositionsListener _positionsListener =
-      ItemPositionsListener.create();
+  StreamSubscription? _locatorSubscription;
 
-  EpubBook? _epubBook;
-  List<EpubChapter> _flatChapters = [];
-  int _currentChapterIndex = 0;
-  String? _selectedText;
-  bool _isLoading = true;
-  bool _showChapters = false;
-  ImageProvider? _coverImage;
   BookMetadata? _metadata;
+  bool _isLoading = true;
+  String? _selectedText;
   bool _isDisposed = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        NavScreen.globalKey.currentState?.setNavBarVisibility(true);
+      }
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     _initializeReader();
   }
 
   Future<void> _initializeReader() async {
-    await Future.delayed(Duration.zero); // Wait for widget to be mounted
     if (!mounted) return;
 
-    NavScreen.globalKey.currentState?.setNavBarVisibility(true);
-    _positionsListener.itemPositions.addListener(_onScroll);
-    await _loadEpub();
+    try {
+      await _loadEpub();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error initializing reader: $e')),
+        );
+      }
+    }
   }
 
   @override
   void dispose() {
     _isDisposed = true;
-    _positionsListener.itemPositions.removeListener(_onScroll);
+    _locatorSubscription?.cancel();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+    });
     super.dispose();
   }
 
-  void _onScroll() {
-    if (_isDisposed) return;
-
-    final positions = _positionsListener.itemPositions.value;
-    if (positions.isEmpty) return;
-
-    final firstIndex = positions.first.index;
-    if (firstIndex != _currentChapterIndex) {
-      if (!_isDisposed) {
-        setState(() {
-          _currentChapterIndex = firstIndex;
-        });
-      }
-
-      // Update the current page in the bloc and metadata
-      if (mounted) {
-        final page = _currentChapterIndex + 1;
-        context.read<ReaderBloc>().add(JumpToPage(page));
-        _updateMetadata(page);
-      }
-    }
-  }
-
-  Future<void> _updateMetadata(int currentPage) async {
+  Future<void> _updateMetadata(Map<String, dynamic> locator) async {
     if (_metadata == null || _isDisposed) return;
 
-    final updatedMetadata = _metadata!.copyWith(
-      lastOpenedPage: currentPage,
-      lastReadTime: DateTime.now(),
-      readingProgress: currentPage / _metadata!.totalPages,
-    );
+    try {
+      final lastPage = locator['locations']?['cfi']?.toString();
+      final lastPageInt = int.tryParse(lastPage ?? '') ??
+          int.tryParse(_metadata!.lastOpenedPage?.toString() ?? '') ??
+          1;
 
-    await _metadataRepository.saveMetadata(updatedMetadata);
-    if (!_isDisposed) {
-      setState(() {
-        _metadata = updatedMetadata;
-      });
+      final updatedMetadata = _metadata!.copyWith(
+        lastOpenedPage: lastPageInt,
+        lastReadTime: DateTime.now(),
+        readingProgress: 0.0,
+      );
+
+      await _metadataRepository.saveMetadata(updatedMetadata);
+      if (!_isDisposed && mounted) {
+        setState(() {
+          _metadata = updatedMetadata;
+        });
+      }
+    } catch (e) {
+      print('Error updating metadata: $e');
     }
   }
 
@@ -115,51 +112,89 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
     if (state is! ReaderLoaded) return;
 
     try {
-      final bytes = await state.file.readAsBytes();
-      final book = await EpubReader.readBook(bytes);
-
-      // Flatten chapters for easier navigation
-      final chapters = _flattenChapters(book.Chapters ?? []);
-
       // Get or create metadata
       BookMetadata? metadata = _metadataRepository.getMetadata(state.file.path);
       if (metadata == null) {
         metadata = BookMetadata(
           filePath: state.file.path,
-          title: book.Title ?? path.basename(state.file.path),
-          author: book.Author,
-          totalPages: chapters.length,
+          title: path.basename(state.file.path),
+          author: '',
+          totalPages: 0,
           lastReadTime: DateTime.now(),
           fileType: 'epub',
         );
         await _metadataRepository.saveMetadata(metadata);
       }
 
-      // Get cover image using thumbnail service
-      final coverImage =
-          await _thumbnailService.getFileThumbnail(state.file.path);
-
       if (!_isDisposed) {
         setState(() {
-          _epubBook = book;
-          _flatChapters = chapters;
           _metadata = metadata;
-          _coverImage = coverImage;
-          _currentChapterIndex = metadata?.lastOpenedPage != null
-              ? metadata!.lastOpenedPage - 1
-              : 0;
           _isLoading = false;
         });
       }
 
-      // Scroll to last read position
-      if (_currentChapterIndex > 0 &&
-          _scrollController.isAttached &&
-          !_isDisposed) {
-        await _scrollController.scrollTo(
-          index: _currentChapterIndex,
-          duration: const Duration(milliseconds: 300),
+      // Configure and open the EPUB viewer
+      VocsyEpub.setConfig(
+        themeColor: Theme.of(context).primaryColor,
+        identifier: path.basenameWithoutExtension(state.file.path),
+        scrollDirection: EpubScrollDirection.ALLDIRECTIONS,
+        allowSharing: true,
+        enableTts: true,
+        nightMode: Theme.of(context).brightness == Brightness.dark,
+      );
+
+      // Listen for location changes
+      _locatorSubscription?.cancel(); // Cancel any existing subscription
+      _locatorSubscription = VocsyEpub.locatorStream.listen((locator) {
+        if (!_isDisposed && mounted) {
+          try {
+            Map<String, dynamic> locatorMap;
+
+            if (locator is int) {
+              locatorMap = {
+                "locations": {"cfi": locator.toString()}
+              };
+            } else if (locator is String) {
+              try {
+                locatorMap = jsonDecode(locator);
+              } catch (e) {
+                locatorMap = {
+                  "locations": {"cfi": locator}
+                };
+              }
+            } else {
+              print('Unexpected locator type: ${locator.runtimeType}');
+              return;
+            }
+
+            _updateMetadata(locatorMap);
+
+            // Update the current page in the bloc
+            final pageNumber = int.tryParse(
+                    locatorMap['locations']?['cfi']?.toString() ?? '1') ??
+                1;
+            if (mounted) {
+              context.read<ReaderBloc>().add(JumpToPage(pageNumber));
+            }
+          } catch (e) {
+            print('Error handling locator update: $e');
+          }
+        }
+      });
+
+      // Open the EPUB file
+      if (metadata.lastOpenedPage != null) {
+        VocsyEpub.open(
+          state.file.path,
+          lastLocation: EpubLocator.fromJson({
+            "bookId": path.basenameWithoutExtension(state.file.path),
+            "href": "/OEBPS/ch01.xhtml",
+            "created": DateTime.now().millisecondsSinceEpoch,
+            "locations": {"cfi": metadata.lastOpenedPage.toString()}
+          }),
         );
+      } else {
+        VocsyEpub.open(state.file.path);
       }
     } catch (e) {
       if (!_isDisposed && mounted) {
@@ -168,43 +203,13 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
     }
   }
 
-  Future<bool> _handleBackPress() async {
-    try {
-      // Save current progress before popping
-      if (_metadata != null) {
-        await _updateMetadata(_currentChapterIndex + 1);
-      }
-      if (mounted) {
-        context.read<ReaderBloc>().add(CloseReader());
-        context.read<FileBloc>().add(CloseViewer());
-        Navigator.of(context).pop();
-      }
-      return true;
-    } catch (e) {
-      print('Error handling back press: $e');
-      return false;
-    }
-  }
-
-  List<EpubChapter> _flattenChapters(List<EpubChapter> chapters,
-      [int level = 0]) {
-    List<EpubChapter> result = [];
-    for (var chapter in chapters) {
-      result.add(chapter);
-      if (chapter.SubChapters?.isNotEmpty == true) {
-        result.addAll(_flattenChapters(chapter.SubChapters!, level + 1));
-      }
-    }
-    return result;
-  }
-
   void _handleChatMessage(String? message, {String? selectedText}) async {
     final state = context.read<ReaderBloc>().state;
     if (state is! ReaderLoaded) return;
 
-    final bookTitle = _epubBook?.Title ?? path.basename(state.file.path);
-    final currentPage = _currentChapterIndex + 1;
-    final totalPages = _flatChapters.length;
+    final bookTitle = path.basename(state.file.path);
+    final currentPage = state.currentPage;
+    final totalPages = state.totalPages;
 
     try {
       final response = await _geminiService.askAboutText(
@@ -230,7 +235,15 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<ReaderBloc, ReaderState>(
-      listener: (context, state) {},
+      listener: (context, state) {
+        if (state is ReaderLoaded && _isLoading) {
+          Future.microtask(() {
+            if (!_isDisposed && mounted) {
+              _loadEpub();
+            }
+          });
+        }
+      },
       builder: (context, state) {
         if (_isLoading) {
           return const Scaffold(
@@ -238,217 +251,64 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
           );
         }
 
-        if (_epubBook == null) {
+        if (state is! ReaderLoaded) {
           return const Scaffold(
-            body: Center(child: Text('Failed to load EPUB')),
+            body: Center(child: Text('Reader not loaded')),
           );
         }
 
         final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
         final isKeyboardVisible = keyboardHeight > 0;
 
-        return WillPopScope(
-          onWillPop: _handleBackPress,
+        return PopScope(
+          canPop: true,
+          onPopInvoked: (didPop) async {
+            if (didPop) {
+              try {
+                if (mounted) {
+                  context.read<ReaderBloc>().add(CloseReader());
+                  context.read<FileBloc>().add(CloseViewer());
+                }
+              } catch (e) {
+                print('Error handling pop: $e');
+              }
+            }
+          },
           child: Scaffold(
             resizeToAvoidBottomInset: false,
-            appBar: AppBar(
-              backgroundColor: const Color(0xffDDDDDD),
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: _handleBackPress,
-              ),
-              title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _epubBook?.Title ?? 'Reading',
-                    style: const TextStyle(fontSize: 18, color: Colors.black),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (_epubBook?.Author != null)
-                    Text(
-                      _epubBook!.Author!,
-                      style:
-                          const TextStyle(fontSize: 14, color: Colors.black54),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                ],
-              ),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.list),
-                  onPressed: () {
-                    setState(() {
-                      _showChapters = !_showChapters;
-                    });
-                  },
-                ),
-                if (state is ReaderLoaded)
-                  PopupMenuButton<String>(
-                    elevation: 0,
-                    color: const Color(0xffDDDDDD),
-                    icon: const Icon(Icons.more_vert),
-                    onSelected: (val) {
-                      if (val == 'dark_mode') {
-                        context.read<ReaderBloc>().add(ToggleReadingMode());
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'dark_mode',
-                        child: Text('Dark mode'),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
             body: Stack(
               children: [
-                Row(
-                  children: [
-                    if (_showChapters)
-                      Container(
-                        width: 280,
-                        color: Colors.grey.shade100,
-                        child: Column(
-                          children: [
-                            if (_coverImage != null)
-                              Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Container(
-                                    height: 200,
-                                    decoration: BoxDecoration(
-                                      image: DecorationImage(
-                                        image: _coverImage!,
-                                        fit: BoxFit.contain,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            Expanded(
-                              child: ListView.builder(
-                                itemCount: _flatChapters.length,
-                                itemBuilder: (context, index) {
-                                  final chapter = _flatChapters[index];
-                                  return ListTile(
-                                    title: Text(
-                                      chapter.Title ?? 'Chapter ${index + 1}',
-                                      style: TextStyle(
-                                        color: _currentChapterIndex == index
-                                            ? Theme.of(context).primaryColor
-                                            : null,
-                                      ),
-                                    ),
-                                    onTap: () async {
-                                      await _scrollController.scrollTo(
-                                        index: index,
-                                        duration:
-                                            const Duration(milliseconds: 300),
-                                      );
-                                      if (MediaQuery.of(context).size.width <
-                                              600 &&
-                                          mounted) {
-                                        setState(() {
-                                          _showChapters = false;
-                                        });
-                                      }
-                                    },
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    Expanded(
-                      child: ScrollablePositionedList.builder(
-                        itemCount: _flatChapters.length,
-                        itemBuilder: (context, index) {
-                          final chapter = _flatChapters[index];
-                          return SelectableRegion(
-                            focusNode: FocusNode(),
-                            selectionControls: MaterialTextSelectionControls(),
-                            onSelectionChanged: (selection) {
-                              if (!_isDisposed) {
-                                setState(() {
-                                  _selectedText = selection?.plainText;
-                                });
-                              }
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    chapter.Title ?? 'Chapter ${index + 1}',
-                                    style:
-                                        Theme.of(context).textTheme.titleLarge,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  HtmlWidget(
-                                    chapter.HtmlContent ?? '',
-                                    textStyle: TextStyle(
-                                      fontSize: 16,
-                                      height: 1.6,
-                                      color: state is ReaderLoaded &&
-                                              state.readingMode ==
-                                                  ReadingMode.dark
-                                          ? Colors.white
-                                          : Colors.black,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                        itemScrollController: _scrollController,
-                        itemPositionsListener: _positionsListener,
-                      ),
-                    ),
-                  ],
-                ),
-                if (_selectedText?.isNotEmpty == true)
-                  Positioned(
-                    bottom: 16,
-                    right: 16,
-                    child: FloatingActionButton.extended(
-                      onPressed: () {
-                        _handleChatMessage(null, selectedText: _selectedText);
-                      },
-                      icon: const Icon(Icons.chat, color: Colors.white),
-                      label: const Text('Ask AI',
-                          style: TextStyle(color: Colors.white)),
-                      backgroundColor: Theme.of(context).primaryColor,
-                    ),
-                  ),
+                // The EPUB viewer is handled by the native implementation
+                const SizedBox.expand(),
+
+                // Floating chat widget
                 FloatingChatWidget(
                   character: _characterService.getSelectedCharacter() ??
                       AiCharacter(
                         name: 'Amelia',
-                        imagePath: 'assets/images/ai_characters/amelia.png',
+                        avatarImagePath:
+                            'assets/images/ai_characters/amelia.png',
                         personality: 'A friendly and helpful AI assistant.',
-                        trait: 'Friendly and helpful',
-                        categories: ['Default'],
-                        promptTemplate:
-                            'You are Amelia, a friendly AI assistant.\n\nCURRENT TASK:\n{USER_PROMPT}',
-                        taskPrompts: {
-                          'greeting':
-                              'Hello! I\'m Amelia. How can I help you today?',
-                          'analyze_text':
-                              'I\'ll help you understand this text.',
-                          'encouragement': 'You\'re doing great! Keep reading!',
-                        },
+                        summary:
+                            'Amelia is a friendly AI assistant who helps readers understand and engage with their books.',
+                        scenario:
+                            'You are reading with Amelia, who is eager to help you understand and enjoy your book.',
+                        greetingMessage:
+                            'Hello! I\'m Amelia. How can I help you with your reading today?',
+                        exampleMessages: [
+                          'Can you explain this passage?',
+                          'What are your thoughts on this chapter?',
+                          'Help me understand the main themes.'
+                        ],
+                        characterVersion: '1',
+                        tags: ['Default', 'Reading Assistant'],
+                        creator: 'ReadLeaf',
+                        createdAt: DateTime.now(),
+                        updatedAt: DateTime.now(),
                       ),
                   onSendMessage: _handleChatMessage,
-                  bookId: state is ReaderLoaded ? state.file.path : '',
-                  bookTitle: _epubBook?.Title ?? '',
+                  bookId: state.file.path,
+                  bookTitle: path.basename(state.file.path),
                   keyboardHeight: keyboardHeight,
                   isKeyboardVisible: isKeyboardVisible,
                   key: _floatingChatKey,
