@@ -50,7 +50,23 @@ class _NavScreenState extends State<NavScreen> {
           context.read<ReaderBloc>().add(
                 OpenReader('', file: file, filePath: state.filePath),
               );
+
+          // Determine file type and route to appropriate viewer
+          final fileExtension = file.path.toLowerCase().split('.').last;
+          switch (fileExtension) {
+            case 'pdf':
           Navigator.pushNamed(context, '/pdf_viewer');
+              break;
+            case 'epub':
+              Navigator.pushNamed(context, '/epub_viewer');
+              break;
+            default:
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Unsupported file type'),
+                ),
+              );
+          }
         }
       },
       child: Scaffold(

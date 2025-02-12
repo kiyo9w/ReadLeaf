@@ -1056,7 +1056,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                     // Only handle page navigation if no side panels are open
                     if (!_showSearchPanel && !(state.showSideNav)) {
                       final tapArea =
-                          size.width * 0.2; // 20% of screen width for tap zones
+                          size.width * 0.13; // 13% of screen width for tap zones
                       if (details.localPosition.dx < tapArea) {
                         // Left tap zone - go to previous page
                         if (_layoutMode == PdfLayoutMode.facing) {
