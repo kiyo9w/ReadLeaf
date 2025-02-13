@@ -66,7 +66,8 @@ class EpubPageCalculator {
   // Constants for pagination
   static const double DEFAULT_FONT_SIZE = 13.0;
   static const double LINE_HEIGHT_MULTIPLIER = 1.5;
-  static const double PAGE_PADDING = 32.0; // Account for page padding
+  static const double PAGE_PADDING = 32.0;
+  static const int WORDS_PER_PAGE = 350; // Fixed word count per page
 
   // Cache structures
   final Map<int, List<PageContent>> _pageCache = {};
@@ -84,12 +85,10 @@ class EpubPageCalculator {
     required double viewportHeight,
     double fontSize = DEFAULT_FONT_SIZE,
   }) {
-    _viewportWidth =
-        viewportWidth - (PAGE_PADDING * 2); // Account for horizontal padding
+    _viewportWidth = viewportWidth - (PAGE_PADDING * 2);
     _viewportHeight = viewportHeight;
     _fontSize = fontSize;
-    _effectiveViewportHeight =
-        _viewportHeight - (PAGE_PADDING * 2); // Account for vertical padding
+    _effectiveViewportHeight = _viewportHeight - (PAGE_PADDING * 2);
   }
 
   // Calculate pages for a chapter
@@ -118,7 +117,6 @@ class EpubPageCalculator {
 
   // Parse HTML content and apply styles
   Future<ParsedContent> _parseHtmlContent(String html) async {
-    // Create a map to store styles
     final styles = <String, TextStyle>{
       'p': TextStyle(
         fontSize: _fontSize,
@@ -136,38 +134,35 @@ class EpubPageCalculator {
       ),
     };
 
-    // Keep the HTML structure but split into manageable blocks
     final blocks = <ContentBlock>[];
-
-    // Split content by paragraphs while preserving HTML
     final paragraphs = html.split(RegExp(r'(?=<p>)|(?=<h[1-6]>)'));
 
     for (var p in paragraphs) {
       if (p.trim().isEmpty) continue;
 
-      // Determine the appropriate style based on the tag
       String tag = 'p';
-      if (p.startsWith('<h1'))
+      if (p.startsWith('<h1>'))
         tag = 'h1';
-      else if (p.startsWith('<h2')) tag = 'h2';
+      else if (p.startsWith('<h2>')) tag = 'h2';
+
+      // Count words in this block
+      final plainText = p.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+      final wordCount = plainText.split(RegExp(r'\s+')).length;
 
       blocks.add(ContentBlock(
         textSpan: TextSpan(
-          text: p,
+          text: plainText,
           style: styles[tag],
         ),
         rawHtml: p,
-        styles: {'tag': tag},
+        styles: {'tag': tag, 'wordCount': wordCount.toString()},
       ));
     }
 
-    return ParsedContent(
-      blocks: blocks,
-      styles: styles,
-    );
+    return ParsedContent(blocks: blocks, styles: styles);
   }
 
-  // Calculate page breaks based on content and viewport
+  // Calculate page breaks based on word count
   List<PageContent> _calculatePageBreaks(
     ParsedContent content,
     int chapterIndex,
@@ -175,35 +170,13 @@ class EpubPageCalculator {
   ) {
     final pages = <PageContent>[];
     List<String> currentPageBlocks = [];
-    double currentPageHeight = 0;
-    double titleHeight = 0;
-
-    // Calculate title height if it will be shown
-    if (pages.isEmpty) {
-      final titlePainter = TextPainter(
-        text: TextSpan(
-          text: chapterTitle,
-          style: TextStyle(
-            fontSize: _fontSize * 1.5,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-        maxLines: null,
-      );
-      titlePainter.layout(maxWidth: _viewportWidth);
-      titleHeight = titlePainter.height + 24; // Add spacing after title
-    }
-
-    // Account for title in first page
-    double availableHeight =
-        _effectiveViewportHeight - (pages.isEmpty ? titleHeight : 0);
+    int currentWordCount = 0;
 
     for (var block in content.blocks) {
-      final blockHeight = _calculateBlockHeight(block.textSpan);
+      final blockWordCount = int.parse(block.styles['wordCount'] ?? '0');
 
-      // If this block would exceed page height, create new page
-      if (currentPageHeight + blockHeight > availableHeight &&
+      // If adding this block would exceed the word limit, create a new page
+      if (currentWordCount + blockWordCount > WORDS_PER_PAGE &&
           currentPageBlocks.isNotEmpty) {
         pages.add(PageContent(
           content: currentPageBlocks.join('\n'),
@@ -212,13 +185,11 @@ class EpubPageCalculator {
           chapterTitle: chapterTitle,
         ));
         currentPageBlocks = [];
-        currentPageHeight = 0;
-        availableHeight =
-            _effectiveViewportHeight; // Reset available height for new page
+        currentWordCount = 0;
       }
 
       currentPageBlocks.add(block.rawHtml);
-      currentPageHeight += blockHeight;
+      currentWordCount += blockWordCount;
     }
 
     // Add remaining content as last page
@@ -232,18 +203,6 @@ class EpubPageCalculator {
     }
 
     return pages;
-  }
-
-  // Calculate height of a content block
-  double _calculateBlockHeight(TextSpan block) {
-    final textPainter = TextPainter(
-      text: block,
-      textDirection: TextDirection.ltr,
-      maxLines: null,
-    );
-
-    textPainter.layout(maxWidth: _viewportWidth);
-    return textPainter.height + 8; // Add some spacing between blocks
   }
 
   // Clear the cache
@@ -274,38 +233,57 @@ class EpubPageWidget extends StatelessWidget {
         onSelectionChanged?.call(selection?.plainText);
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (showTitle) ...[
-              Text(
-                pageContent.chapterTitle,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? const Color(0xFFF2F2F7)
-                          : const Color(0xFF1C1C1E),
-                    ),
-              ),
-              const SizedBox(height: 24),
-            ],
-            HtmlWidget(
-              pageContent.content,
-              textStyle: TextStyle(
-                fontSize: EpubPageCalculator.DEFAULT_FONT_SIZE,
-                height: EpubPageCalculator.LINE_HEIGHT_MULTIPLIER,
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? const Color(0xFFF2F2F7)
-                    : const Color(0xFF1C1C1E),
-              ),
-              customStylesBuilder: (element) {
-                if (element.localName == 'p') {
-                  return {'margin': '0.5em 0'};
-                }
-                return null;
-              },
+        margin: const EdgeInsets.symmetric(vertical: 16.0),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          border: Border(
+            bottom: BorderSide(
+              color: Theme.of(context).dividerColor.withOpacity(0.2),
+              width: 1.0,
+            ),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Theme.of(context).shadowColor.withOpacity(0.1),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
             ),
           ],
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (showTitle) ...[
+                Text(
+                  pageContent.chapterTitle,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xFFF2F2F7)
+                            : const Color(0xFF1C1C1E),
+                      ),
+                ),
+                const SizedBox(height: 24),
+              ],
+              HtmlWidget(
+                pageContent.content,
+                textStyle: TextStyle(
+                  fontSize: EpubPageCalculator.DEFAULT_FONT_SIZE,
+                  height: EpubPageCalculator.LINE_HEIGHT_MULTIPLIER,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFFF2F2F7)
+                      : const Color(0xFF1C1C1E),
+                ),
+                customStylesBuilder: (element) {
+                  if (element.localName == 'p') {
+                    return {'margin': '0.5em 0'};
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -348,7 +326,6 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
   int _totalPages = 0;
   int _currentPage = 0;
   late EpubPageCalculator _pageCalculator;
-  static const int _wordsPerPage = 500; // Approximate words per page
 
   // Add this getter to ensure valid slider values
   double get _sliderMax => _totalPages > 0 ? _totalPages.toDouble() : 1.0;
@@ -389,7 +366,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
   }
 
   void _onScroll() {
-    if (_isDisposed) return;
+    if (_isDisposed || _isSliderInteracting) return;
 
     final positions = _positionsListener.itemPositions.value;
     if (positions.isEmpty) return;
@@ -412,7 +389,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
     } else {
       // Also update progress when scrolling within the same chapter
       final page = _calculateCurrentPage();
-      if (page != _currentPage) {
+      if (page != _currentPage && !_isSliderInteracting) {
         setState(() {
           _currentPage = page;
         });
@@ -423,69 +400,61 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
 
   int _calculateCurrentPage() {
     if (_layoutMode == EpubLayoutMode.horizontal) {
-      // In horizontal mode, _currentPage is already the correct page number
       return _currentPage.clamp(1, _totalPages);
     }
 
-    // Vertical mode calculation
-    int page = 0;
+    // Calculate total pages up to current position
+    int page = 1;
     final positions = _positionsListener.itemPositions.value;
-    if (positions.isEmpty) return 1;
+    if (positions.isEmpty) return page;
 
-    // Add pages from completed chapters
+    // Calculate total words read
+    int totalWordsRead = 0;
+
+    // Add words from completed chapters
     for (var i = 0; i < _currentChapterIndex; i++) {
-      page += _chapterPagesCache[i]?.length ?? 0;
+      if (_chapterPagesCache.containsKey(i)) {
+        totalWordsRead +=
+            _chapterPagesCache[i]!.length * EpubPageCalculator.WORDS_PER_PAGE;
+      }
     }
 
-    // Add pages in current chapter
+    // Add words from current chapter
     if (_chapterPagesCache[_currentChapterIndex] != null) {
       final currentChapterPages = _chapterPagesCache[_currentChapterIndex]!;
       final firstPosition = positions.first;
-      final lastPosition = positions.last;
 
-      // Calculate the visible fraction of the current chapter
-      double visibleFraction = 0.0;
-      if (firstPosition.itemLeadingEdge < 0) {
-        // If we've scrolled past the start, count from 0
-        visibleFraction = firstPosition.itemTrailingEdge;
-      } else {
-        // Otherwise, count from the leading edge
-        visibleFraction = 1.0 - firstPosition.itemLeadingEdge;
-      }
-
-      // Calculate pages in current chapter
-      final currentChapterProgress = visibleFraction.clamp(0.0, 1.0);
-      final pagesInCurrentChapter =
-          (currentChapterProgress * currentChapterPages.length).floor();
-      page += pagesInCurrentChapter;
+      // Calculate progress through current chapter
+      final progress = 1.0 - firstPosition.itemLeadingEdge;
+      final wordsInCurrentChapter =
+          currentChapterPages.length * EpubPageCalculator.WORDS_PER_PAGE;
+      totalWordsRead += (progress * wordsInCurrentChapter).floor();
     }
 
-    // Convert to 1-based page number
-    return (page + 1).clamp(1, _totalPages);
+    // Convert total words read to pages
+    page = (totalWordsRead / EpubPageCalculator.WORDS_PER_PAGE).ceil();
+    return page.clamp(1, _totalPages);
   }
 
   Future<void> _jumpToPage(int targetPage) async {
     if (targetPage < 1 || targetPage > _totalPages) return;
 
     if (_layoutMode == EpubLayoutMode.horizontal) {
-      // In horizontal mode, directly set the page
       setState(() {
         _currentPage = targetPage;
       });
       return;
     }
 
-    // Vertical mode page jumping
+    // Calculate which chapter contains the target page
     int currentPageCount = 0;
     int targetChapterIndex = 0;
     double targetOffset = 0.0;
 
-    // Find the target chapter and offset
     for (var i = 0; i < _flatChapters.length; i++) {
       final chapterPages = _chapterPagesCache[i]?.length ?? 0;
       if (currentPageCount + chapterPages >= targetPage) {
         targetChapterIndex = i;
-        // Calculate what fraction through the chapter we need to be
         final pagesIntoChapter = targetPage - currentPageCount;
         targetOffset = 1.0 - (pagesIntoChapter / chapterPages);
         break;
@@ -496,7 +465,6 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
     // Load the target chapter and surrounding chapters
     await _loadSurroundingChapters(targetChapterIndex);
 
-    // Update current page and scroll to position
     if (_scrollController.isAttached && mounted) {
       setState(() {
         _currentPage = targetPage;
@@ -538,55 +506,42 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
   }
 
   Future<void> _loadEpub() async {
-    if (_isDisposed) return;
-
-    final state = context.read<ReaderBloc>().state;
-    if (state is! ReaderLoaded) return;
-
     try {
-      final bytes = await state.file.readAsBytes();
-      final book = await EpubReader.readBook(bytes);
-
-      // Flatten chapters for easier navigation
-      final chapters = _flattenChapters(book.Chapters ?? []);
-
-      // Initialize with a reasonable default
-      int initialTotalPages = 1;
-
-      // Get or create metadata
-      BookMetadata? metadata = _metadataRepository.getMetadata(state.file.path);
-      if (metadata == null) {
-        metadata = BookMetadata(
-          filePath: state.file.path,
-          title: book.Title ?? path.basename(state.file.path),
-          author: book.Author,
-          totalPages: initialTotalPages,
-          lastReadTime: DateTime.now(),
-          fileType: 'epub',
-        );
-        await _metadataRepository.saveMetadata(metadata);
+      final state = context.read<FileBloc>().state;
+      if (state is! FileViewing) {
+        print('Not in viewing state');
+        return;
       }
 
-      // Get cover image using thumbnail service
-      final coverImage =
-          await _thumbnailService.getFileThumbnail(state.file.path);
+      setState(() {
+        _isLoading = true;
+        _currentPage = 1;  // Always start at page 1
+        _totalPages = 0;   // Reset total pages
+      });
 
-      if (!_isDisposed) {
+      final filePath = state.filePath;
+      final file = File(filePath);
+      final bytes = await file.readAsBytes();
+      _epubBook = await EpubReader.readBook(bytes);
+
+      if (_epubBook != null) {
+        // Get chapters from the EPUB book
+        _flatChapters = _flattenChapters(_epubBook!.Chapters ?? []);
+
+        // Initialize metadata
+        final metadata = await _metadataRepository.getMetadata(filePath);
         setState(() {
-          _epubBook = book;
-          _flatChapters = chapters;
           _metadata = metadata;
-          _coverImage = coverImage;
-          _currentChapterIndex = 0; // Always start at first chapter
-          _currentPage = 1; // Always start at page 1
-          _totalPages = initialTotalPages;
-          _isLoading = false;
+          // Only set current page from metadata if it's valid
+          if (metadata?.lastOpenedPage != null && metadata!.lastOpenedPage > 0) {
+            _currentPage = metadata.lastOpenedPage;
+          }
         });
 
         // Load initial chapter and surrounding chapters
         WidgetsBinding.instance.addPostFrameCallback((_) async {
           // Preload all chapters' content first
-          await Future.wait(chapters
+          await Future.wait(_flatChapters
               .asMap()
               .entries
               .map((entry) => _preloadChapter(entry.key)));
@@ -595,6 +550,10 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
           await _splitChapterIntoPages(_currentChapterIndex);
           await _loadSurroundingChapters(_currentChapterIndex);
           _updateTotalPages();
+
+          setState(() {
+            _isLoading = false;
+          });
         });
       }
     } catch (e) {
@@ -608,27 +567,32 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
   void _updateTotalPages() {
     if (_isDisposed) return;
 
-    int total = 0;
-    // Calculate total pages by summing up all chapter pages
+    int totalWords = 0;
+    // Calculate total words across all chapters
     for (var i = 0; i < _flatChapters.length; i++) {
       if (_chapterPagesCache.containsKey(i)) {
-        total += _chapterPagesCache[i]?.length ?? 0;
+        totalWords +=
+            _chapterPagesCache[i]!.length * EpubPageCalculator.WORDS_PER_PAGE;
       }
     }
 
-    if (total > 0 && total != _totalPages) {
+    // Convert total words to pages, ensuring at least 1 page
+    final total = (totalWords / EpubPageCalculator.WORDS_PER_PAGE).ceil();
+    final newTotal = total > 0 ? total : 1;
+
+    if (newTotal != _totalPages) {
       setState(() {
-        _totalPages = total;
+        _totalPages = newTotal;
       });
 
       // Update metadata with new total pages and recalculate progress
       if (_metadata != null) {
         final currentPage = _calculateCurrentPage();
         final progress =
-            total > 0 ? (currentPage / total).clamp(0.0, 1.0) : 0.0;
+            newTotal > 0 ? (currentPage / newTotal).clamp(0.0, 1.0) : 0.0;
 
         final updatedMetadata = _metadata!.copyWith(
-          totalPages: total,
+          totalPages: newTotal,
           lastOpenedPage: currentPage,
           readingProgress: progress,
         );
@@ -843,52 +807,35 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
           canPop: true,
           onPopInvoked: (didPop) async {
             if (didPop) {
-              try {
-                // Save current progress before popping
-                if (_metadata != null) {
-                  await _updateMetadata(_calculateCurrentPage());
-                }
-                if (mounted) {
-                  context.read<ReaderBloc>().add(CloseReader());
-                  context.read<FileBloc>().add(CloseViewer());
-                }
-              } catch (e) {
-                print('Error handling pop: $e');
-              }
+              await _handleBackPress();
             }
           },
           child: GestureDetector(
             onTapDown: (details) {
-              // Check if tap is outside side widgets
               if (_showChapters) {
-                final sideNavWidth =
-                    ResponsiveConstants.getSideNavWidth(context);
+                final sideNavWidth = ResponsiveConstants.getSideNavWidth(context);
                 if (details.globalPosition.dx > sideNavWidth) {
-                  // Close side widgets if tap is outside their area
                   setState(() {
                     _showChapters = false;
                   });
                 }
               }
             },
-          child: Scaffold(
-            resizeToAvoidBottomInset: false,
+            child: Scaffold(
+              resizeToAvoidBottomInset: false,
               body: Stack(
                 children: [
-                  // Main content
                   if (_layoutMode == EpubLayoutMode.horizontal)
                     _buildHorizontalLayout()
                   else
                     ScrollablePositionedList.builder(
                       itemCount: _flatChapters.length,
-                      itemBuilder: (context, index) =>
-                          _buildChapter(_flatChapters[index]),
+                      itemBuilder: (context, index) => _buildChapter(_flatChapters[index]),
                       itemScrollController: _scrollController,
                       itemPositionsListener: _positionsListener,
                     ),
-
-                  // Top app bar
-                  if (showUI)
+                  if (showUI) ...[
+                    // Top app bar
                     Positioned(
                       top: 0,
                       left: 0,
@@ -901,7 +848,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
                         elevation: 0,
                         toolbarHeight:
                             ResponsiveConstants.getBottomBarHeight(context),
-              leading: IconButton(
+                        leading: IconButton(
                           icon: Icon(
                             Icons.arrow_back,
                             color:
@@ -925,9 +872,9 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
                                     : const Color(0xFF1C1C1E),
                             fontWeight: FontWeight.w500,
                           ),
-              ),
-              actions: [
-                IconButton(
+                        ),
+                        actions: [
+                          IconButton(
                             icon: Icon(
                               Icons.search,
                               color: Theme.of(context).brightness ==
@@ -957,15 +904,15 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
                                   : const Color(0xFF1C1C1E),
                               size: ResponsiveConstants.getIconSize(context),
                             ),
-                  onPressed: () {
-                    setState(() {
-                      _showChapters = !_showChapters;
-                    });
-                  },
+                            onPressed: () {
+                              setState(() {
+                                _showChapters = !_showChapters;
+                              });
+                            },
                             padding: EdgeInsets.all(
                                 ResponsiveConstants.isTablet(context) ? 12 : 8),
-                ),
-                  PopupMenuButton<String>(
+                          ),
+                          PopupMenuButton<String>(
                             elevation: 8,
                             color:
                                 Theme.of(context).brightness == Brightness.dark
@@ -988,21 +935,19 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
                             onSelected: (val) async {
                               switch (val) {
                                 case 'layout_mode':
-                                  final RenderBox button =
-                                      context.findRenderObject() as RenderBox;
-                                  final RenderBox overlay =
-                                      Navigator.of(context)
-                                          .overlay!
-                                          .context
-                                          .findRenderObject() as RenderBox;
-                                  final RelativeRect position =
-                                      RelativeRect.fromRect(
-                                    Rect.fromPoints(
-                                      button.localToGlobal(Offset.zero),
-                                      button.localToGlobal(
-                                          button.size.bottomRight(Offset.zero)),
-                                    ),
-                                    Offset.zero & overlay.size,
+                                  final RenderBox button = context.findRenderObject() as RenderBox;
+                                  final RenderBox overlay = Navigator.of(context)
+                                      .overlay!
+                                      .context
+                                      .findRenderObject() as RenderBox;
+                                  final buttonPos = button.localToGlobal(Offset.zero);
+                                  final overlayPos = overlay.localToGlobal(Offset.zero);
+                                  
+                                  final RelativeRect position = RelativeRect.fromLTRB(
+                                    buttonPos.dx,
+                                    buttonPos.dy + button.size.height,
+                                    overlayPos.dx + overlay.size.width - buttonPos.dx - button.size.width,
+                                    overlayPos.dy + overlay.size.height - buttonPos.dy,
                                   );
 
                                   showMenu<EpubLayoutMode>(
@@ -1685,6 +1630,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
                       ),
                     ),
                 ],
+              ],
               ),
             ),
           ),
@@ -1735,18 +1681,6 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
         final pages = _chapterPagesCache[targetChapterIndex];
         if (pages == null || pageInChapter >= pages.length) {
           return const Center(child: Text('Page not available'));
-        }
-
-        // Update current chapter index if needed
-        if (targetChapterIndex != _currentChapterIndex) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!_isDisposed && mounted) {
-              setState(() {
-                _currentChapterIndex = targetChapterIndex;
-              });
-              _loadSurroundingChapters(targetChapterIndex);
-            }
-          });
         }
 
         return _buildPage(pages[pageInChapter]);
