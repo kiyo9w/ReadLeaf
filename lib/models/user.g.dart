@@ -35,9 +35,9 @@ Map<String, dynamic> _$$UserImplToJson(_$UserImpl instance) =>
       'username': instance.username,
       'avatarUrl': instance.avatarUrl,
       'socialProvider': instance.socialProvider,
-      'preferences': instance.preferences,
-      'library': instance.library,
-      'aiSettings': instance.aiSettings,
+      'preferences': instance.preferences.toJson(),
+      'library': instance.library.toJson(),
+      'aiSettings': instance.aiSettings.toJson(),
       'isAnonymous': instance.isAnonymous,
       'lastSyncTime': instance.lastSyncTime?.toIso8601String(),
     };

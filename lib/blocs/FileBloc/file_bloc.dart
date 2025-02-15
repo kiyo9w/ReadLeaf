@@ -91,16 +91,17 @@ class FileBloc extends Bloc<FileEvent, FileState> {
           currentFiles.any((existingFile) => existingFile.filePath == filePath);
 
       if (!isFileAlreadyLoaded) {
-        // Only upload PDF files
-        if (FileParser.determineFileType(filePath) == "pdf") {
+        final fileType = FileParser.determineFileType(filePath);
+        if (fileType == "pdf") {
           try {
             print('Uploading new PDF to backend: $filePath');
             await _ragService.uploadPdf(file);
             print('Successfully uploaded PDF to backend');
           } catch (e) {
             print('Error uploading PDF to backend: $e');
-            // Continue even if upload fails - don't block the user
           }
+        } else if (fileType == "epub") {
+          print('Processing EPUB file: $filePath');
         }
 
         final newFiles = [...currentFiles, FileInfo(filePath, fileSize)];
