@@ -49,25 +49,41 @@ class ThemeProvider extends ChangeNotifier {
   static final _lightTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
-    primaryColor: Colors.blue,
-    scaffoldBackgroundColor: Colors.white,
+    primaryColor: const Color(0xFFD9C6B0), // Warm Taupe
+    scaffoldBackgroundColor: const Color(0xFFF9F5F2), // Soft Ivory
+    cardColor: const Color(0xFFFFFFFF), // Pure White
+    dividerColor: const Color(0xFFE0E0E0),
+    hintColor: const Color(0xFF87A8D0), // Calm Sky Blue
+    highlightColor: const Color(0xFF00AEEF), // Vibrant Cyan
 
-    // Add page transitions theme
-    pageTransitionsTheme: const PageTransitionsTheme(
-      builders: {
-        TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-      },
+    colorScheme: const ColorScheme.light(
+      primary: Color(0xFFD9C6B0), // Warm Taupe
+      secondary: Color(0xFF87A8D0), // Calm Sky Blue
+      tertiary: Color(0xFFFFB562), // Golden Amber
+      surface: Color(0xFFFFFFFF),
+      background: Color(0xFFF9F5F2),
+      error: Color(0xFFE57373),
+      onPrimary: Colors.black87,
+      onSecondary: Colors.white,
+      onSurface: Colors.black87,
+      onBackground: Colors.black87,
+      onError: Colors.white,
+      surfaceTint: Color(0xFFD9C6B0), // Warm Taupe for surface tinting
+      primaryContainer: Color(0xFFE8DBC9), // Lighter Warm Taupe for containers
+      secondaryContainer:
+          Color(0xFFB3C9E0), // Lighter Calm Sky Blue for containers
+      tertiaryContainer:
+          Color(0xFFFFD1A1), // Lighter Golden Amber for containers
     ),
 
     // AppBar theme
     appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.white,
-      foregroundColor: Colors.black,
+      backgroundColor: Color(0xFFF9F5F2), // Soft Ivory
+      foregroundColor: Colors.black87,
       elevation: 0,
-      iconTheme: IconThemeData(color: Colors.black),
+      iconTheme: IconThemeData(color: Colors.black87),
       titleTextStyle: TextStyle(
-        color: Colors.black,
+        color: Colors.black87,
         fontSize: 32.0,
         fontWeight: FontWeight.bold,
       ),
@@ -76,13 +92,13 @@ class ThemeProvider extends ChangeNotifier {
     // Text themes
     textTheme: const TextTheme(
       displayLarge: TextStyle(
-          color: Colors.black, fontSize: 32, fontWeight: FontWeight.bold),
+          color: Colors.black87, fontSize: 32, fontWeight: FontWeight.bold),
       displayMedium: TextStyle(
-          color: Colors.black, fontSize: 28, fontWeight: FontWeight.bold),
+          color: Colors.black87, fontSize: 28, fontWeight: FontWeight.bold),
       bodyLarge: TextStyle(color: Colors.black87, fontSize: 16),
       bodyMedium: TextStyle(color: Colors.black87, fontSize: 14),
       titleLarge: TextStyle(
-          color: Colors.black, fontSize: 20, fontWeight: FontWeight.bold),
+          color: Colors.black87, fontSize: 20, fontWeight: FontWeight.bold),
       titleMedium: TextStyle(color: Colors.black87, fontSize: 16),
       labelLarge: TextStyle(color: Colors.black87, fontSize: 14),
     ),
@@ -95,8 +111,9 @@ class ThemeProvider extends ChangeNotifier {
 
     // Navigation bar theme
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: Colors.white,
-      indicatorColor: Colors.blue.withOpacity(0.2),
+      backgroundColor: const Color(0xFFF9F5F2), // Soft Ivory
+      indicatorColor:
+          const Color(0xFFD9C6B0).withOpacity(0.2), // Warm Taupe with opacity
       labelTextStyle: MaterialStateProperty.all(
         const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
       ),
@@ -104,7 +121,7 @@ class ThemeProvider extends ChangeNotifier {
 
     // Card theme
     cardTheme: CardTheme(
-      color: Colors.white,
+      color: const Color(0xFFFFFFFF), // Pure White
       elevation: 2,
       shadowColor: Colors.black.withOpacity(0.1),
       shape: RoundedRectangleBorder(
@@ -114,7 +131,7 @@ class ThemeProvider extends ChangeNotifier {
 
     // Dialog theme
     dialogTheme: DialogTheme(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFFFFFFF), // Pure White
       elevation: 8,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
@@ -124,7 +141,7 @@ class ThemeProvider extends ChangeNotifier {
     // Input decoration theme
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: Colors.grey[100],
+      fillColor: const Color(0xFFF9F5F2), // Soft Ivory
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide.none,
@@ -135,26 +152,90 @@ class ThemeProvider extends ChangeNotifier {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.blue, width: 2),
+        borderSide:
+            const BorderSide(color: Color(0xFFD9C6B0), width: 2), // Warm Taupe
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     ),
 
     // Divider theme
     dividerTheme: const DividerThemeData(
-      color: Colors.black12,
+      color: Color(0xFFE0E0E0),
       thickness: 1,
       space: 1,
+    ),
+
+    // Floating Action Button theme
+    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      backgroundColor: Color(0xFFD9C6B0), // Warm Taupe
+      foregroundColor: Colors.black87,
+    ),
+
+    // Checkbox theme
+    checkboxTheme: CheckboxThemeData(
+      fillColor:
+          MaterialStateProperty.resolveWith<Color>((Set<MaterialState> states) {
+        if (states.contains(MaterialState.selected)) {
+          return const Color(0xFFD9C6B0); // Warm Taupe when selected
+        }
+        return const Color(0xFFE0E0E0); // Light grey when unselected
+      }),
+    ),
+
+    // Radio theme
+    radioTheme: RadioThemeData(
+      fillColor:
+          MaterialStateProperty.resolveWith<Color>((Set<MaterialState> states) {
+        if (states.contains(MaterialState.selected)) {
+          return const Color(0xFFD9C6B0); // Warm Taupe when selected
+        }
+        return const Color(0xFFE0E0E0); // Light grey when unselected
+      }),
+    ),
+
+    // Switch theme
+    switchTheme: SwitchThemeData(
+      thumbColor:
+          MaterialStateProperty.resolveWith<Color>((Set<MaterialState> states) {
+        if (states.contains(MaterialState.selected)) {
+          return const Color(0xFFD9C6B0); // Warm Taupe when selected
+        }
+        return Colors.grey; // Grey when unselected
+      }),
+      trackColor:
+          MaterialStateProperty.resolveWith<Color>((Set<MaterialState> states) {
+        if (states.contains(MaterialState.selected)) {
+          return const Color(0xFFD9C6B0)
+              .withOpacity(0.5); // Warm Taupe with opacity when selected
+        }
+        return Colors.grey
+            .withOpacity(0.3); // Grey with opacity when unselected
+      }),
+    ),
+
+    // Progress indicator theme
+    progressIndicatorTheme: const ProgressIndicatorThemeData(
+      color: Color(0xFFD9C6B0), // Warm Taupe
+    ),
+
+    // Chip theme
+    chipTheme: ChipThemeData(
+      backgroundColor: const Color(0xFFF9F5F2), // Soft Ivory
+      selectedColor:
+          const Color(0xFFD9C6B0).withOpacity(0.2), // Warm Taupe with opacity
+      disabledColor: Colors.grey.withOpacity(0.3),
+      padding: const EdgeInsets.all(8),
+      labelStyle: const TextStyle(color: Colors.black87),
     ),
 
     // Custom color extensions for file cards and AI messages
     extensions: [
       const CustomThemeExtension(
-        fileCardBackground: Colors.white,
+        fileCardBackground: Color(0xFFFFFFFF), // Pure White
         fileCardText: Colors.black87,
-        aiMessageBackground: Colors.white,
+        aiMessageBackground: Color(0xFFF9F5F2), // Soft Ivory
         aiMessageText: Colors.black87,
-        minimalFileCardBackground: Colors.white,
+        minimalFileCardBackground: Color(0xFFFFFFFF), // Pure White
         minimalFileCardText: Colors.black87,
       ),
     ],
