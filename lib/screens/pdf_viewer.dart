@@ -43,7 +43,7 @@ class PDFViewerScreen extends StatefulWidget {
 }
 
 class _PDFViewerScreenState extends State<PDFViewerScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final _controller = PdfViewerController();
   late final _textSearcher = PdfTextSearcher(_controller)..addListener(_update);
   late final _geminiService = GetIt.I<GeminiService>();
@@ -68,6 +68,11 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   PdfLayoutMode _layoutMode = PdfLayoutMode.vertical;
   bool _isRightToLeftReadingOrder = false;
   bool _needCoverPage = true;
+
+  late AnimationController _pulseController;
+  Animation<double>? _pulseAnimation;
+  Marker? _highlightedMarker;
+  Timer? _pulseTimer;
 
   String get _currentTitle {
     switch (_tabController.index) {
@@ -96,7 +101,22 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
       if (mounted) setState(() {});
     });
 
-    // Add controller ready listener using a safer approach
+    // Initialize controllers and listeners
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _pulseController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _pulseController.reverse();
+      } else if (status == AnimationStatus.dismissed) {
+        if (_pulseTimer?.isActive == true) {
+          _pulseController.forward();
+        }
+      }
+    });
+
+    // Add controller ready listener after build
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _controller.addListener(_onControllerReady);
@@ -113,7 +133,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
 
   void _onControllerReady() {
     if (_controller.isReady && mounted) {
-      _loadHighlights();
       try {
         _controller.removeListener(_onControllerReady);
       } catch (e) {
@@ -125,96 +144,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_controller.isReady && mounted) {
-      _loadHighlights();
-    }
-  }
-
-  void _loadHighlights() async {
-    if (!_controller.isReady || !mounted) {
-      return;
-    }
-
-    if (context.read<ReaderBloc>().state is ReaderLoaded) {
-      final state = context.read<ReaderBloc>().state as ReaderLoaded;
-      final highlights = state.metadata.highlights;
-
-      final Map<int, List<Marker>> newMarkers = {};
-
-      for (final highlight in highlights) {
-        try {
-          final pageText =
-              await _textSearcher.loadText(pageNumber: highlight.pageNumber);
-          if (pageText != null) {
-            final index = pageText.fullText.indexOf(highlight.text);
-            if (index != -1) {
-              final textRange = PdfTextRanges(
-                pageText: pageText,
-                ranges: [
-                  PdfTextRange(start: index, end: index + highlight.text.length)
-                ],
-              );
-
-              newMarkers
-                  .putIfAbsent(highlight.pageNumber, () => [])
-                  .add(Marker(Colors.yellow, textRange));
-            } else {
-              final normalizedPageText =
-                  pageText.fullText.replaceAll(RegExp(r'\s+'), ' ').trim();
-              final normalizedHighlightText =
-                  highlight.text.replaceAll(RegExp(r'\s+'), ' ').trim();
-              final fuzzyIndex =
-                  normalizedPageText.indexOf(normalizedHighlightText);
-
-              if (fuzzyIndex != -1) {
-                final textRange = PdfTextRanges(
-                  pageText: pageText,
-                  ranges: [
-                    PdfTextRange(
-                        start: fuzzyIndex,
-                        end: fuzzyIndex + normalizedHighlightText.length)
-                  ],
-                );
-
-                newMarkers
-                    .putIfAbsent(highlight.pageNumber, () => [])
-                    .add(Marker(Colors.yellow, textRange));
-              }
-            }
-          }
-        } catch (e) {
-          dev.log('Error loading highlight: $e');
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          _markers.clear();
-          _markers.addAll(newMarkers);
-        });
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    _sliderDwellTimer?.cancel();
-    try {
-      _controller.removeListener(_onControllerReady);
-      _textSearcher.removeListener(_update);
-    } catch (e) {
-      print('Error removing listeners: $e');
-    }
-    _textSearcher.dispose();
-    outline.dispose();
-    documentRef.dispose();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        NavScreen.globalKey.currentState?.setNavBarVisibility(false);
-      }
-    });
-    super.dispose();
+    // Move highlight loading to onViewerReady callback instead
   }
 
   Future<bool> _shouldOpenUrl(BuildContext context, Uri url) async {
@@ -413,6 +343,24 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
     setState(() {});
   }
 
+  void _startPulsingHighlight(Marker marker) {
+    _pulseTimer?.cancel();
+    _highlightedMarker = marker;
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.15).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+    _pulseController.forward();
+    // Pulse for 3 cycles (about 4.8 seconds total)
+    _pulseTimer = Timer(const Duration(milliseconds: 4800), () {
+      if (mounted) {
+        _pulseController.stop();
+        _pulseController.reset();
+        _highlightedMarker = null;
+        setState(() {});
+      }
+    });
+  }
+
   void _paintMarkers(Canvas canvas, Rect pageRect, PdfPage page) {
     final markersList = _markers[page.pageNumber];
     if (markersList == null || markersList.isEmpty) {
@@ -421,8 +369,13 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
     final markersCopy = List<Marker>.from(markersList);
 
     for (final marker in markersCopy) {
+      final isHighlighted = _highlightedMarker == marker;
+      final scale = isHighlighted && _pulseAnimation != null
+          ? _pulseAnimation!.value
+          : 1.0;
+
       final paint = Paint()
-        ..color = marker.color.withAlpha(100)
+        ..color = marker.color.withAlpha(isHighlighted ? 150 : 100)
         ..style = PaintingStyle.fill;
 
       for (final range in marker.ranges.ranges) {
@@ -432,10 +385,27 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
           range.end,
         );
         if (f != null) {
-          canvas.drawRect(
-            f.bounds.toRectInPageRect(page: page, pageRect: pageRect),
-            paint,
+          final bounds =
+              f.bounds.toRectInPageRect(page: page, pageRect: pageRect);
+
+          final expandedBounds = Rect.fromLTRB(
+            bounds.left - 2,
+            bounds.top - 1,
+            bounds.right + 2,
+            bounds.bottom + 1,
           );
+
+          if (isHighlighted) {
+            final center = expandedBounds.center;
+            final scaledBounds = Rect.fromCenter(
+              center: center,
+              width: expandedBounds.width * scale,
+              height: expandedBounds.height * scale,
+            );
+            canvas.drawRect(scaledBounds, paint);
+          } else {
+            canvas.drawRect(expandedBounds, paint);
+          }
         }
       }
     }
@@ -908,6 +878,96 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
     );
   }
 
+  void _handleMarkerTap(Marker marker) async {
+    final rect = _controller.calcRectForRectInsidePage(
+        pageNumber: marker.ranges.pageText.pageNumber,
+        rect: marker.ranges.bounds);
+
+    final viewportHeight = MediaQuery.of(context).size.height;
+    final viewportCenter = viewportHeight / 2;
+
+    final adjustedRect = Rect.fromLTRB(
+        rect.left,
+        rect.top - viewportCenter + (rect.height / 2),
+        rect.right,
+        rect.bottom - viewportCenter + (rect.height / 2));
+
+    await _controller.ensureVisible(adjustedRect);
+    _startPulsingHighlight(marker);
+    context.read<ReaderBloc>().add(ToggleSideNav());
+  }
+
+  Future<void> _loadHighlights() async {
+    if (!_controller.isReady || !mounted) {
+      return;
+    }
+
+    try {
+      if (context.read<ReaderBloc>().state is ReaderLoaded) {
+        final state = context.read<ReaderBloc>().state as ReaderLoaded;
+        // Create a defensive copy of the highlights list to prevent concurrent modification
+        final highlights = List<TextHighlight>.from(state.metadata.highlights);
+
+        // Create a new map for markers to avoid modifying while iterating
+        final Map<int, List<Marker>> newMarkers = {};
+
+        // Process each highlight sequentially
+        for (final highlight in highlights) {
+          try {
+            final pageText =
+                await _textSearcher.loadText(pageNumber: highlight.pageNumber);
+            if (pageText != null) {
+              final index = pageText.fullText.indexOf(highlight.text);
+              if (index != -1) {
+                final textRange = PdfTextRanges(pageText: pageText, ranges: [
+                  PdfTextRange(start: index, end: index + highlight.text.length)
+                ]);
+
+                // Use putIfAbsent to safely add to the new map
+                final pageMarkers =
+                    newMarkers.putIfAbsent(highlight.pageNumber, () => []);
+                pageMarkers.add(Marker(Colors.yellow, textRange));
+              } else {
+                // Try fuzzy matching if exact match fails
+                final normalizedPageText =
+                    pageText.fullText.replaceAll(RegExp(r'\s+'), ' ').trim();
+                final normalizedHighlightText =
+                    highlight.text.replaceAll(RegExp(r'\s+'), ' ').trim();
+                final fuzzyIndex =
+                    normalizedPageText.indexOf(normalizedHighlightText);
+
+                if (fuzzyIndex != -1) {
+                  final textRange = PdfTextRanges(pageText: pageText, ranges: [
+                    PdfTextRange(
+                        start: fuzzyIndex,
+                        end: fuzzyIndex + normalizedHighlightText.length)
+                  ]);
+
+                  final pageMarkers =
+                      newMarkers.putIfAbsent(highlight.pageNumber, () => []);
+                  pageMarkers.add(Marker(Colors.yellow, textRange));
+                }
+              }
+            }
+          } catch (e) {
+            dev.log('Error loading highlight: $e');
+          }
+        }
+
+        // Only update state if still mounted and after all processing is complete
+        if (mounted) {
+          setState(() {
+            // Clear and update markers atomically
+            _markers.clear();
+            _markers.addAll(newMarkers);
+          });
+        }
+      }
+    } catch (e) {
+      dev.log('Error in _loadHighlights: $e');
+    }
+  }
+
   PdfPageLayout _handleLayoutPages(
       List<PdfPage> pages, PdfViewerParams params) {
     switch (_layoutMode) {
@@ -1055,8 +1115,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
 
                     // Only handle page navigation if no side panels are open
                     if (!_showSearchPanel && !(state.showSideNav)) {
-                      final tapArea =
-                          size.width * 0.13; // 13% of screen width for tap zones
+                      final tapArea = size.width *
+                          0.13; // 20% of screen width for tap zones
                       if (details.localPosition.dx < tapArea) {
                         // Left tap zone - go to previous page
                         if (_layoutMode == PdfLayoutMode.facing) {
@@ -2039,18 +2099,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                           markers: _markers.values
                                               .expand((e) => e)
                                               .toList(),
-                                          onTap: (marker) {
-                                            final rect = _controller
-                                                .calcRectForRectInsidePage(
-                                              pageNumber: marker
-                                                  .ranges.pageText.pageNumber,
-                                              rect: marker.ranges.bounds,
-                                            );
-                                            _controller.ensureVisible(rect);
-                                            context
-                                                .read<ReaderBloc>()
-                                                .add(ToggleSideNav());
-                                          },
+                                          onTap: _handleMarkerTap,
                                           onDeleteTap: (marker) =>
                                               _deleteMarker(marker),
                                         ),
