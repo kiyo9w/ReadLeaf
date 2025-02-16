@@ -26,11 +26,7 @@ class _NavScreenState extends State<NavScreen> {
   final ValueNotifier<bool> _hideNavBarNotifier = ValueNotifier<bool>(false);
 
   void setNavBarVisibility(bool hide) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _hideNavBarNotifier.value = hide;
-      }
-    });
+    _hideNavBarNotifier.value = hide;
   }
 
   @override
@@ -59,21 +55,17 @@ class _NavScreenState extends State<NavScreen> {
           final fileExtension = file.path.toLowerCase().split('.').last;
           switch (fileExtension) {
             case 'pdf':
-              Navigator.pushNamed(context, '/pdf_viewer');
+          Navigator.pushNamed(context, '/pdf_viewer');
               break;
             case 'epub':
               Navigator.pushNamed(context, '/epub_viewer');
               break;
             default:
-              if (mounted) {
-                Future.microtask(() {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Unsupported file type'),
-                    ),
-                  );
-                });
-              }
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Unsupported file type'),
+                ),
+              );
           }
         }
       },
