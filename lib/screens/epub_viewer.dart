@@ -23,6 +23,7 @@ import 'package:provider/provider.dart';
 import 'package:read_leaf/providers/theme_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:async';
+import 'dart:developer' as dev;
 
 enum EpubLayoutMode { vertical, horizontal, facing }
 
@@ -290,6 +291,22 @@ class EpubPageWidget extends StatelessWidget {
   }
 }
 
+class EpubHighlight {
+  final TextHighlight highlight;
+  final Color color;
+  final int startOffset;
+  final int endOffset;
+  final String chapterTitle;
+
+  EpubHighlight({
+    required this.highlight,
+    required this.color,
+    required this.startOffset,
+    required this.endOffset,
+    required this.chapterTitle,
+  });
+}
+
 class EPUBViewerScreen extends StatefulWidget {
   const EPUBViewerScreen({super.key});
 
@@ -297,7 +314,8 @@ class EPUBViewerScreen extends StatefulWidget {
   State<EPUBViewerScreen> createState() => _EPUBViewerScreenState();
 }
 
-class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
+class _EPUBViewerScreenState extends State<EPUBViewerScreen>
+    with TickerProviderStateMixin {
   late final _geminiService = GetIt.I<GeminiService>();
   late final _characterService = GetIt.I<AiCharacterService>();
   late final _metadataRepository = GetIt.I<BookMetadataRepository>();
@@ -332,10 +350,45 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
   double get _sliderValue =>
       _calculateCurrentPage().toDouble().clamp(1, _sliderMax);
 
+  // Highlight management
+  final Map<int, List<EpubHighlight>> _highlights = {};
+  EpubHighlight? _highlightedMarker;
+  late AnimationController _pulseController;
+  Animation<double>? _pulseAnimation;
+  Timer? _pulseTimer;
+
   @override
   void initState() {
     super.initState();
     _initializeReader();
+
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+
+    _pulseAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.2,
+    ).animate(CurvedAnimation(
+      parent: _pulseController,
+      curve: Curves.easeInOut,
+    ));
+
+    _pulseController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _pulseController.reverse();
+      } else if (status == AnimationStatus.dismissed) {
+        if (_pulseTimer?.isActive == true) {
+          _pulseController.forward();
+        }
+      }
+    });
+
+    // Load highlights after initialization
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadHighlights();
+    });
   }
 
   @override
@@ -362,6 +415,8 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
     _cleanupCache();
     _isDisposed = true;
     _positionsListener.itemPositions.removeListener(_onScroll);
+    _pulseController.dispose();
+    _pulseTimer?.cancel();
     super.dispose();
   }
 
@@ -515,8 +570,8 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
 
       setState(() {
         _isLoading = true;
-        _currentPage = 1;  // Always start at page 1
-        _totalPages = 0;   // Reset total pages
+        _currentPage = 1; // Always start at page 1
+        _totalPages = 0; // Reset total pages
       });
 
       final filePath = state.filePath;
@@ -533,7 +588,8 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
         setState(() {
           _metadata = metadata;
           // Only set current page from metadata if it's valid
-          if (metadata?.lastOpenedPage != null && metadata!.lastOpenedPage > 0) {
+          if (metadata?.lastOpenedPage != null &&
+              metadata!.lastOpenedPage > 0) {
             _currentPage = metadata.lastOpenedPage;
           }
         });
@@ -813,7 +869,8 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
           child: GestureDetector(
             onTapDown: (details) {
               if (_showChapters) {
-                final sideNavWidth = ResponsiveConstants.getSideNavWidth(context);
+                final sideNavWidth =
+                    ResponsiveConstants.getSideNavWidth(context);
                 if (details.globalPosition.dx > sideNavWidth) {
                   setState(() {
                     _showChapters = false;
@@ -830,7 +887,8 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
                   else
                     ScrollablePositionedList.builder(
                       itemCount: _flatChapters.length,
-                      itemBuilder: (context, index) => _buildChapter(_flatChapters[index]),
+                      itemBuilder: (context, index) =>
+                          _buildChapter(_flatChapters[index]),
                       itemScrollController: _scrollController,
                       itemPositionsListener: _positionsListener,
                     ),
@@ -935,19 +993,29 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
                             onSelected: (val) async {
                               switch (val) {
                                 case 'layout_mode':
-                                  final RenderBox button = context.findRenderObject() as RenderBox;
-                                  final RenderBox overlay = Navigator.of(context)
-                                      .overlay!
-                                      .context
-                                      .findRenderObject() as RenderBox;
-                                  final buttonPos = button.localToGlobal(Offset.zero);
-                                  final overlayPos = overlay.localToGlobal(Offset.zero);
-                                  
-                                  final RelativeRect position = RelativeRect.fromLTRB(
+                                  final RenderBox button =
+                                      context.findRenderObject() as RenderBox;
+                                  final RenderBox overlay =
+                                      Navigator.of(context)
+                                          .overlay!
+                                          .context
+                                          .findRenderObject() as RenderBox;
+                                  final buttonPos =
+                                      button.localToGlobal(Offset.zero);
+                                  final overlayPos =
+                                      overlay.localToGlobal(Offset.zero);
+
+                                  final RelativeRect position =
+                                      RelativeRect.fromLTRB(
                                     buttonPos.dx,
                                     buttonPos.dy + button.size.height,
-                                    overlayPos.dx + overlay.size.width - buttonPos.dx - button.size.width,
-                                    overlayPos.dy + overlay.size.height - buttonPos.dy,
+                                    overlayPos.dx +
+                                        overlay.size.width -
+                                        buttonPos.dx -
+                                        button.size.width,
+                                    overlayPos.dy +
+                                        overlay.size.height -
+                                        buttonPos.dy,
                                   );
 
                                   showMenu<EpubLayoutMode>(
@@ -1169,9 +1237,9 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
                                     ),
                                   );
                                   break;
-                      }
-                    },
-                    itemBuilder: (context) => [
+                              }
+                            },
+                            itemBuilder: (context) => [
                               PopupMenuItem(
                                 value: 'layout_mode',
                                 child: Row(
@@ -1236,14 +1304,14 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
                                           ? const Color(0xFFF2F2F7)
                                           : const Color(0xFF1C1C1E),
                                       size: 20,
-                  ),
-              ],
-            ),
+                                    ),
+                                  ],
+                                ),
                               ),
                               PopupMenuItem(
                                 value: 'move_trash',
                                 child: Row(
-              children: [
+                                  children: [
                                     Icon(
                                       Icons.delete_outline,
                                       color: Theme.of(context).brightness ==
@@ -1268,7 +1336,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
                               PopupMenuItem(
                                 value: 'share',
                                 child: Row(
-                  children: [
+                                  children: [
                                     Icon(
                                       Icons.share_outlined,
                                       color: Theme.of(context).brightness ==
@@ -1293,7 +1361,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
                               PopupMenuItem(
                                 value: 'toggle_star',
                                 child: Row(
-                          children: [
+                                  children: [
                                     Icon(
                                       Icons.star_outline,
                                       color: Theme.of(context).brightness ==
@@ -1346,291 +1414,297 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
                       ),
                     ),
 
-                  // Side navigation (Chapters)
-                  AnimatedPositioned(
-                    duration: const Duration(milliseconds: 300),
-                    top: 0,
-                    bottom: 0,
-                    left: _showChapters
-                        ? 0
-                        : -ResponsiveConstants.getSideNavWidth(context),
-                    child: GestureDetector(
-                      onHorizontalDragUpdate: (details) {
-                        if (details.delta.dx < 0) {
-                          // Only handle left swipes
-                          setState(() {
-                            _showChapters = false;
-                          });
-                        }
-                      },
-                                  child: Container(
-                        width: ResponsiveConstants.getSideNavWidth(context),
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? const Color(0xFF251B2F).withOpacity(0.98)
-                            : const Color(0xFFFAF9F7).withOpacity(0.98),
-                        child: SafeArea(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal:
-                                      ResponsiveConstants.isTablet(context)
-                                          ? 24
-                                          : 16,
-                                  vertical:
-                                      ResponsiveConstants.isTablet(context)
-                                          ? 16
-                                          : 12,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Text(
-                                      'Chapters',
-                                      style: TextStyle(
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                        fontSize: ResponsiveConstants
-                                            .getTitleFontSize(context),
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const Spacer(),
-                                    IconButton(
-                                      padding: EdgeInsets.zero,
-                                      constraints: BoxConstraints(
-                                        minWidth:
-                                            ResponsiveConstants.getIconSize(
-                                                context),
-                                        minHeight:
-                                            ResponsiveConstants.getIconSize(
-                                                context),
-                                      ),
-                                      icon: Icon(
-                                        Icons.close,
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFF8E8E93)
-                                            : const Color(0xFF6E6E73),
-                                        size: ResponsiveConstants.getIconSize(
-                                            context),
-                                      ),
-                                      onPressed: () {
-                                        setState(() {
-                                          _showChapters = false;
-                                        });
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            Expanded(
-                              child: ListView.builder(
-                                itemCount: _flatChapters.length,
-                                itemBuilder: (context, index) {
-                                  final chapter = _flatChapters[index];
-                                  return ListTile(
-                                    title: Text(
-                                      chapter.Title ?? 'Chapter ${index + 1}',
-                                      style: TextStyle(
-                                        color: _currentChapterIndex == index
-                                            ? Theme.of(context).primaryColor
-                                              : Theme.of(context).brightness ==
-                                                      Brightness.dark
-                                                  ? const Color(0xFFF2F2F7)
-                                                  : const Color(0xFF1C1C1E),
-                                          fontSize: ResponsiveConstants
-                                              .getBodyFontSize(context),
-                                        ),
-                                      ),
-                                      onTap: () {
-                                        _scrollController.scrollTo(
-                                        index: index,
-                                        duration:
-                                            const Duration(milliseconds: 300),
-                                      );
-                                        setState(() {
-                                          _showChapters = false;
-                                        });
-                                    },
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      ),
-                    ),
-                  ),
-
-                  // Floating chat widget
-                  FloatingChatWidget(
-                    character: _characterService.getSelectedCharacter() ??
-                        AiCharacter(
-                          name: 'Amelia',
-                          avatarImagePath:
-                              'assets/images/ai_characters/amelia.png',
-                          personality: 'A friendly and helpful AI assistant.',
-                          summary:
-                              'Amelia is a friendly AI assistant who helps readers understand and engage with their books.',
-                          scenario:
-                              'You are reading with Amelia, who is eager to help you understand and enjoy your book.',
-                          greetingMessage:
-                              'Hello! I\'m Amelia. How can I help you with your reading today?',
-                          exampleMessages: [
-                            'Can you explain this passage?',
-                            'What are your thoughts on this chapter?',
-                            'Help me understand the main themes.'
-                          ],
-                          characterVersion: '1',
-                          tags: ['Default', 'Reading Assistant'],
-                          creator: 'ReadLeaf',
-                          createdAt: DateTime.now(),
-                          updatedAt: DateTime.now(),
-                        ),
-                    onSendMessage: _handleChatMessage,
-                    bookId: state.file.path,
-                    bookTitle:
-                        _epubBook?.Title ?? path.basename(state.file.path),
-                    keyboardHeight: keyboardHeight,
-                    isKeyboardVisible: isKeyboardVisible,
-                    key: _floatingChatKey,
-                  ),
-
-                  // Add bottom slider
-                  if (showUI)
-                    Positioned(
+                    // Side navigation (Chapters)
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 300),
+                      top: 0,
                       bottom: 0,
-                      left: 0,
-                      right: 0,
-                      child: Container(
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? const Color(0xFF251B2F).withOpacity(0.95)
-                            : const Color(0xFFFAF9F7).withOpacity(0.95),
-                        padding: ResponsiveConstants.getContentPadding(context),
-                        height: ResponsiveConstants.getBottomBarHeight(context),
-                        child: Row(
-                                children: [
-                                  Text(
-                              '${_calculateCurrentPage()}',
-                              style: TextStyle(
-                                color: Theme.of(context).brightness ==
-                                        Brightness.dark
-                                    ? const Color(0xFFF2F2F7)
-                                    : const Color(0xFF1C1C1E),
-                                fontSize: ResponsiveConstants.getBodyFontSize(
-                                    context),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: SliderTheme(
-                                data: SliderThemeData(
-                                  trackHeight:
-                                      ResponsiveConstants.isTablet(context)
-                                          ? 4
-                                          : 2,
-                                  activeTrackColor:
-                                      Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFFAA96B6)
-                                          : const Color(0xFF9E7B80),
-                                  inactiveTrackColor:
-                                      Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFF352A3B)
-                                          : const Color(0xFFF8F1F1),
-                                  thumbColor: Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? const Color(0xFFAA96B6)
-                                      : const Color(0xFF9E7B80),
-                                  overlayColor: Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? const Color(0xFFAA96B6)
-                                          .withOpacity(0.12)
-                                      : const Color(0xFF9E7B80)
-                                          .withOpacity(0.12),
-                                  thumbShape: RoundSliderThumbShape(
-                                    enabledThumbRadius:
+                      left: _showChapters
+                          ? 0
+                          : -ResponsiveConstants.getSideNavWidth(context),
+                      child: GestureDetector(
+                        onHorizontalDragUpdate: (details) {
+                          if (details.delta.dx < 0) {
+                            // Only handle left swipes
+                            setState(() {
+                              _showChapters = false;
+                            });
+                          }
+                        },
+                        child: Container(
+                          width: ResponsiveConstants.getSideNavWidth(context),
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF251B2F).withOpacity(0.98)
+                              : const Color(0xFFFAF9F7).withOpacity(0.98),
+                          child: SafeArea(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal:
                                         ResponsiveConstants.isTablet(context)
-                                            ? 8
-                                            : 6,
-                                  ),
-                                  overlayShape: RoundSliderOverlayShape(
-                                    overlayRadius:
+                                            ? 24
+                                            : 16,
+                                    vertical:
                                         ResponsiveConstants.isTablet(context)
                                             ? 16
                                             : 12,
                                   ),
-                                ),
-                                child: _totalPages > 0
-                                    ? Slider(
-                                        value: _sliderValue,
-                                        min: 1,
-                                        max: _sliderMax,
-                                        onChangeStart: (value) {
-                                          _sliderDwellTimer?.cancel();
-                                          _lastSliderValue = value.toInt();
-                                          _isSliderInteracting = true;
-                                        },
-                                        onChanged: (value) {
-                                          final intValue = value.toInt();
-                                          if (_lastSliderValue != intValue) {
-                                            _sliderDwellTimer?.cancel();
-                                            _lastSliderValue = intValue;
-                                            setState(() {
-                                              _currentPage = intValue;
-                                            });
-                                            _sliderDwellTimer = Timer(
-                                              const Duration(milliseconds: 200),
-                                              () {
-                                                if (mounted &&
-                                                    _lastSliderValue ==
-                                                        intValue) {
-                                                  _jumpToPage(intValue);
-                                                }
-                                              },
-                                            );
-                                          }
-                                        },
-                                        onChangeEnd: (value) {
-                                          _sliderDwellTimer?.cancel();
-                                          final intValue = value.toInt();
-                                          _jumpToPage(intValue);
-                                          Future.delayed(
-                                              const Duration(milliseconds: 200),
-                                              () {
-                                            if (mounted) {
-                                              _isSliderInteracting = false;
-                                              _lastSliderValue = null;
-                                            }
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        'Chapters',
+                                        style: TextStyle(
+                                          color: Theme.of(context).brightness ==
+                                                  Brightness.dark
+                                              ? const Color(0xFFF2F2F7)
+                                              : const Color(0xFF1C1C1E),
+                                          fontSize: ResponsiveConstants
+                                              .getTitleFontSize(context),
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      IconButton(
+                                        padding: EdgeInsets.zero,
+                                        constraints: BoxConstraints(
+                                          minWidth:
+                                              ResponsiveConstants.getIconSize(
+                                                  context),
+                                          minHeight:
+                                              ResponsiveConstants.getIconSize(
+                                                  context),
+                                        ),
+                                        icon: Icon(
+                                          Icons.close,
+                                          color: Theme.of(context).brightness ==
+                                                  Brightness.dark
+                                              ? const Color(0xFF8E8E93)
+                                              : const Color(0xFF6E6E73),
+                                          size: ResponsiveConstants.getIconSize(
+                                              context),
+                                        ),
+                                        onPressed: () {
+                                          setState(() {
+                                            _showChapters = false;
                                           });
                                         },
-                                      )
-                                    : const SizedBox.shrink(),
-                              ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  child: ListView.builder(
+                                    itemCount: _flatChapters.length,
+                                    itemBuilder: (context, index) {
+                                      final chapter = _flatChapters[index];
+                                      return ListTile(
+                                        title: Text(
+                                          chapter.Title ??
+                                              'Chapter ${index + 1}',
+                                          style: TextStyle(
+                                            color: _currentChapterIndex == index
+                                                ? Theme.of(context).primaryColor
+                                                : Theme.of(context)
+                                                            .brightness ==
+                                                        Brightness.dark
+                                                    ? const Color(0xFFF2F2F7)
+                                                    : const Color(0xFF1C1C1E),
+                                            fontSize: ResponsiveConstants
+                                                .getBodyFontSize(context),
+                                          ),
+                                        ),
+                                        onTap: () {
+                                          _scrollController.scrollTo(
+                                            index: index,
+                                            duration: const Duration(
+                                                milliseconds: 300),
+                                          );
+                                          setState(() {
+                                            _showChapters = false;
+                                          });
+                                        },
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 10),
-                            Text(
-                              '$_totalPages',
-                              style: TextStyle(
-                                color: Theme.of(context).brightness ==
-                                        Brightness.dark
-                                    ? const Color(0xFFF2F2F7)
-                                    : const Color(0xFF1C1C1E),
-                                fontSize: ResponsiveConstants.getBodyFontSize(
-                                    context),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
+
+                    // Floating chat widget
+                    FloatingChatWidget(
+                      character: _characterService.getSelectedCharacter() ??
+                          AiCharacter(
+                            name: 'Amelia',
+                            avatarImagePath:
+                                'assets/images/ai_characters/amelia.png',
+                            personality: 'A friendly and helpful AI assistant.',
+                            summary:
+                                'Amelia is a friendly AI assistant who helps readers understand and engage with their books.',
+                            scenario:
+                                'You are reading with Amelia, who is eager to help you understand and enjoy your book.',
+                            greetingMessage:
+                                'Hello! I\'m Amelia. How can I help you with your reading today?',
+                            exampleMessages: [
+                              'Can you explain this passage?',
+                              'What are your thoughts on this chapter?',
+                              'Help me understand the main themes.'
+                            ],
+                            characterVersion: '1',
+                            tags: ['Default', 'Reading Assistant'],
+                            creator: 'ReadLeaf',
+                            createdAt: DateTime.now(),
+                            updatedAt: DateTime.now(),
+                          ),
+                      onSendMessage: _handleChatMessage,
+                      bookId: state.file.path,
+                      bookTitle:
+                          _epubBook?.Title ?? path.basename(state.file.path),
+                      keyboardHeight: keyboardHeight,
+                      isKeyboardVisible: isKeyboardVisible,
+                      key: _floatingChatKey,
+                    ),
+
+                    // Bottom slider
+                    if (showUI)
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: Container(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF251B2F).withOpacity(0.95)
+                              : const Color(0xFFFAF9F7).withOpacity(0.95),
+                          padding:
+                              ResponsiveConstants.getContentPadding(context),
+                          height:
+                              ResponsiveConstants.getBottomBarHeight(context),
+                          child: Row(
+                            children: [
+                              Text(
+                                '${_calculateCurrentPage()}',
+                                style: TextStyle(
+                                  color: Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? const Color(0xFFF2F2F7)
+                                      : const Color(0xFF1C1C1E),
+                                  fontSize: ResponsiveConstants.getBodyFontSize(
+                                      context),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: SliderTheme(
+                                  data: SliderThemeData(
+                                    trackHeight:
+                                        ResponsiveConstants.isTablet(context)
+                                            ? 4
+                                            : 2,
+                                    activeTrackColor:
+                                        Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFAA96B6)
+                                            : const Color(0xFF9E7B80),
+                                    inactiveTrackColor:
+                                        Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFF352A3B)
+                                            : const Color(0xFFF8F1F1),
+                                    thumbColor: Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? const Color(0xFFAA96B6)
+                                        : const Color(0xFF9E7B80),
+                                    overlayColor:
+                                        Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFAA96B6)
+                                                .withOpacity(0.12)
+                                            : const Color(0xFF9E7B80)
+                                                .withOpacity(0.12),
+                                    thumbShape: RoundSliderThumbShape(
+                                      enabledThumbRadius:
+                                          ResponsiveConstants.isTablet(context)
+                                              ? 8
+                                              : 6,
+                                    ),
+                                    overlayShape: RoundSliderOverlayShape(
+                                      overlayRadius:
+                                          ResponsiveConstants.isTablet(context)
+                                              ? 16
+                                              : 12,
+                                    ),
+                                  ),
+                                  child: _totalPages > 0
+                                      ? Slider(
+                                          value: _sliderValue,
+                                          min: 1,
+                                          max: _sliderMax,
+                                          onChangeStart: (value) {
+                                            _sliderDwellTimer?.cancel();
+                                            _lastSliderValue = value.toInt();
+                                            _isSliderInteracting = true;
+                                          },
+                                          onChanged: (value) {
+                                            final intValue = value.toInt();
+                                            if (_lastSliderValue != intValue) {
+                                              _sliderDwellTimer?.cancel();
+                                              _lastSliderValue = intValue;
+                                              setState(() {
+                                                _currentPage = intValue;
+                                              });
+                                              _sliderDwellTimer = Timer(
+                                                const Duration(
+                                                    milliseconds: 200),
+                                                () {
+                                                  if (mounted &&
+                                                      _lastSliderValue ==
+                                                          intValue) {
+                                                    _jumpToPage(intValue);
+                                                  }
+                                                },
+                                              );
+                                            }
+                                          },
+                                          onChangeEnd: (value) {
+                                            _sliderDwellTimer?.cancel();
+                                            final intValue = value.toInt();
+                                            _jumpToPage(intValue);
+                                            Future.delayed(
+                                                const Duration(
+                                                    milliseconds: 200), () {
+                                              if (mounted) {
+                                                _isSliderInteracting = false;
+                                                _lastSliderValue = null;
+                                              }
+                                            });
+                                          },
+                                        )
+                                      : const SizedBox.shrink(),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                '$_totalPages',
+                                style: TextStyle(
+                                  color: Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? const Color(0xFFF2F2F7)
+                                      : const Color(0xFF1C1C1E),
+                                  fontSize: ResponsiveConstants.getBodyFontSize(
+                                      context),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
                 ],
-              ],
               ),
             ),
           ),
@@ -1720,20 +1794,61 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
   }
 
   Widget _buildPage(PageContent page) {
-    return EpubPageWidget(
-      pageContent: page,
-      showTitle: page.pageNumberInChapter == 1,
-      onSelectionChanged: (text) {
-        if (!_isDisposed) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!_isDisposed) {
-              setState(() {
-                _selectedText = text;
-              });
-            }
-          });
-        }
-      },
+    return SelectionArea(
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 16.0),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          border: Border(
+            bottom: BorderSide(
+              color: Theme.of(context).dividerColor.withOpacity(0.2),
+              width: 1.0,
+            ),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Theme.of(context).shadowColor.withOpacity(0.1),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (page.pageNumberInChapter == 1) ...[
+                Text(
+                  page.chapterTitle,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xFFF2F2F7)
+                            : const Color(0xFF1C1C1E),
+                      ),
+                ),
+                const SizedBox(height: 24),
+              ],
+              HtmlWidget(
+                page.content,
+                textStyle: TextStyle(
+                  fontSize: EpubPageCalculator.DEFAULT_FONT_SIZE,
+                  height: EpubPageCalculator.LINE_HEIGHT_MULTIPLIER,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFFF2F2F7)
+                      : const Color(0xFF1C1C1E),
+                ),
+                customStylesBuilder: (element) {
+                  if (element.localName == 'p') {
+                    return {'margin': '0.5em 0'};
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1760,5 +1875,220 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen> {
     } catch (e) {
       print('Error calculating pages for chapter $index: $e');
     }
+  }
+
+  void _startPulsingHighlight(EpubHighlight highlight) {
+    setState(() {
+      _highlightedMarker = highlight;
+    });
+
+    _pulseTimer?.cancel();
+    _pulseController.forward();
+
+    // Pulse for 3 cycles
+    _pulseTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _highlightedMarker = null;
+        });
+        _pulseController.stop();
+        _pulseController.reset();
+        _pulseTimer = null;
+      }
+    });
+  }
+
+  void _addHighlight(String text, int chapterIndex, int startOffset,
+      int endOffset, Color color) {
+    final highlight = TextHighlight(
+      text: text,
+      pageNumber: chapterIndex + 1,
+      createdAt: DateTime.now(),
+    );
+
+    final epubHighlight = EpubHighlight(
+      highlight: highlight,
+      color: color,
+      startOffset: startOffset,
+      endOffset: endOffset,
+      chapterTitle:
+          _flatChapters[chapterIndex].Title ?? 'Chapter ${chapterIndex + 1}',
+    );
+
+    setState(() {
+      if (!_highlights.containsKey(chapterIndex)) {
+        _highlights[chapterIndex] = [];
+      }
+      _highlights[chapterIndex]!.add(epubHighlight);
+    });
+
+    // Update metadata with a new list
+    if (_metadata != null) {
+      final updatedMetadata = _metadata!.copyWith(
+        highlights: List<TextHighlight>.from(_metadata!.highlights)
+          ..add(highlight),
+      );
+      _metadataRepository.saveMetadata(updatedMetadata);
+      setState(() {
+        _metadata = updatedMetadata;
+      });
+    }
+
+    // Start pulsing animation
+    _startPulsingHighlight(epubHighlight);
+  }
+
+  void _removeHighlight(EpubHighlight highlight) {
+    for (final entry in _highlights.entries) {
+      final index = entry.value.indexOf(highlight);
+      if (index != -1) {
+        setState(() {
+          entry.value.removeAt(index);
+          if (entry.value.isEmpty) {
+            _highlights.remove(entry.key);
+          }
+        });
+
+        // Update metadata with a new list
+        if (_metadata != null) {
+          final updatedHighlights =
+              List<TextHighlight>.from(_metadata!.highlights)
+                ..removeWhere((h) =>
+                    h.text == highlight.highlight.text &&
+                    h.pageNumber == highlight.highlight.pageNumber);
+
+          final updatedMetadata = _metadata!.copyWith(
+            highlights: updatedHighlights,
+          );
+          _metadataRepository.saveMetadata(updatedMetadata);
+          setState(() {
+            _metadata = updatedMetadata;
+          });
+        }
+        break;
+      }
+    }
+  }
+
+  Future<void> _loadHighlights() async {
+    if (_metadata == null || _isDisposed) return;
+
+    final highlights = _metadata!.highlights;
+    for (final highlight in highlights) {
+      final chapterIndex = highlight.pageNumber - 1;
+      if (chapterIndex < 0 || chapterIndex >= _flatChapters.length) continue;
+
+      await _preloadChapter(chapterIndex);
+      final content = _chapterContentCache[chapterIndex];
+      if (content == null) continue;
+
+      // Find the text in the chapter content
+      final index = content.indexOf(highlight.text);
+      if (index != -1) {
+        final epubHighlight = EpubHighlight(
+          highlight: highlight,
+          color: Colors.yellow,
+          startOffset: index,
+          endOffset: index + highlight.text.length,
+          chapterTitle: _flatChapters[chapterIndex].Title ??
+              'Chapter ${chapterIndex + 1}',
+        );
+
+        setState(() {
+          if (!_highlights.containsKey(chapterIndex)) {
+            _highlights[chapterIndex] = [];
+          }
+          _highlights[chapterIndex]!.add(epubHighlight);
+        });
+      }
+    }
+  }
+
+  void _handleTextSelection(
+      String? selectedText, int chapterIndex, String content) {
+    if (selectedText == null || selectedText.isEmpty) {
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            FloatingActionButton.extended(
+              heroTag: 'ask_ai',
+              onPressed: () {
+                Navigator.pop(context);
+                _handleAskAi(selectedText);
+              },
+              icon: const Icon(Icons.chat, color: Colors.white),
+              label:
+                  const Text('Ask AI', style: TextStyle(color: Colors.white)),
+              backgroundColor: Colors.blue.shade700,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _jumpToHighlight(EpubHighlight highlight) async {
+    final chapterIndex = highlight.highlight.pageNumber - 1;
+    if (chapterIndex < 0 || chapterIndex >= _flatChapters.length) return;
+
+    await _loadChapter(chapterIndex);
+
+    // Calculate which page contains the highlight
+    final pages = _chapterPagesCache[chapterIndex];
+    if (pages == null) return;
+
+    int targetPage = 0;
+    int accumulatedLength = 0;
+
+    for (int i = 0; i < pages.length; i++) {
+      final pageContent = pages[i].content;
+      if (accumulatedLength + pageContent.length > highlight.startOffset) {
+        targetPage = i;
+        break;
+      }
+      accumulatedLength += pageContent.length;
+    }
+
+    // Calculate the vertical offset to center the highlight
+    final textBeforeHighlight = pages[targetPage]
+        .content
+        .substring(0, highlight.startOffset - accumulatedLength);
+    final textPainter = TextPainter(
+      text: TextSpan(text: textBeforeHighlight),
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: MediaQuery.of(context).size.width - 48);
+
+    final verticalOffset = textPainter.height;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final targetAlignment =
+        (verticalOffset - (screenHeight * 0.3)) / screenHeight;
+
+    if (_scrollController.isAttached && mounted) {
+      await _scrollController.scrollTo(
+        index: chapterIndex,
+        duration: const Duration(milliseconds: 300),
+        alignment: targetAlignment.clamp(0.0, 1.0),
+      );
+      _startPulsingHighlight(highlight);
+    }
+  }
+
+  void _handleAskAi(String selectedText) {
+    _floatingChatKey.currentState?.showChat();
+
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (!mounted) return;
+
+      _floatingChatKey.currentState!
+          .addUserMessage('Imported Text: """$selectedText"""');
+      _handleChatMessage(null, selectedText: selectedText);
+    });
   }
 }
