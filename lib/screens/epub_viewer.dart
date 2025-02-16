@@ -24,6 +24,8 @@ import 'package:read_leaf/providers/theme_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:async';
 import 'dart:developer' as dev;
+import 'package:read_leaf/widgets/floating_selection_menu.dart';
+import 'package:read_leaf/widgets/full_selection_menu.dart';
 
 enum EpubLayoutMode { vertical, horizontal, facing }
 
@@ -2004,32 +2006,62 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     }
   }
 
-  void _handleTextSelection(
-      String? selectedText, int chapterIndex, String content) {
-    if (selectedText == null || selectedText.isEmpty) {
-      return;
-    }
+  void _handleTextSelection(String? selectedText, int chapterIndex, String content) {
+    if (selectedText == null || selectedText.isEmpty) return;
 
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            FloatingActionButton.extended(
-              heroTag: 'ask_ai',
-              onPressed: () {
-                Navigator.pop(context);
-                _handleAskAi(selectedText);
-              },
-              icon: const Icon(Icons.chat, color: Colors.white),
-              label:
-                  const Text('Ask AI', style: TextStyle(color: Colors.white)),
-              backgroundColor: Colors.blue.shade700,
+      barrierColor: Colors.transparent,
+      builder: (context) => FloatingSelectionMenu(
+        selectedText: selectedText,
+        onMenuSelected: (menuType, text) {
+          if (menuType == SelectionMenuType.highlight) {
+            final startOffset = content.indexOf(text);
+            if (startOffset != -1) {
+              _addHighlight(
+                text,
+                chapterIndex,
+                startOffset,
+                startOffset + text.length,
+                Colors.yellow,
+              );
+            }
+            Navigator.pop(context);
+          } else if (menuType == SelectionMenuType.askAi) {
+            Navigator.pop(context);
+            _handleAskAi(text);
+          } else if (menuType == SelectionMenuType.audio) {
+            // TODO: Implement audio playback
+            Navigator.pop(context);
+          } else {
+            // Handle translate, dictionary, wikipedia, and generateImage
+            Navigator.pop(context);
+            showDialog(
+              context: context,
+              barrierColor: Colors.transparent,
+              builder: (context) => FullSelectionMenu(
+                selectedText: text,
+                menuType: menuType,
+                onDismiss: () => Navigator.pop(context),
+              ),
+            );
+          }
+        },
+        onDismiss: () {
+          Navigator.pop(context);
+        },
+        onExpand: () {
+          Navigator.pop(context);
+          showDialog(
+            context: context,
+            barrierColor: Colors.transparent,
+            builder: (context) => FullSelectionMenu(
+              selectedText: selectedText,
+              menuType: SelectionMenuType.askAi,
+              onDismiss: () => Navigator.pop(context),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
