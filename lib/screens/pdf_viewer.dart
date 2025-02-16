@@ -31,6 +31,8 @@ import 'package:read_leaf/constants/responsive_constants.dart';
 import 'package:read_leaf/blocs/AuthBloc/auth_bloc.dart';
 import 'package:read_leaf/services/auth_dialog_service.dart';
 import 'package:read_leaf/blocs/AuthBloc/auth_state.dart';
+import 'package:read_leaf/widgets/floating_selection_menu.dart';
+import 'package:read_leaf/widgets/full_selection_menu.dart';
 import 'dart:async';
 
 enum PdfLayoutMode { vertical, horizontal, facing }
@@ -43,7 +45,7 @@ class PDFViewerScreen extends StatefulWidget {
 }
 
 class _PDFViewerScreenState extends State<PDFViewerScreen>
-    with TickerProviderStateMixin {
+    with SingleTickerProviderStateMixin {
   final _controller = PdfViewerController();
   late final _textSearcher = PdfTextSearcher(_controller)..addListener(_update);
   late final _geminiService = GetIt.I<GeminiService>();
@@ -68,11 +70,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   PdfLayoutMode _layoutMode = PdfLayoutMode.vertical;
   bool _isRightToLeftReadingOrder = false;
   bool _needCoverPage = true;
-
-  late AnimationController _pulseController;
-  Animation<double>? _pulseAnimation;
-  Marker? _highlightedMarker;
-  Timer? _pulseTimer;
 
   String get _currentTitle {
     switch (_tabController.index) {
@@ -101,22 +98,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
       if (mounted) setState(() {});
     });
 
-    // Initialize controllers and listeners
-    _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-    _pulseController.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        _pulseController.reverse();
-      } else if (status == AnimationStatus.dismissed) {
-        if (_pulseTimer?.isActive == true) {
-          _pulseController.forward();
-        }
-      }
-    });
-
-    // Add controller ready listener after build
+    // Add controller ready listener using a safer approach
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _controller.addListener(_onControllerReady);
@@ -133,6 +115,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
 
   void _onControllerReady() {
     if (_controller.isReady && mounted) {
+      _loadHighlights();
       try {
         _controller.removeListener(_onControllerReady);
       } catch (e) {
@@ -144,7 +127,96 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Move highlight loading to onViewerReady callback instead
+    if (_controller.isReady && mounted) {
+      _loadHighlights();
+    }
+  }
+
+  void _loadHighlights() async {
+    if (!_controller.isReady || !mounted) {
+      return;
+    }
+
+    if (context.read<ReaderBloc>().state is ReaderLoaded) {
+      final state = context.read<ReaderBloc>().state as ReaderLoaded;
+      final highlights = state.metadata.highlights;
+
+      final Map<int, List<Marker>> newMarkers = {};
+
+      for (final highlight in highlights) {
+        try {
+          final pageText =
+              await _textSearcher.loadText(pageNumber: highlight.pageNumber);
+          if (pageText != null) {
+            final index = pageText.fullText.indexOf(highlight.text);
+            if (index != -1) {
+              final textRange = PdfTextRanges(
+                pageText: pageText,
+                ranges: [
+                  PdfTextRange(start: index, end: index + highlight.text.length)
+                ],
+              );
+
+              newMarkers
+                  .putIfAbsent(highlight.pageNumber, () => [])
+                  .add(Marker(Colors.yellow, textRange));
+            } else {
+              final normalizedPageText =
+                  pageText.fullText.replaceAll(RegExp(r'\s+'), ' ').trim();
+              final normalizedHighlightText =
+                  highlight.text.replaceAll(RegExp(r'\s+'), ' ').trim();
+              final fuzzyIndex =
+                  normalizedPageText.indexOf(normalizedHighlightText);
+
+              if (fuzzyIndex != -1) {
+                final textRange = PdfTextRanges(
+                  pageText: pageText,
+                  ranges: [
+                    PdfTextRange(
+                        start: fuzzyIndex,
+                        end: fuzzyIndex + normalizedHighlightText.length)
+                  ],
+                );
+
+                newMarkers
+                    .putIfAbsent(highlight.pageNumber, () => [])
+                    .add(Marker(Colors.yellow, textRange));
+              }
+            }
+          }
+        } catch (e) {
+          dev.log('Error loading highlight: $e');
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _markers.clear();
+          _markers.addAll(newMarkers);
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _sliderDwellTimer?.cancel();
+    try {
+      _controller.removeListener(_onControllerReady);
+      _textSearcher.removeListener(_update);
+    } catch (e) {
+      print('Error removing listeners: $e');
+    }
+    _textSearcher.dispose();
+    outline.dispose();
+    documentRef.dispose();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+      }
+    });
+    super.dispose();
   }
 
   Future<bool> _shouldOpenUrl(BuildContext context, Uri url) async {
@@ -291,13 +363,69 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
 
       setState(() {
         _selectedText = selectedText;
-        _showAskAiButton = selectedText.isNotEmpty;
         _textSelections = selections;
       });
+
+      // Show the floating menu
+      if (mounted && selectedText.isNotEmpty) {
+        showDialog(
+          context: context,
+          barrierColor: Colors.transparent,
+          builder: (context) => FloatingSelectionMenu(
+            selectedText: selectedText,
+            onMenuSelected: (menuType, text) {
+              Navigator.pop(context); // Close the menu first
+              switch (menuType) {
+                case SelectionMenuType.highlight:
+                  _addCurrentSelectionToMarkers(Colors.yellow);
+                  break;
+                case SelectionMenuType.askAi:
+                  _handleAskAi();
+                  break;
+                case SelectionMenuType.audio:
+                  // TODO: Implement audio playback
+                  break;
+                case SelectionMenuType.translate:
+                case SelectionMenuType.dictionary:
+                case SelectionMenuType.wikipedia:
+                case SelectionMenuType.generateImage:
+                  showDialog(
+                    context: context,
+                    barrierColor: Colors.transparent,
+                    builder: (context) => FullSelectionMenu(
+                      selectedText: text,
+                      menuType: menuType,
+                      onDismiss: () => Navigator.pop(context),
+                    ),
+                  );
+                  break;
+              }
+            },
+            onDismiss: () {
+              Navigator.pop(context);
+              setState(() {
+                _selectedText = null;
+                _textSelections = null;
+              });
+            },
+            onExpand: () {
+              Navigator.pop(context); // Close the menu first
+              showDialog(
+                context: context,
+                barrierColor: Colors.transparent,
+                builder: (context) => FullSelectionMenu(
+                  selectedText: selectedText,
+                  menuType: SelectionMenuType.askAi,
+                  onDismiss: () => Navigator.pop(context),
+                ),
+              );
+            },
+          ),
+        );
+      }
     } else {
       setState(() {
         _selectedText = null;
-        _showAskAiButton = false;
         _textSelections = null;
       });
     }
@@ -343,24 +471,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
     setState(() {});
   }
 
-  void _startPulsingHighlight(Marker marker) {
-    _pulseTimer?.cancel();
-    _highlightedMarker = marker;
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.15).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
-    _pulseController.forward();
-    // Pulse for 3 cycles (about 4.8 seconds total)
-    _pulseTimer = Timer(const Duration(milliseconds: 4800), () {
-      if (mounted) {
-        _pulseController.stop();
-        _pulseController.reset();
-        _highlightedMarker = null;
-        setState(() {});
-      }
-    });
-  }
-
   void _paintMarkers(Canvas canvas, Rect pageRect, PdfPage page) {
     final markersList = _markers[page.pageNumber];
     if (markersList == null || markersList.isEmpty) {
@@ -369,13 +479,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
     final markersCopy = List<Marker>.from(markersList);
 
     for (final marker in markersCopy) {
-      final isHighlighted = _highlightedMarker == marker;
-      final scale = isHighlighted && _pulseAnimation != null
-          ? _pulseAnimation!.value
-          : 1.0;
-
       final paint = Paint()
-        ..color = marker.color.withAlpha(isHighlighted ? 150 : 100)
+        ..color = marker.color.withAlpha(100)
         ..style = PaintingStyle.fill;
 
       for (final range in marker.ranges.ranges) {
@@ -385,27 +490,10 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
           range.end,
         );
         if (f != null) {
-          final bounds =
-              f.bounds.toRectInPageRect(page: page, pageRect: pageRect);
-
-          final expandedBounds = Rect.fromLTRB(
-            bounds.left - 2,
-            bounds.top - 1,
-            bounds.right + 2,
-            bounds.bottom + 1,
+          canvas.drawRect(
+            f.bounds.toRectInPageRect(page: page, pageRect: pageRect),
+            paint,
           );
-
-          if (isHighlighted) {
-            final center = expandedBounds.center;
-            final scaledBounds = Rect.fromCenter(
-              center: center,
-              width: expandedBounds.width * scale,
-              height: expandedBounds.height * scale,
-            );
-            canvas.drawRect(scaledBounds, paint);
-          } else {
-            canvas.drawRect(expandedBounds, paint);
-          }
         }
       }
     }
@@ -876,96 +964,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
         },
       ),
     );
-  }
-
-  void _handleMarkerTap(Marker marker) async {
-    final rect = _controller.calcRectForRectInsidePage(
-        pageNumber: marker.ranges.pageText.pageNumber,
-        rect: marker.ranges.bounds);
-
-    final viewportHeight = MediaQuery.of(context).size.height;
-    final viewportCenter = viewportHeight / 2;
-
-    final adjustedRect = Rect.fromLTRB(
-        rect.left,
-        rect.top - viewportCenter + (rect.height / 2),
-        rect.right,
-        rect.bottom - viewportCenter + (rect.height / 2));
-
-    await _controller.ensureVisible(adjustedRect);
-    _startPulsingHighlight(marker);
-    context.read<ReaderBloc>().add(ToggleSideNav());
-  }
-
-  Future<void> _loadHighlights() async {
-    if (!_controller.isReady || !mounted) {
-      return;
-    }
-
-    try {
-      if (context.read<ReaderBloc>().state is ReaderLoaded) {
-        final state = context.read<ReaderBloc>().state as ReaderLoaded;
-        // Create a defensive copy of the highlights list to prevent concurrent modification
-        final highlights = List<TextHighlight>.from(state.metadata.highlights);
-
-        // Create a new map for markers to avoid modifying while iterating
-        final Map<int, List<Marker>> newMarkers = {};
-
-        // Process each highlight sequentially
-        for (final highlight in highlights) {
-          try {
-            final pageText =
-                await _textSearcher.loadText(pageNumber: highlight.pageNumber);
-            if (pageText != null) {
-              final index = pageText.fullText.indexOf(highlight.text);
-              if (index != -1) {
-                final textRange = PdfTextRanges(pageText: pageText, ranges: [
-                  PdfTextRange(start: index, end: index + highlight.text.length)
-                ]);
-
-                // Use putIfAbsent to safely add to the new map
-                final pageMarkers =
-                    newMarkers.putIfAbsent(highlight.pageNumber, () => []);
-                pageMarkers.add(Marker(Colors.yellow, textRange));
-              } else {
-                // Try fuzzy matching if exact match fails
-                final normalizedPageText =
-                    pageText.fullText.replaceAll(RegExp(r'\s+'), ' ').trim();
-                final normalizedHighlightText =
-                    highlight.text.replaceAll(RegExp(r'\s+'), ' ').trim();
-                final fuzzyIndex =
-                    normalizedPageText.indexOf(normalizedHighlightText);
-
-                if (fuzzyIndex != -1) {
-                  final textRange = PdfTextRanges(pageText: pageText, ranges: [
-                    PdfTextRange(
-                        start: fuzzyIndex,
-                        end: fuzzyIndex + normalizedHighlightText.length)
-                  ]);
-
-                  final pageMarkers =
-                      newMarkers.putIfAbsent(highlight.pageNumber, () => []);
-                  pageMarkers.add(Marker(Colors.yellow, textRange));
-                }
-              }
-            }
-          } catch (e) {
-            dev.log('Error loading highlight: $e');
-          }
-        }
-
-        // Only update state if still mounted and after all processing is complete
-        if (mounted) {
-          setState(() {
-            // Clear and update markers atomically
-            _markers.clear();
-            _markers.addAll(newMarkers);
-          });
-        }
-      }
-    } catch (e) {
-      dev.log('Error in _loadHighlights: $e');
-    }
   }
 
   PdfPageLayout _handleLayoutPages(
@@ -2099,7 +2097,18 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                           markers: _markers.values
                                               .expand((e) => e)
                                               .toList(),
-                                          onTap: _handleMarkerTap,
+                                          onTap: (marker) {
+                                            final rect = _controller
+                                                .calcRectForRectInsidePage(
+                                              pageNumber: marker
+                                                  .ranges.pageText.pageNumber,
+                                              rect: marker.ranges.bounds,
+                                            );
+                                            _controller.ensureVisible(rect);
+                                            context
+                                                .read<ReaderBloc>()
+                                                .add(ToggleSideNav());
+                                          },
                                           onDeleteTap: (marker) =>
                                               _deleteMarker(marker),
                                         ),
@@ -2149,82 +2158,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                         ),
                       ),
                     ),
-
-                    // Highlight controls
-                    if (_showAskAiButton && _selectedText?.isNotEmpty == true)
-                      Positioned(
-                        bottom: state.showUI
-                            ? ResponsiveConstants.getBottomBarHeight(context) +
-                                15
-                            : 16,
-                        right: ResponsiveConstants.getContentPadding(context)
-                                .horizontal /
-                            2,
-                        child: Material(
-                          type: MaterialType.transparency,
-                          child: Row(
-                            children: [
-                              FloatingActionButton(
-                                heroTag: 'highlight_yellow_${file.path}',
-                                mini: !ResponsiveConstants.isTablet(context),
-                                backgroundColor: Colors.yellow.withOpacity(0.9),
-                                child: Icon(
-                                  Icons.brush,
-                                  color: Colors.black87,
-                                  size: ResponsiveConstants.isTablet(context)
-                                      ? 24
-                                      : 20,
-                                ),
-                                onPressed: () => _addCurrentSelectionToMarkers(
-                                    Colors.yellow),
-                              ),
-                              SizedBox(
-                                  width: ResponsiveConstants.isTablet(context)
-                                      ? 16
-                                      : 8),
-                              FloatingActionButton(
-                                heroTag: 'highlight_red_${file.path}',
-                                mini: !ResponsiveConstants.isTablet(context),
-                                backgroundColor: Colors.red.withOpacity(0.9),
-                                child: Icon(
-                                  Icons.brush,
-                                  color: Colors.white,
-                                  size: ResponsiveConstants.isTablet(context)
-                                      ? 24
-                                      : 20,
-                                ),
-                                onPressed: () =>
-                                    _addCurrentSelectionToMarkers(Colors.red),
-                              ),
-                              SizedBox(
-                                  width: ResponsiveConstants.isTablet(context)
-                                      ? 16
-                                      : 8),
-                              FloatingActionButton.extended(
-                                heroTag: 'ask_ai_${file.path}',
-                                onPressed: _handleAskAi,
-                                icon: Icon(
-                                  Icons.chat,
-                                  color: Colors.white,
-                                  size: ResponsiveConstants.isTablet(context)
-                                      ? 24
-                                      : 20,
-                                ),
-                                label: Text(
-                                  'Ask AI',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize:
-                                        ResponsiveConstants.getBodyFontSize(
-                                            context),
-                                  ),
-                                ),
-                                backgroundColor: Colors.blue.shade700,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
 
                     // Floating chat widget with keyboard info
                     FloatingChatWidget(
