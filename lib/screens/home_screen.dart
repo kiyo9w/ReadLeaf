@@ -407,17 +407,61 @@ class HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          floatingActionButton: FloatingActionButton(
-            heroTag: 'add_book_fab',
-            onPressed: () async {
-              final filePath = await FileUtils.picker();
-              if (filePath != null) {
-                if (mounted) {
-                  context.read<FileBloc>().add(LoadFile(filePath));
-                }
-              }
-            },
-            child: const Icon(Icons.add),
+          floatingActionButton: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Material(
+                color: Colors.transparent,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(32),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(32),
+                    splashColor:
+                        Theme.of(context).primaryColor.withOpacity(0.1),
+                    highlightColor:
+                        Theme.of(context).primaryColor.withOpacity(0.05),
+                    onTap: () async {
+                      final filePath = await FileUtils.picker();
+                      if (filePath != null) {
+                        if (mounted) {
+                          context.read<FileBloc>().add(LoadFile(filePath));
+                        }
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 12),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.add,
+                              color: Theme.of(context).colorScheme.onSurface),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Add book',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       },

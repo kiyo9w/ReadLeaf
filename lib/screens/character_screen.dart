@@ -167,204 +167,235 @@ class _CharacterScreenState extends State<CharacterScreen>
                   // Create button
                   Material(
                     color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () {
-                        final RenderBox button =
-                            context.findRenderObject() as RenderBox;
-                        final Offset buttonPosition =
-                            button.localToGlobal(Offset.zero);
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(32),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(32),
+                        splashColor: theme.primaryColor.withOpacity(0.1),
+                        highlightColor: theme.primaryColor.withOpacity(0.05),
+                        onTap: () {
+                          final RenderBox button =
+                              context.findRenderObject() as RenderBox;
+                          final Offset buttonPosition =
+                              button.localToGlobal(Offset.zero);
 
-                        showDialog(
-                          context: context,
-                          barrierColor: Colors.transparent,
-                          builder: (BuildContext context) {
-                            return Stack(
-                              children: [
-                                Positioned(
-                                  right: 16,
-                                  bottom: buttonPosition.dy + 130,
-                                  child: Material(
-                                    color: Colors.transparent,
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: theme.colorScheme.surface,
-                                        borderRadius: BorderRadius.circular(16),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color:
-                                                Colors.black.withOpacity(0.1),
-                                            blurRadius: 8,
-                                            offset: const Offset(0, 4),
-                                          ),
-                                        ],
-                                      ),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          InkWell(
-                                            onTap: () async {
-                                              Navigator.pop(context);
-                                              final result =
-                                                  await Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                    builder: (context) =>
-                                                        const CreateCharacterScreen()),
-                                              );
-                                              if (result == true) {
-                                                widget.onCharacterChanged
-                                                    ?.call();
-                                                final homeScreen = context
-                                                    .findAncestorStateOfType<
-                                                        HomeScreenState>();
-                                                homeScreen
-                                                    ?.generateNewAIMessage();
-                                              }
-                                            },
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 24,
-                                                      vertical: 12),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Icon(Icons.person_add,
-                                                      color: theme.colorScheme
-                                                          .onSurface),
-                                                  const SizedBox(width: 12),
-                                                  Text(
-                                                    'Character',
-                                                    style: TextStyle(
-                                                      color: theme.colorScheme
-                                                          .onSurface,
-                                                      fontSize: 16,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
+                          showDialog(
+                            context: context,
+                            barrierColor: Colors.transparent,
+                            builder: (BuildContext context) {
+                              return Stack(
+                                children: [
+                                  Positioned(
+                                    right: 16,
+                                    bottom: buttonPosition.dy + 130,
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: theme.colorScheme.surface,
+                                          borderRadius:
+                                              BorderRadius.circular(16),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color:
+                                                  Colors.black.withOpacity(0.1),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 4),
                                             ),
-                                          ),
-                                          Divider(
-                                              height: 1,
-                                              color: theme.dividerColor),
-                                          InkWell(
-                                            onTap: () async {
-                                              Navigator.pop(context);
-                                              final result = await FilePicker
-                                                  .platform
-                                                  .pickFiles(
-                                                type: FileType.custom,
-                                                allowedExtensions: ['json'],
-                                              );
-
-                                              if (result != null && mounted) {
-                                                final file = result.files.first;
-                                                Navigator.push(
+                                          ],
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            InkWell(
+                                              borderRadius:
+                                                  const BorderRadius.vertical(
+                                                      top: Radius.circular(16)),
+                                              splashColor: theme.primaryColor
+                                                  .withOpacity(0.1),
+                                              highlightColor: theme.primaryColor
+                                                  .withOpacity(0.05),
+                                              onTap: () async {
+                                                Navigator.pop(context);
+                                                final result =
+                                                    await Navigator.push(
                                                   context,
                                                   MaterialPageRoute(
-                                                    builder: (context) =>
-                                                        ImportCharacterScreen(
-                                                      filePath: file.path!,
-                                                    ),
-                                                  ),
+                                                      builder: (context) =>
+                                                          const CreateCharacterScreen()),
                                                 );
-                                              }
-                                            },
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 24,
-                                                      vertical: 12),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Icon(Icons.file_upload,
-                                                      color: theme.colorScheme
-                                                          .onSurface),
-                                                  const SizedBox(width: 12),
-                                                  Text(
-                                                    'Import',
-                                                    style: TextStyle(
-                                                      color: theme.colorScheme
-                                                          .onSurface,
-                                                      fontSize: 16,
+                                                if (result == true) {
+                                                  widget.onCharacterChanged
+                                                      ?.call();
+                                                  final homeScreen = context
+                                                      .findAncestorStateOfType<
+                                                          HomeScreenState>();
+                                                  homeScreen
+                                                      ?.generateNewAIMessage();
+                                                }
+                                              },
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 24,
+                                                        vertical: 12),
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Icon(Icons.person_add,
+                                                        color: theme.colorScheme
+                                                            .onSurface),
+                                                    const SizedBox(width: 12),
+                                                    Text(
+                                                      'Character',
+                                                      style: TextStyle(
+                                                        color: theme.colorScheme
+                                                            .onSurface,
+                                                        fontSize: 16,
+                                                      ),
                                                     ),
-                                                  ),
-                                                ],
+                                                  ],
+                                                ),
                                               ),
                                             ),
-                                          ),
-                                          Divider(
-                                              height: 1,
-                                              color: theme.dividerColor),
-                                          InkWell(
-                                            onTap: () {
-                                              Navigator.pop(context);
-                                              _toggleView();
-                                            },
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 24,
-                                                      vertical: 12),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Icon(Icons.record_voice_over,
-                                                      color: theme.colorScheme
-                                                          .onSurface),
-                                                  const SizedBox(width: 12),
-                                                  Text(
-                                                    'Voice',
-                                                    style: TextStyle(
-                                                      color: theme.colorScheme
-                                                          .onSurface,
-                                                      fontSize: 16,
+                                            Divider(
+                                                height: 1,
+                                                color: theme.dividerColor),
+                                            InkWell(
+                                              splashColor: theme.primaryColor
+                                                  .withOpacity(0.1),
+                                              highlightColor: theme.primaryColor
+                                                  .withOpacity(0.05),
+                                              onTap: () async {
+                                                Navigator.pop(context);
+                                                final result = await FilePicker
+                                                    .platform
+                                                    .pickFiles(
+                                                  type: FileType.custom,
+                                                  allowedExtensions: ['json'],
+                                                );
+
+                                                if (result != null && mounted) {
+                                                  final file =
+                                                      result.files.first;
+                                                  Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      builder: (context) =>
+                                                          ImportCharacterScreen(
+                                                        filePath: file.path!,
+                                                      ),
                                                     ),
-                                                  ),
-                                                ],
+                                                  );
+                                                }
+                                              },
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 24,
+                                                        vertical: 12),
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Icon(Icons.file_upload,
+                                                        color: theme.colorScheme
+                                                            .onSurface),
+                                                    const SizedBox(width: 12),
+                                                    Text(
+                                                      'Import',
+                                                      style: TextStyle(
+                                                        color: theme.colorScheme
+                                                            .onSurface,
+                                                        fontSize: 16,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
                                               ),
                                             ),
-                                          ),
-                                        ],
+                                            Divider(
+                                                height: 1,
+                                                color: theme.dividerColor),
+                                            InkWell(
+                                              borderRadius:
+                                                  const BorderRadius.vertical(
+                                                      bottom:
+                                                          Radius.circular(16)),
+                                              splashColor: theme.primaryColor
+                                                  .withOpacity(0.1),
+                                              highlightColor: theme.primaryColor
+                                                  .withOpacity(0.05),
+                                              onTap: () {
+                                                Navigator.pop(context);
+                                                _toggleView();
+                                              },
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 24,
+                                                        vertical: 12),
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                        Icons.record_voice_over,
+                                                        color: theme.colorScheme
+                                                            .onSurface),
+                                                    const SizedBox(width: 12),
+                                                    Text(
+                                                      'Voice',
+                                                      style: TextStyle(
+                                                        color: theme.colorScheme
+                                                            .onSurface,
+                                                        fontSize: 16,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
+                                ],
+                              );
+                            },
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 12),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.add,
+                                  color: theme.colorScheme.onSurface),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Create',
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurface,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
                                 ),
-                              ],
-                            );
-                          },
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surface,
-                          borderRadius: BorderRadius.circular(32),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 8,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.add, color: theme.colorScheme.onSurface),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Create',
-                              style: TextStyle(
-                                color: theme.colorScheme.onSurface,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
