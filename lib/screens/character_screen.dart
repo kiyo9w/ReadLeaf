@@ -3,8 +3,11 @@ import 'package:read_leaf/models/ai_character.dart';
 import 'package:read_leaf/services/ai_character_service.dart';
 import 'package:read_leaf/injection.dart';
 import 'package:read_leaf/screens/create_character_screen.dart';
+import 'package:read_leaf/screens/import_character_screen.dart';
 import 'package:read_leaf/screens/home_screen.dart';
 import 'dart:async';
+import 'package:file_picker/file_picker.dart';
+import 'package:read_leaf/screens/nav_screen.dart';
 
 class CharacterScreen extends StatefulWidget {
   final VoidCallback? onCharacterChanged;
@@ -24,7 +27,6 @@ class _CharacterScreenState extends State<CharacterScreen>
   final AiCharacterService _characterService = getIt<AiCharacterService>();
   late AiCharacter? _selectedCharacter;
   bool _showVoices = false;
-  StreamSubscription? _characterUpdateSubscription;
 
   // Categories for characters
   final List<String> _categories = [
@@ -94,30 +96,12 @@ class _CharacterScreenState extends State<CharacterScreen>
     super.initState();
     _tabController = TabController(length: _categories.length, vsync: this);
     _selectedCharacter = _characterService.getSelectedCharacter();
-
-    // Subscribe to character updates
-    _characterUpdateSubscription =
-        _characterService.onCharacterUpdate.listen((_) {
-      if (mounted) {
-        _refreshCharacters();
-      }
-    });
   }
 
   @override
   void dispose() {
     _tabController.dispose();
-    _characterUpdateSubscription?.cancel();
     super.dispose();
-  }
-
-  Future<void> _refreshCharacters() async {
-    final characters = await _characterService.getAllCharacters();
-    if (mounted) {
-      setState(() {
-        _selectedCharacter = _characterService.getSelectedCharacter();
-      });
-    }
   }
 
   void _selectCharacter(AiCharacter character) {
@@ -177,22 +161,215 @@ class _CharacterScreenState extends State<CharacterScreen>
           ),
         ),
         floatingActionButton: !_showVoices
-            ? FloatingActionButton(
-                onPressed: () async {
-                  final result = await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const CreateCharacterScreen()),
-                  );
-                  if (result == true) {
-                    // Character was created, refresh home screen
-                    widget.onCharacterChanged?.call();
-                    final homeScreen =
-                        context.findAncestorStateOfType<HomeScreenState>();
-                    homeScreen?.generateNewAIMessage();
-                  }
-                },
-                child: const Icon(Icons.add),
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Create button
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        final RenderBox button =
+                            context.findRenderObject() as RenderBox;
+                        final Offset buttonPosition =
+                            button.localToGlobal(Offset.zero);
+
+                        showDialog(
+                          context: context,
+                          barrierColor: Colors.transparent,
+                          builder: (BuildContext context) {
+                            return Stack(
+                              children: [
+                                Positioned(
+                                  right: 16,
+                                  bottom: buttonPosition.dy + 130,
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.surface,
+                                        borderRadius: BorderRadius.circular(16),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color:
+                                                Colors.black.withOpacity(0.1),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          InkWell(
+                                            onTap: () async {
+                                              Navigator.pop(context);
+                                              final result =
+                                                  await Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                    builder: (context) =>
+                                                        const CreateCharacterScreen()),
+                                              );
+                                              if (result == true) {
+                                                widget.onCharacterChanged
+                                                    ?.call();
+                                                final homeScreen = context
+                                                    .findAncestorStateOfType<
+                                                        HomeScreenState>();
+                                                homeScreen
+                                                    ?.generateNewAIMessage();
+                                              }
+                                            },
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 24,
+                                                      vertical: 12),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(Icons.person_add,
+                                                      color: theme.colorScheme
+                                                          .onSurface),
+                                                  const SizedBox(width: 12),
+                                                  Text(
+                                                    'Character',
+                                                    style: TextStyle(
+                                                      color: theme.colorScheme
+                                                          .onSurface,
+                                                      fontSize: 16,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                          Divider(
+                                              height: 1,
+                                              color: theme.dividerColor),
+                                          InkWell(
+                                            onTap: () async {
+                                              Navigator.pop(context);
+                                              final result = await FilePicker
+                                                  .platform
+                                                  .pickFiles(
+                                                type: FileType.custom,
+                                                allowedExtensions: ['json'],
+                                              );
+
+                                              if (result != null && mounted) {
+                                                final file = result.files.first;
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (context) =>
+                                                        ImportCharacterScreen(
+                                                      filePath: file.path!,
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            },
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 24,
+                                                      vertical: 12),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(Icons.file_upload,
+                                                      color: theme.colorScheme
+                                                          .onSurface),
+                                                  const SizedBox(width: 12),
+                                                  Text(
+                                                    'Import',
+                                                    style: TextStyle(
+                                                      color: theme.colorScheme
+                                                          .onSurface,
+                                                      fontSize: 16,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                          Divider(
+                                              height: 1,
+                                              color: theme.dividerColor),
+                                          InkWell(
+                                            onTap: () {
+                                              Navigator.pop(context);
+                                              _toggleView();
+                                            },
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 24,
+                                                      vertical: 12),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(Icons.record_voice_over,
+                                                      color: theme.colorScheme
+                                                          .onSurface),
+                                                  const SizedBox(width: 12),
+                                                  Text(
+                                                    'Voice',
+                                                    style: TextStyle(
+                                                      color: theme.colorScheme
+                                                          .onSurface,
+                                                      fontSize: 16,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surface,
+                          borderRadius: BorderRadius.circular(32),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.add, color: theme.colorScheme.onSurface),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Create',
+                              style: TextStyle(
+                                color: theme.colorScheme.onSurface,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               )
             : null,
       ),
@@ -320,34 +497,20 @@ class _CharacterScreenState extends State<CharacterScreen>
   }
 
   Widget _buildCategoryContent(String category, ThemeData theme) {
-    return FutureBuilder<List<AiCharacter>>(
-      future: _getCharactersByCategory(category),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-
-        final characters = snapshot.data ?? [];
-
-        return SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildFeaturedCharacters(theme, characters),
-              const SizedBox(height: 16),
-              _buildAllCharacters(theme, characters),
-              const SizedBox(height: 16),
-              _buildRecentCharacters(theme, characters),
-              const SizedBox(height: 80), // Add bottom padding for FAB
-            ],
-          ),
-        );
-      },
+    final characters = _getCharactersByCategory(category);
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildFeaturedCharacters(theme, characters),
+          const SizedBox(height: 16),
+          _buildAllCharacters(theme, characters),
+          const SizedBox(height: 16),
+          _buildRecentCharacters(theme, characters),
+          const SizedBox(height: 80),
+        ],
+      ),
     );
   }
 
@@ -409,8 +572,8 @@ class _CharacterScreenState extends State<CharacterScreen>
     );
   }
 
-  Future<List<AiCharacter>> _getCharactersByCategory(String category) async {
-    final allCharacters = await _characterService.getAllCharacters();
+  List<AiCharacter> _getCharactersByCategory(String category) {
+    final allCharacters = _characterService.getCharactersSync();
     if (category == 'All') return allCharacters;
     return allCharacters.where((char) => char.tags.contains(category)).toList();
   }
@@ -423,7 +586,7 @@ class _CharacterScreenState extends State<CharacterScreen>
         _buildSectionHeader('Featured Characters', theme),
         const SizedBox(height: 8),
         SizedBox(
-          height: 140, // Reduced height
+          height: 140,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             itemCount: characters.length.clamp(0, 5),

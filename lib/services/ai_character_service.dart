@@ -318,4 +318,8 @@ ROLEPLAY RULES:
       // Don't rethrow - allow service to continue with empty preferences
     }
   }
+
+  List<AiCharacter> getCharactersSync() {
+    return _characters;
+  }
 }

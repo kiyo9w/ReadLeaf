@@ -919,6 +919,12 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                           ),
                           onPressed: () {
                             Navigator.pop(context);
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) {
+                                NavScreen.globalKey.currentState
+                                    ?.setNavBarVisibility(false);
+                              }
+                            });
                           },
                         ),
                         title: Text(

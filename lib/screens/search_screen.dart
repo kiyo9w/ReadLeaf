@@ -596,6 +596,13 @@ class _SearchScreenState extends State<SearchScreen>
                                 NavScreen.globalKey.currentState
                                     ?.setNavBarVisibility(true)
                               },
+                              onTapOutside: (value) {
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  if (mounted) {
+                                    NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+                                  }
+                                });
+                              },
                               autocorrect: false,
                               showCursor: true,
                               cursorColor:

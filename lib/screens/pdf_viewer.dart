@@ -1283,6 +1283,11 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                               context.read<ReaderBloc>().add(CloseReader());
                               context.read<FileBloc>().add(CloseViewer());
                               Navigator.pop(context);
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (mounted) {
+                                  NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+                                }
+                              });
                             },
                           ),
                           title: Text(
