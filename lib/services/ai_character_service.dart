@@ -88,6 +88,9 @@ class AiCharacterService {
               : {},
         },
       );
+
+      // Notify listeners of the update
+      _characterUpdateController.add(null);
     } catch (e, stack) {
       _log.severe('Error setting selected character', e, stack);
       rethrow;
