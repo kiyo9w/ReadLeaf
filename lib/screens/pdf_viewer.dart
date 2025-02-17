@@ -52,6 +52,9 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   late final _characterService = GetIt.I<AiCharacterService>();
   late final TabController _tabController;
   final GlobalKey<FloatingChatWidgetState> _floatingChatKey = GlobalKey();
+  OverlayEntry? _floatingMenuEntry;
+  Timer? _floatingMenuTimer;
+  Offset? _lastPointerDownPosition;
   bool _showSearchPanel = false;
   bool _isZoomedIn = false;
   bool _showAskAiButton = false;
@@ -366,68 +369,14 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
         _textSelections = selections;
       });
 
-      // Show the floating menu
-      if (mounted && selectedText.isNotEmpty) {
-        showDialog(
-          context: context,
-          barrierColor: Colors.transparent,
-          builder: (context) => FloatingSelectionMenu(
-            selectedText: selectedText,
-            onMenuSelected: (menuType, text) {
-              Navigator.pop(context); // Close the menu first
-              switch (menuType) {
-                case SelectionMenuType.highlight:
-                  _addCurrentSelectionToMarkers(Colors.yellow);
-                  break;
-                case SelectionMenuType.askAi:
-                  _handleAskAi();
-                  break;
-                case SelectionMenuType.audio:
-                  // TODO: Implement audio playback
-                  break;
-                case SelectionMenuType.translate:
-                case SelectionMenuType.dictionary:
-                case SelectionMenuType.wikipedia:
-                case SelectionMenuType.generateImage:
-                  showDialog(
-                    context: context,
-                    barrierColor: Colors.transparent,
-                    builder: (context) => FullSelectionMenu(
-                      selectedText: text,
-                      menuType: menuType,
-                      onDismiss: () => Navigator.pop(context),
-                    ),
-                  );
-                  break;
-              }
-            },
-            onDismiss: () {
-              Navigator.pop(context);
-              setState(() {
-                _selectedText = null;
-                _textSelections = null;
-              });
-            },
-            onExpand: () {
-              Navigator.pop(context); // Close the menu first
-              showDialog(
-                context: context,
-                barrierColor: Colors.transparent,
-                builder: (context) => FullSelectionMenu(
-                  selectedText: selectedText,
-                  menuType: SelectionMenuType.askAi,
-                  onDismiss: () => Navigator.pop(context),
-                ),
-              );
-            },
-          ),
-        );
-      }
+      // We'll let the onPointerUp event handle showing the menu
+      // instead of showing it here, to ensure proper positioning
     } else {
       setState(() {
         _selectedText = null;
         _textSelections = null;
       });
+      _removeFloatingMenu();
     }
   }
 
@@ -1058,6 +1007,108 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
     }
   }
 
+  void _showFloatingMenuAt(Offset anchor) {
+    final screenSize = MediaQuery.of(context).size;
+    final bool isInUpperHalf = anchor.dy < (screenSize.height / 2);
+    _removeFloatingMenu();
+    if (context.read<ReaderBloc>().state is ReaderLoaded) {
+      context.read<ReaderBloc>().add(ToggleUIVisibility());
+    }
+
+    double menuTop;
+    if (isInUpperHalf) {
+      menuTop = screenSize.height * 0.57;
+    } else {
+      menuTop = -20;
+    }
+
+    _floatingMenuEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        left: 16,
+        right: 16,
+        top: menuTop,
+        child: Material(
+          color: Colors.transparent,
+          child: FloatingSelectionMenu(
+            selectedText: _selectedText ?? '',
+            displayAtTop: !isInUpperHalf,
+            onMenuSelected: (menuType, text) {
+              _removeFloatingMenu();
+              switch (menuType) {
+                case SelectionMenuType.highlight:
+                  _addCurrentSelectionToMarkers(Colors.yellow);
+                  break;
+                case SelectionMenuType.askAi:
+                  _handleAskAi();
+                  break;
+                case SelectionMenuType.audio:
+                  break;
+                case SelectionMenuType.translate:
+                case SelectionMenuType.dictionary:
+                case SelectionMenuType.wikipedia:
+                case SelectionMenuType.generateImage:
+                  showDialog(
+                    context: context,
+                    barrierColor: Colors.transparent,
+                    barrierDismissible: false,
+                    builder: (context) => Stack(
+                      children: [
+                        Positioned.fill(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onTapDown: (_) {},
+                          ),
+                        ),
+                        FullSelectionMenu(
+                          selectedText: text,
+                          menuType: menuType,
+                          onDismiss: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                  );
+                  break;
+              }
+            },
+            onDismiss: _removeFloatingMenu,
+            onExpand: () {
+              _removeFloatingMenu();
+              showDialog(
+                context: context,
+                barrierColor: Colors.transparent,
+                barrierDismissible: false,
+                builder: (context) => Stack(
+                  children: [
+                    Positioned.fill(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTapDown: (_) {},
+                      ),
+                    ),
+                    FullSelectionMenu(
+                      selectedText: _selectedText ?? '',
+                      menuType: SelectionMenuType.askAi,
+                      onDismiss: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    Overlay.of(context)?.insert(_floatingMenuEntry!);
+  }
+
+  void _removeFloatingMenu() {
+    _floatingMenuEntry?.remove();
+    _floatingMenuEntry = null;
+    _floatingMenuTimer?.cancel();
+    _floatingMenuTimer = null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<ReaderBloc, ReaderState>(
@@ -1114,7 +1165,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                     // Only handle page navigation if no side panels are open
                     if (!_showSearchPanel && !(state.showSideNav)) {
                       final tapArea = size.width *
-                          0.13; // 20% of screen width for tap zones
+                          0.13; // 13% of screen width for tap zones
                       if (details.localPosition.dx < tapArea) {
                         // Left tap zone - go to previous page
                         if (_layoutMode == PdfLayoutMode.facing) {
@@ -1155,15 +1206,35 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
               selectableRegionInjector: (context, child) {
                 return SelectionArea(
                   onSelectionChanged: (selection) {
-                    if (mounted) {
-                      setState(() {
-                        _showAskAiButton =
-                            selection?.plainText?.isNotEmpty == true;
-                        _selectedText = selection?.plainText;
-                      });
+                    final selectedText = selection?.plainText ?? '';
+                    setState(() {
+                      _showAskAiButton = selectedText.isNotEmpty;
+                      _selectedText = selectedText;
+                    });
+                    // If no text is selected, remove any existing overlay
+                    if (selectedText.isEmpty) {
+                      _removeFloatingMenu();
                     }
                   },
-                  child: child,
+                  child: Listener(
+                    onPointerDown: (event) {
+                      // Save the pointer down position (global coordinates)
+                      _lastPointerDownPosition = event.position;
+                    },
+                    onPointerUp: (event) {
+                      // Use the stored pointer-down position if available
+                      final anchor = _lastPointerDownPosition ?? event.position;
+                      if (mounted && _selectedText?.isNotEmpty == true) {
+                        // Trigger with minimal delay to allow native menu to appear
+                        Future.delayed(const Duration(milliseconds: 200), () {
+                          if (mounted && _selectedText?.isNotEmpty == true) {
+                            _showFloatingMenuAt(anchor);
+                          }
+                        });
+                      }
+                    },
+                    child: child,
+                  ),
                 );
               },
               pagePaintCallbacks: [
@@ -1285,7 +1356,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                               Navigator.pop(context);
                               WidgetsBinding.instance.addPostFrameCallback((_) {
                                 if (mounted) {
-                                  NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+                                  NavScreen.globalKey.currentState
+                                      ?.setNavBarVisibility(false);
                                 }
                               });
                             },

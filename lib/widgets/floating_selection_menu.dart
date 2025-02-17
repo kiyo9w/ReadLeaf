@@ -17,6 +17,7 @@ class FloatingSelectionMenu extends StatefulWidget {
   final Function(SelectionMenuType, String) onMenuSelected;
   final VoidCallback? onDismiss;
   final VoidCallback? onExpand;
+  final bool displayAtTop;
 
   const FloatingSelectionMenu({
     Key? key,
@@ -24,6 +25,7 @@ class FloatingSelectionMenu extends StatefulWidget {
     required this.onMenuSelected,
     this.onDismiss,
     this.onExpand,
+    this.displayAtTop = false,
   }) : super(key: key);
 
   @override
@@ -209,10 +211,17 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
             ),
           ),
           Align(
-            alignment: Alignment.bottomCenter,
+            alignment: widget.displayAtTop
+                ? Alignment.topCenter
+                : Alignment.bottomCenter,
             child: Container(
               margin: EdgeInsets.only(
-                bottom: MediaQuery.of(context).padding.bottom + 16,
+                top: widget.displayAtTop
+                    ? MediaQuery.of(context).padding.top + 16
+                    : 0,
+                bottom: widget.displayAtTop
+                    ? 0
+                    : MediaQuery.of(context).padding.bottom + 16,
               ),
               height: 355,
               child: PageView(
@@ -427,7 +436,6 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
           ],
         ),
         const SizedBox(height: 8),
-
         for (int i = 0; i < _dictionaryDefinitions.length; i++)
           Padding(
             padding: const EdgeInsets.only(bottom: 4),
@@ -602,7 +610,6 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
                 color: theme.dividerColor,
               ),
               const SizedBox(height: 8),
-
               Expanded(
                 child: SingleChildScrollView(
                   child: Container(
@@ -615,7 +622,6 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 8),
               Divider(
                 height: 1,
