@@ -167,68 +167,105 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }) {
     return InkWell(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(16),
+        margin: const EdgeInsets.symmetric(vertical: 4),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(12),
+          color: isSelected
+              ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5)
+              : Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected
                 ? Theme.of(context).colorScheme.primary
                 : Theme.of(context).colorScheme.outline.withOpacity(0.2),
-            width: 2,
+            width: isSelected ? 2 : 1,
           ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color:
+                        Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  )
+                ]
+              : null,
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              isDark ? Icons.dark_mode : Icons.light_mode,
-              size: 20,
-              color: isSelected
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onSurface,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    style: TextStyle(
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
-                      color: isSelected
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).colorScheme.onSurface,
+            Row(
+              children: [
+                Icon(
+                  isDark ? Icons.dark_mode : Icons.light_mode,
+                  size: 20,
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurface,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  name,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight:
+                        isSelected ? FontWeight.bold : FontWeight.normal,
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                const Spacer(),
+                if (isSelected)
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.check,
+                      size: 16,
+                      color: Theme.of(context).colorScheme.onPrimary,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: colors.map((color) {
-                      return Container(
-                        width: 24,
-                        height: 24,
-                        margin: const EdgeInsets.only(right: 6),
-                        decoration: BoxDecoration(
-                          color: color,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.2),
-                            width: 1,
-                          ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              height: 40,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                color:
+                    Theme.of(context).colorScheme.background.withOpacity(0.5),
+              ),
+              child: Row(
+                children: colors.map((color) {
+                  return Expanded(
+                    child: Container(
+                      margin: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.2),
+                          width: 1,
                         ),
-                      );
-                    }).toList(),
-                  ),
-                ],
+                        boxShadow: [
+                          BoxShadow(
+                            color: color.withOpacity(0.2),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
               ),
             ),
-            if (isSelected)
-              Icon(
-                Icons.check_circle,
-                color: Theme.of(context).colorScheme.primary,
-              ),
           ],
         ),
       ),
@@ -236,8 +273,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showThemeSelector(BuildContext context, ThemeProvider themeProvider) {
-    showModalBottomSheet<dynamic>(
-      isScrollControlled: true,
+    showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
@@ -269,38 +305,103 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 16),
-                    // Dark Mode Switch
-                    const Divider(),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Text(
-                        'Light Themes',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey,
-                        ),
+
+                    // System Theme Option
+                    ListTile(
+                      leading: const Icon(Icons.devices),
+                      title: const Text('Follow Device Setting'),
+                      trailing: Switch(
+                        value: themeProvider.useSystemTheme,
+                        onChanged: (bool value) {
+                          if (value) {
+                            themeProvider.setSystemTheme();
+                          } else {
+                            // When turning off system theme, use the appropriate theme based on current system brightness
+                            final brightness =
+                                MediaQuery.of(context).platformBrightness;
+                            themeProvider.setThemeMode(
+                                brightness == Brightness.dark
+                                    ? (themeProvider.lastDarkTheme ??
+                                        AppThemeMode.mysteriousDark)
+                                    : (themeProvider.lastLightTheme ??
+                                        AppThemeMode.readLeafLight));
+                          }
+                          Navigator.pop(context);
+                        },
                       ),
                     ),
-                    // Light Themes
-                    ...[
-                      {
-                        'mode': AppThemeMode.readLeafLight,
-                        'name': 'Light',
-                        'isDark': false,
-                        'colors': [
-                          const Color(0xFF6B8F71),
-                          const Color(0xFFF5F2ED),
-                          const Color(0xFFB5A89E),
-                          const Color(0xFFE9CFA3),
-                          const Color(0xFF4C6A43),
-                          const Color(0xFFC4D9C7),
-                        ],
+
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Default Themes',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Default Light Theme
+                    _buildThemeOption(
+                      context,
+                      mode: AppThemeMode.readLeafLight,
+                      name: 'Light',
+                      colors: [
+                        const Color(0xFF6B8F71),
+                        const Color(0xFFF5F2ED),
+                        const Color(0xFFB5A89E),
+                        const Color(0xFFE9CFA3),
+                        const Color(0xFF4C6A43),
+                        const Color(0xFFC4D9C7),
+                      ],
+                      isSelected: themeProvider.currentThemeMode ==
+                          AppThemeMode.readLeafLight,
+                      isDark: false,
+                      onTap: () {
+                        themeProvider.setThemeMode(AppThemeMode.readLeafLight);
+                        Navigator.pop(context);
                       },
+                    ),
+
+                    // Default Dark Theme
+                    _buildThemeOption(
+                      context,
+                      mode: AppThemeMode.mysteriousDark,
+                      name: 'Dark',
+                      colors: [
+                        const Color(0xFF433E8A),
+                        Colors.black,
+                        const Color(0xFF6F6BAE),
+                        const Color(0xFFA29FDC),
+                        const Color(0xFF353165),
+                        const Color(0xFF5C58A7),
+                      ],
+                      isSelected: themeProvider.currentThemeMode ==
+                          AppThemeMode.mysteriousDark,
+                      isDark: true,
+                      onTap: () {
+                        themeProvider.setThemeMode(AppThemeMode.mysteriousDark);
+                        Navigator.pop(context);
+                      },
+                    ),
+
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Other Light Themes',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Other Light Themes
+                    ...[
                       {
                         'mode': AppThemeMode.classicLight,
                         'name': 'Luminous',
-                        'isDark': false,
                         'colors': [
                           Colors.black,
                           const Color(0xFFFE2C55),
@@ -313,7 +414,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       {
                         'mode': AppThemeMode.oceanBlue,
                         'name': 'Ocean',
-                        'isDark': false,
                         'colors': [
                           const Color(0xFF0288D1),
                           const Color(0xFFF0F8FA),
@@ -323,56 +423,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           const Color(0xFFB3E5FC),
                         ],
                       },
-                    ]
-                        .map((themeData) => Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: _buildThemeOption(
-                                context,
-                                mode: themeData['mode'] as AppThemeMode,
-                                name: themeData['name'] as String,
-                                colors: themeData['colors'] as List<Color>,
-                                isSelected: themeProvider.currentThemeMode ==
-                                    themeData['mode'],
-                                isDark: themeData['isDark'] as bool,
-                                onTap: () {
-                                  themeProvider.setThemeMode(
-                                      themeData['mode'] as AppThemeMode);
-                                  Navigator.pop(context);
-                                },
-                              ),
-                            ))
-                        .toList(),
-                    const Divider(),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Text(
-                        'Dark Themes',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ),
-                    // Dark Themes
-                    ...[
                       {
-                        'mode': AppThemeMode.mysteriousDark,
-                        'name': 'Dark',
-                        'isDark': true,
+                        'mode': AppThemeMode.pinkCutesy,
+                        'name': 'Candy',
                         'colors': [
-                          const Color(0xFF433E8A),
-                          Colors.black,
-                          const Color(0xFF6F6BAE),
-                          const Color(0xFFA29FDC),
-                          const Color(0xFF353165),
-                          const Color(0xFF5C58A7),
+                          const Color(0xFFFF8FAB),
+                          const Color(0xFFFFE4EC),
+                          const Color(0xFFFFD3DD),
+                          const Color(0xFFFFAFC7),
+                          const Color(0xFFFFC2D1),
+                          const Color(0xFFFFEBF1),
                         ],
                       },
+                    ].map((themeData) => _buildThemeOption(
+                          context,
+                          mode: themeData['mode'] as AppThemeMode,
+                          name: themeData['name'] as String,
+                          colors: themeData['colors'] as List<Color>,
+                          isSelected: themeProvider.currentThemeMode ==
+                              themeData['mode'],
+                          isDark: false,
+                          onTap: () {
+                            themeProvider.setThemeMode(
+                                themeData['mode'] as AppThemeMode);
+                            Navigator.pop(context);
+                          },
+                        )),
+
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Other Dark Themes',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Other Dark Themes
+                    ...[
                       {
                         'mode': AppThemeMode.classicDark,
                         'name': 'Archaic',
-                        'isDark': true,
                         'colors': [
                           const Color(0xFF2E4E3F),
                           const Color(0xFF0B1F16),
@@ -385,7 +478,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       {
                         'mode': AppThemeMode.darkForest,
                         'name': 'Forest',
-                        'isDark': true,
                         'colors': [
                           const Color(0xFF2E4E3F),
                           const Color(0xFF0B1F16),
@@ -395,25 +487,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           const Color(0xFF4B3A2B),
                         ],
                       },
-                    ]
-                        .map((themeData) => Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: _buildThemeOption(
-                                context,
-                                mode: themeData['mode'] as AppThemeMode,
-                                name: themeData['name'] as String,
-                                colors: themeData['colors'] as List<Color>,
-                                isSelected: themeProvider.currentThemeMode ==
-                                    themeData['mode'],
-                                isDark: themeData['isDark'] as bool,
-                                onTap: () {
-                                  themeProvider.setThemeMode(
-                                      themeData['mode'] as AppThemeMode);
-                                  Navigator.pop(context);
-                                },
-                              ),
-                            ))
-                        .toList(),
+                    ].map((themeData) => _buildThemeOption(
+                          context,
+                          mode: themeData['mode'] as AppThemeMode,
+                          name: themeData['name'] as String,
+                          colors: themeData['colors'] as List<Color>,
+                          isSelected: themeProvider.currentThemeMode ==
+                              themeData['mode'],
+                          isDark: true,
+                          onTap: () {
+                            themeProvider.setThemeMode(
+                                themeData['mode'] as AppThemeMode);
+                            Navigator.pop(context);
+                          },
+                        )),
                   ],
                 ),
               ),
@@ -422,10 +509,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     ).whenComplete(() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+      });
     });
-  });
   }
 
   @override
