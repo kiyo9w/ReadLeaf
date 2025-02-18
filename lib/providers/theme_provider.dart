@@ -6,10 +6,13 @@ import 'package:read_leaf/services/user_preferences_service.dart';
 import 'package:read_leaf/models/user_preferences.dart';
 
 enum AppThemeMode {
-  classicLight,
-  readLeafLight,
-  mysteriousDark,
-  classicDark,
+  readLeafLight,   // Light
+  classicLight,    // Luminous
+  oceanBlue,       // Ocean
+  mysteriousDark,  // Dark
+  classicDark,     // Archaic
+  darkForest,      // Forest
+  pinkCutesy,      // Candy
 }
 
 class ThemeProvider extends ChangeNotifier {
@@ -18,6 +21,8 @@ class ThemeProvider extends ChangeNotifier {
   final UserPreferencesService _preferencesService;
   late ThemeData _theme;
   AppThemeMode _currentThemeMode;
+  AppThemeMode? _lastLightTheme;
+  AppThemeMode? _lastDarkTheme;
 
   ThemeProvider(this._preferencesService)
       : _currentThemeMode = AppThemeMode.classicLight {
@@ -28,14 +33,20 @@ class ThemeProvider extends ChangeNotifier {
   AppThemeMode get currentThemeMode => _currentThemeMode;
   String get currentThemeName {
     switch (_currentThemeMode) {
-      case AppThemeMode.classicLight:
-        return 'Classic Light';
       case AppThemeMode.readLeafLight:
-        return 'Read Leaf Light';
+        return 'Light';
+      case AppThemeMode.classicLight:
+        return 'Luminous';
       case AppThemeMode.mysteriousDark:
-        return 'Mysterious Dark';
+        return 'Dark';
       case AppThemeMode.classicDark:
-        return 'Classic Dark';
+        return 'Archaic';
+      case AppThemeMode.oceanBlue:
+        return 'Ocean';
+      case AppThemeMode.darkForest:
+        return 'Forest';
+      case AppThemeMode.pinkCutesy:
+        return 'Cutesy';
     }
   }
 
@@ -49,6 +60,15 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   void setThemeMode(AppThemeMode mode) {
+    // Store the last used theme for each mode
+    if (mode == AppThemeMode.mysteriousDark ||
+        mode == AppThemeMode.classicDark ||
+        mode == AppThemeMode.darkForest) {
+      _lastDarkTheme = mode;
+    } else {
+      _lastLightTheme = mode;
+    }
+    
     _currentThemeMode = mode;
     _updateTheme();
     _savePreferences();
@@ -60,13 +80,22 @@ class ThemeProvider extends ChangeNotifier {
         _theme = classicLightTheme;
         break;
       case AppThemeMode.readLeafLight:
-        _theme = _lightTheme; // TODO: Implement custom Read Leaf light theme
+        _theme = _lightTheme;
         break;
       case AppThemeMode.mysteriousDark:
-        _theme = pinkCutesyTheme;
+        _theme = _indigoNightTheme;
         break;
       case AppThemeMode.classicDark:
+        _theme = _darkTheme;
+        break;
+      case AppThemeMode.oceanBlue:
+        _theme = oceanBlueTheme;
+        break;
+      case AppThemeMode.darkForest:
         _theme = darkForestTheme;
+        break;
+      case AppThemeMode.pinkCutesy:
+        _theme = pinkCutesyTheme;
         break;
     }
     notifyListeners();
@@ -1361,4 +1390,22 @@ static final pinkCutesyTheme = ThemeData(
     ),
   ],
 );
+
+  // Add getter to check if theme is dark
+  bool get isDarkMode {
+    return _currentThemeMode == AppThemeMode.mysteriousDark ||
+           _currentThemeMode == AppThemeMode.classicDark ||
+           _currentThemeMode == AppThemeMode.darkForest;
+  }
+
+  // Add method to toggle between last used light/dark themes
+  void toggleTheme() {
+    if (isDarkMode) {
+      // Currently dark, switch to last light theme or default to Light theme
+      setThemeMode(_lastLightTheme ?? AppThemeMode.readLeafLight);
+    } else {
+      // Currently light, switch to last dark theme or default to Dark theme
+      setThemeMode(_lastDarkTheme ?? AppThemeMode.mysteriousDark);
+    }
+  }
 }
