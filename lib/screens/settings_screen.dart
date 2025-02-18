@@ -141,7 +141,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
-    final isDark = themeProvider.isDarkMode;
 
     return Scaffold(
       appBar: AppBar(
@@ -180,11 +179,124 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const SizedBox(height: 16),
               ListTile(
-                leading: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
-                title: Text(isDark ? 'Dark Mode' : 'Light Mode'),
-                trailing: Switch(
-                  value: isDark,
-                  onChanged: (_) => themeProvider.toggleTheme(),
+                leading: Icon(themeProvider.currentThemeMode ==
+                            AppThemeMode.mysteriousDark ||
+                        themeProvider.currentThemeMode ==
+                            AppThemeMode.classicDark
+                    ? Icons.dark_mode
+                    : Icons.light_mode),
+                title: const Text('Dark Mode'),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Switch(
+                      value: themeProvider.currentThemeMode ==
+                              AppThemeMode.mysteriousDark ||
+                          themeProvider.currentThemeMode ==
+                              AppThemeMode.classicDark,
+                      onChanged: (bool value) {
+                        themeProvider.setThemeMode(value
+                            ? AppThemeMode.mysteriousDark
+                            : AppThemeMode.readLeafLight);
+                      },
+                    ),
+                    PopupMenuButton<AppThemeMode>(
+                      icon: const Icon(Icons.more_vert),
+                      tooltip: 'More themes',
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          enabled: false,
+                          child: Text(
+                            'Light Themes',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: AppThemeMode.classicLight,
+                          child: Row(
+                            children: [
+                              const Icon(Icons.light_mode, size: 20),
+                              const SizedBox(width: 8),
+                              const Text('Classic Light'),
+                              if (themeProvider.currentThemeMode ==
+                                  AppThemeMode.classicLight)
+                                const Padding(
+                                  padding: EdgeInsets.only(left: 8),
+                                  child: Icon(Icons.check, size: 20),
+                                ),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: AppThemeMode.readLeafLight,
+                          child: Row(
+                            children: [
+                              const Icon(Icons.light_mode, size: 20),
+                              const SizedBox(width: 8),
+                              const Text('Read Leaf Light'),
+                              if (themeProvider.currentThemeMode ==
+                                  AppThemeMode.readLeafLight)
+                                const Padding(
+                                  padding: EdgeInsets.only(left: 8),
+                                  child: Icon(Icons.check, size: 20),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuDivider(),
+                        const PopupMenuItem(
+                          enabled: false,
+                          child: Text(
+                            'Dark Themes',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: AppThemeMode.classicDark,
+                          child: Row(
+                            children: [
+                              const Icon(Icons.dark_mode, size: 20),
+                              const SizedBox(width: 8),
+                              const Text('Classic Dark'),
+                              if (themeProvider.currentThemeMode ==
+                                  AppThemeMode.classicDark)
+                                const Padding(
+                                  padding: EdgeInsets.only(left: 8),
+                                  child: Icon(Icons.check, size: 20),
+                                ),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: AppThemeMode.mysteriousDark,
+                          child: Row(
+                            children: [
+                              const Icon(Icons.dark_mode, size: 20),
+                              const SizedBox(width: 8),
+                              const Text('Mysterious Dark'),
+                              if (themeProvider.currentThemeMode ==
+                                  AppThemeMode.mysteriousDark)
+                                const Padding(
+                                  padding: EdgeInsets.only(left: 8),
+                                  child: Icon(Icons.check, size: 20),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      onSelected: (AppThemeMode mode) {
+                        themeProvider.setThemeMode(mode);
+                      },
+                    ),
+                  ],
                 ),
               ),
 

@@ -205,8 +205,8 @@ class HomeScreenState extends State<HomeScreen> {
                     children: [
                       Image.asset(
                         'assets/images/app_logo/logo_nobg.png',
-                        width: 96,
-                        height: 96,
+                        width: 72,
+                        height: 72,
                       ),
                       const SizedBox(width: 8),
                       Text(
