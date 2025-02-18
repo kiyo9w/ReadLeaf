@@ -1,0 +1,19 @@
+targets:
+  $default:
+    builders:
+      json_serializable:
+        options:
+          # Options configure how source code is generated for every
+          # `@JsonSerializable`-annotated class in the package.
+          #
+          # The default value for each is listed.
+          any_map: false # Create toJson/fromJson for any Map, not just Map<String, dynamic>
+          checked: false # Include checks for runtime type errors
+          create_factory: true # Generate a factory constructor
+          create_to_json: true # Generate a toJson function
+          disallow_unrecognized_keys: false # Throw if there are unrecognized JSON keys
+          explicit_to_json: true # Include type annotations in generated code
+          field_rename: none # Rename fields using different strategies (none, snake, pascal, etc)
+          generic_argument_factories: false # Generate fromJson with generic type arguments
+          ignore_unannotated: false # Don't generate for classes without @JsonSerializable
+          include_if_null: true # Include null values in generated JSON 
