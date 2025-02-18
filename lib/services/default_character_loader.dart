@@ -45,7 +45,9 @@ class DefaultCharacterLoader {
       final characters = charactersList
           .map((charJson) {
             try {
-              return AiCharacter.fromJson(charJson);
+              final Map<String, dynamic> characterData =
+                  charJson.containsKey('data') ? charJson['data'] : charJson;
+              return AiCharacter.fromJson(characterData);
             } catch (e) {
               _log.warning('Failed to parse character: $e');
               return null;

@@ -204,9 +204,9 @@ class HomeScreenState extends State<HomeScreen> {
                   title: Row(
                     children: [
                       Image.asset(
-                        'assets/images/leafy_icon.png',
-                        width: 32,
-                        height: 32,
+                        'assets/images/app_logo/logo_nobg.png',
+                        width: 96,
+                        height: 96,
                       ),
                       const SizedBox(width: 8),
                       Text(

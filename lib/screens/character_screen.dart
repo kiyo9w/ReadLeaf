@@ -105,6 +105,8 @@ class _CharacterScreenState extends State<CharacterScreen>
   }
 
   void _selectCharacter(AiCharacter character) {
+    if (!mounted) return;
+
     setState(() {
       _selectedCharacter = character;
     });
@@ -114,10 +116,12 @@ class _CharacterScreenState extends State<CharacterScreen>
     widget.onCharacterChanged?.call();
 
     // Find and refresh HomeScreen
-    final homeScreen = context.findAncestorStateOfType<HomeScreenState>();
-    homeScreen?.generateNewAIMessage();
+    if (mounted) {
+      final homeScreen = context.findAncestorStateOfType<HomeScreenState>();
+      homeScreen?.generateNewAIMessage();
+    }
 
-    if (Navigator.canPop(context)) {
+    if (mounted && Navigator.canPop(context)) {
       Navigator.pop(context);
     }
   }
@@ -183,16 +187,18 @@ class _CharacterScreenState extends State<CharacterScreen>
                         borderRadius: BorderRadius.circular(32),
                         splashColor: theme.primaryColor.withOpacity(0.1),
                         highlightColor: theme.primaryColor.withOpacity(0.05),
-                        onTap: () {
+                        onTap: () async {
+                          if (!mounted) return;
+
                           final RenderBox button =
                               context.findRenderObject() as RenderBox;
                           final Offset buttonPosition =
                               button.localToGlobal(Offset.zero);
 
-                          showDialog(
+                          final dialogResult = await showDialog(
                             context: context,
                             barrierColor: Colors.transparent,
-                            builder: (BuildContext context) {
+                            builder: (BuildContext dialogContext) {
                               return Stack(
                                 children: [
                                   Positioned(
@@ -226,7 +232,9 @@ class _CharacterScreenState extends State<CharacterScreen>
                                               highlightColor: theme.primaryColor
                                                   .withOpacity(0.05),
                                               onTap: () async {
-                                                Navigator.pop(context);
+                                                Navigator.pop(dialogContext);
+                                                if (!mounted) return;
+
                                                 final result =
                                                     await Navigator.push(
                                                   context,
@@ -234,7 +242,7 @@ class _CharacterScreenState extends State<CharacterScreen>
                                                       builder: (context) =>
                                                           const CreateCharacterScreen()),
                                                 );
-                                                if (result == true) {
+                                                if (result == true && mounted) {
                                                   widget.onCharacterChanged
                                                       ?.call();
                                                   final homeScreen = context
@@ -278,7 +286,9 @@ class _CharacterScreenState extends State<CharacterScreen>
                                               highlightColor: theme.primaryColor
                                                   .withOpacity(0.05),
                                               onTap: () async {
-                                                Navigator.pop(context);
+                                                Navigator.pop(dialogContext);
+                                                if (!mounted) return;
+
                                                 final result = await FilePicker
                                                     .platform
                                                     .pickFiles(
@@ -289,7 +299,9 @@ class _CharacterScreenState extends State<CharacterScreen>
                                                 if (result != null && mounted) {
                                                   final file =
                                                       result.files.first;
-                                                  Navigator.push(
+                                                  if (!mounted) return;
+
+                                                  await Navigator.push(
                                                     context,
                                                     MaterialPageRoute(
                                                       builder: (context) =>
