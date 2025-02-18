@@ -4,16 +4,19 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	
+	<!-- App Naming (Consistent Across All Configurations) -->
 	<key>CFBundleDisplayName</key>
-	<string>Migrated</string>
+	<string>ReadLeaf</string>
+	<key>CFBundleName</key>
+	<string>ReadLeaf</string>
+	
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
-	<key>CFBundleName</key>
-	<string>migrated</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -22,12 +25,67 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+
+	<!-- iOS Compatibility Settings -->
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+
+	<!-- Google OAuth Credentials -->
+	<key>CLIENT_ID</key>
+	<string>8655995403-ekl7g6elabs8ha4ro3fobjbv4r2tv39g.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.8655995403-ekl7g6elabs8ha4ro3fobjbv4r2tv39g</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+
+	<!-- Deep Linking & OAuth Configurations -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.8655995403-ekl7g6elabs8ha4ro3fobjbv4r2tv39g</string>
+			</array>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+		</dict>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>io.supabase.readleaf</string>
+			</array>
+			<key>CFBundleURLName</key>
+			<string>login-callback</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+		</dict>
+	</array>
+
+	<!-- Facebook OAuth Configuration -->
+	<key>FacebookAppID</key>
+	<string>[YOUR_FACEBOOK_APP_ID]</string>
+	<key>FacebookClientToken</key>
+	<string>[YOUR_FACEBOOK_CLIENT_TOKEN]</string>
+	<key>FacebookDisplayName</key>
+	<string>ReadLeaf</string>
+
+	<!-- Google Sign-in Configuration -->
+	<key>GIDClientID</key>
+	<string>8655995403-ekl7g6elabs8ha4ro3fobjbv4r2tv39g.apps.googleusercontent.com</string>
+
+	<!-- Launch and Storyboard Configurations -->
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+
+	<!-- Orientation Settings -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
@@ -41,9 +99,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>CADisableMinimumFrameDurationOnPhone</key>
-	<true/>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
 </dict>
 </plist>
