@@ -1,4 +1,5 @@
 import 'package:json_annotation/json_annotation.dart';
+import 'dart:convert';
 
 part 'ai_character.g.dart';
 
@@ -143,25 +144,46 @@ class AiCharacter {
     String? avatarImagePath,
   }) {
     if (name?.isEmpty ?? true) return 'Name is required';
-    if (summary?.isEmpty ?? true) return 'Summary is required';
-    if ((summary?.length ?? 0) > 200)
-      return 'Summary must be less than 200 characters';
-    if (personality?.isEmpty ?? true) return 'Personality is required';
-    if ((personality?.length ?? 0) > 1000)
-      return 'Personality must be less than 1000 characters';
-    if (scenario?.isEmpty ?? true) return 'Scenario is required';
-    if ((scenario?.length ?? 0) > 1000)
-      return 'Scenario must be less than 1000 characters';
-    if (greetingMessage?.isEmpty ?? true) return 'Greeting message is required';
-    if ((greetingMessage?.length ?? 0) > 500)
-      return 'Greeting message must be less than 500 characters';
-    if ((exampleMessages?.length ?? 0) > 10)
-      return 'Maximum 10 example messages allowed';
-    if (exampleMessages?.any((msg) => msg.length > 200) ?? false) {
-      return 'Example messages must be less than 200 characters each';
+    if (summary?.isEmpty ?? true) return 'Description/Summary is required';
+    try {
+      if (summary!.trim().startsWith('{')) {
+        json.decode(summary);
+      }
+    } catch (e) {
+      // return 'Summary must be a valid JSON string';
     }
-    if (avatarImagePath?.isEmpty ?? true)
+
+    // Personality is optional
+    if (personality != null && personality.length > 50000) {
+      return 'Personality must be less than 50000 characters';
+    }
+
+    // Scenario is required
+    if (scenario?.isEmpty ?? true) return 'Scenario is required';
+    if (scenario!.length > 50000) {
+      return 'Scenario must be less than 50000 characters';
+    }
+
+    // Greeting message is required (first_mes in template)
+    if (greetingMessage?.isEmpty ?? true) return 'Greeting message is required';
+    if (greetingMessage!.length > 50000) {
+      return 'Greeting message must be less than 50000 characters';
+    }
+
+    // Example messages are optional but should be validated if present
+    if (exampleMessages != null) {
+      if (exampleMessages.length > 100) {
+        return 'Maximum 100 example messages allowed';
+      }
+      if (exampleMessages.any((msg) => msg.length > 50000)) {
+        return 'Example messages must be less than 50000 characters each';
+      }
+    }
+
+    // Avatar can be a URL, local path, or asset path
+    if (avatarImagePath?.isEmpty ?? true) {
       return 'Avatar image path is required';
+    }
 
     return null;
   }

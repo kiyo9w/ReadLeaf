@@ -27,6 +27,7 @@ import 'package:read_leaf/models/ai_character_preference.dart';
 import 'package:read_leaf/services/sync/sync_manager.dart';
 import 'package:read_leaf/services/user_preferences_service.dart';
 import 'package:read_leaf/services/thumbnail_service.dart';
+import 'package:read_leaf/services/character_template_service.dart';
 
 final getIt = GetIt.instance;
 
@@ -93,6 +94,7 @@ Future<void> configureDependencies() async {
   final chatService = ChatService(syncManager);
   final geminiService = GeminiService(aiCharacterService, chatService);
   final thumbnailService = ThumbnailService();
+  final characterTemplateService = CharacterTemplateService();
 
   // Initialize services that require async initialization
   await Future.wait([
@@ -109,6 +111,7 @@ Future<void> configureDependencies() async {
   getIt.registerSingleton<StorageScannerService>(storageScannerService);
   getIt.registerSingleton<StorageService>(storageService);
   getIt.registerSingleton<ThumbnailService>(thumbnailService);
+  getIt.registerSingleton<CharacterTemplateService>(characterTemplateService);
 
   // Authentication services
   getIt.registerSingleton<SocialAuthService>(socialAuthService);
@@ -227,4 +230,8 @@ abstract class RegisterModule {
 
   @lazySingleton
   ThumbnailService get thumbnailService => ThumbnailService();
+
+  @lazySingleton
+  CharacterTemplateService get characterTemplateService =>
+      CharacterTemplateService();
 }
