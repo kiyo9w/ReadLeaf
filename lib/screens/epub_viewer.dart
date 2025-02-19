@@ -26,6 +26,7 @@ import 'dart:async';
 import 'dart:developer' as dev;
 import 'package:read_leaf/widgets/floating_selection_menu.dart';
 import 'package:read_leaf/widgets/full_selection_menu.dart';
+import 'package:flutter/gestures.dart';
 
 enum EpubLayoutMode { vertical, horizontal, facing }
 
@@ -67,10 +68,10 @@ class ContentBlock {
 
 class EpubPageCalculator {
   // Constants for pagination
-  static const double DEFAULT_FONT_SIZE = 13.0;
+  static const double DEFAULT_FONT_SIZE = 23.0;
   static const double LINE_HEIGHT_MULTIPLIER = 1.5;
   static const double PAGE_PADDING = 32.0;
-  static const int WORDS_PER_PAGE = 350; // Fixed word count per page
+  static const int WORDS_PER_PAGE = 550;
 
   // Cache structures
   final Map<int, List<PageContent>> _pageCache = {};
@@ -114,7 +115,6 @@ class EpubPageCalculator {
 
     // Cache results
     _pageCache[chapterIndex] = pages;
-
     return pages;
   }
 
@@ -139,10 +139,8 @@ class EpubPageCalculator {
 
     final blocks = <ContentBlock>[];
     final paragraphs = html.split(RegExp(r'(?=<p>)|(?=<h[1-6]>)'));
-
     for (var p in paragraphs) {
       if (p.trim().isEmpty) continue;
-
       String tag = 'p';
       if (p.startsWith('<h1>'))
         tag = 'h1';
@@ -150,7 +148,6 @@ class EpubPageCalculator {
 
       // Count words in this block
       final plainText = p.replaceAll(RegExp(r'<[^>]*>'), '').trim();
-      final wordCount = plainText.split(RegExp(r'\s+')).length;
 
       blocks.add(ContentBlock(
         textSpan: TextSpan(
@@ -158,14 +155,24 @@ class EpubPageCalculator {
           style: styles[tag],
         ),
         rawHtml: p,
-        styles: {'tag': tag, 'wordCount': wordCount.toString()},
+        styles: {'tag': tag},
       ));
     }
 
     return ParsedContent(blocks: blocks, styles: styles);
   }
 
-  // Calculate page breaks based on word count
+  // Measure the height of a block using its TextSpan and available width
+  double _measureBlockHeight(ContentBlock block) {
+    final textPainter = TextPainter(
+      text: block.textSpan,
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout(maxWidth: _viewportWidth);
+    return textPainter.height;
+  }
+
+  // Calculate page breaks based on measured block heights
   List<PageContent> _calculatePageBreaks(
     ParsedContent content,
     int chapterIndex,
@@ -173,26 +180,38 @@ class EpubPageCalculator {
   ) {
     final pages = <PageContent>[];
     List<String> currentPageBlocks = [];
-    int currentWordCount = 0;
+    double currentPageHeight = 0.0;
 
     for (var block in content.blocks) {
-      final blockWordCount = int.parse(block.styles['wordCount'] ?? '0');
-
-      // If adding this block would exceed the word limit, create a new page
-      if (currentWordCount + blockWordCount > WORDS_PER_PAGE &&
-          currentPageBlocks.isNotEmpty) {
-        pages.add(PageContent(
-          content: currentPageBlocks.join('\n'),
-          chapterIndex: chapterIndex,
-          pageNumberInChapter: pages.length + 1,
-          chapterTitle: chapterTitle,
-        ));
-        currentPageBlocks = [];
-        currentWordCount = 0;
+      final blockHeight = _measureBlockHeight(block);
+      // If adding the block does not exceed the effective page height, add it
+      if (currentPageHeight + blockHeight <= _effectiveViewportHeight) {
+        currentPageBlocks.add(block.rawHtml);
+        currentPageHeight += blockHeight;
+      } else {
+        // If there is content accumulated on this page, push it as a new page
+        if (currentPageBlocks.isNotEmpty) {
+          pages.add(PageContent(
+            content: currentPageBlocks.join('\n'),
+            chapterIndex: chapterIndex,
+            pageNumberInChapter: pages.length + 1,
+            chapterTitle: chapterTitle,
+          ));
+          // Start a new page with the current block
+          currentPageBlocks = [block.rawHtml];
+          currentPageHeight = blockHeight;
+        } else {
+          // In the rare case the block itself exceeds a full page, add it alone
+          pages.add(PageContent(
+            content: block.rawHtml,
+            chapterIndex: chapterIndex,
+            pageNumberInChapter: pages.length + 1,
+            chapterTitle: chapterTitle,
+          ));
+          currentPageBlocks = [];
+          currentPageHeight = 0.0;
+        }
       }
-
-      currentPageBlocks.add(block.rawHtml);
-      currentWordCount += blockWordCount;
     }
 
     // Add remaining content as last page
@@ -309,6 +328,149 @@ class EpubHighlight {
   });
 }
 
+class PageLocation {
+  final int chapterIndex;
+  final int pageInChapter;
+
+  PageLocation({
+    required this.chapterIndex,
+    required this.pageInChapter,
+  });
+}
+
+class EpubPageManager {
+  final double _viewportHeight;
+  final Map<int, double> _chapterHeights = {};
+  double _totalContentHeight = 0.0;
+  final Map<int, int> _pagesPerChapter = {};
+  int _totalPages = 0;
+
+  EpubPageManager({required double viewportHeight})
+      : _viewportHeight = viewportHeight;
+
+  Future<double> _measureContentHeight(
+      String content, BuildContext context) async {
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: content,
+        style: const TextStyle(
+          fontSize: EpubPageCalculator.DEFAULT_FONT_SIZE,
+          height: EpubPageCalculator.LINE_HEIGHT_MULTIPLIER,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: null,
+    );
+
+    textPainter.layout(maxWidth: MediaQuery.of(context).size.width - 48);
+    return textPainter.height;
+  }
+
+  Future<void> measureChapter(
+      int index, String content, BuildContext context) async {
+    // Measure actual content height
+    final height = await _measureContentHeight(content, context);
+    _chapterHeights[index] = height;
+
+    // Calculate pages for this chapter
+    final pagesInChapter = (height / _viewportHeight).ceil();
+    _pagesPerChapter[index] = pagesInChapter;
+
+    // Update totals
+    _totalContentHeight = _chapterHeights.values.fold(0, (sum, h) => sum + h);
+    _totalPages = _pagesPerChapter.values.fold(0, (sum, p) => sum + p);
+  }
+
+  int getCurrentPage(int currentChapter, double scrollOffset) {
+    // Calculate absolute scroll progress
+    double totalScrolled = 0;
+    for (int i = 0; i < currentChapter; i++) {
+      totalScrolled += _chapterHeights[i] ?? 0;
+    }
+    totalScrolled += scrollOffset;
+
+    // Convert to page number
+    return ((totalScrolled / _totalContentHeight) * _totalPages).ceil();
+  }
+
+  double getScrollOffsetForPage(int targetPage) {
+    // Convert page to scroll position
+    final targetProgress = targetPage / _totalPages;
+    return targetProgress * _totalContentHeight;
+  }
+}
+
+class HorizontalPageManager {
+  final double pageWidth;
+  final double pageHeight;
+  final Map<int, List<Rect>> _pageRects = {};
+
+  HorizontalPageManager({
+    required this.pageWidth,
+    required this.pageHeight,
+  });
+
+  Future<List<Rect>> _calculatePageRects(
+      String content, BuildContext context) async {
+    final List<Rect> rects = [];
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: content,
+        style: const TextStyle(
+          fontSize: EpubPageCalculator.DEFAULT_FONT_SIZE,
+          height: EpubPageCalculator.LINE_HEIGHT_MULTIPLIER,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: null,
+    );
+
+    textPainter.layout(maxWidth: pageWidth - 48);
+
+    double currentY = 0;
+    double currentX = 0;
+
+    while (currentY < textPainter.height) {
+      rects.add(Rect.fromLTWH(currentX, currentY, pageWidth, pageHeight));
+
+      if (currentY + pageHeight >= textPainter.height) {
+        break;
+      }
+
+      if (currentX + pageWidth >= textPainter.width) {
+        currentX = 0;
+        currentY += pageHeight;
+      } else {
+        currentX += pageWidth;
+      }
+    }
+
+    return rects;
+  }
+
+  int getTotalPages() {
+    return _pageRects.values.fold(0, (sum, rects) => sum + rects.length);
+  }
+
+  PageLocation getPageLocation(int absolutePage) {
+    // Convert absolute page number to chapter/page within chapter
+    int accumPages = 0;
+    for (final entry in _pageRects.entries) {
+      if (accumPages + entry.value.length > absolutePage) {
+        return PageLocation(
+          chapterIndex: entry.key,
+          pageInChapter: absolutePage - accumPages,
+        );
+      }
+      accumPages += entry.value.length;
+    }
+    return PageLocation(
+      chapterIndex: _pageRects.length - 1,
+      pageInChapter: _pageRects.values.last.length,
+    );
+  }
+}
+
 class EPUBViewerScreen extends StatefulWidget {
   const EPUBViewerScreen({super.key});
 
@@ -346,11 +508,15 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   int _totalPages = 0;
   int _currentPage = 0;
   late EpubPageCalculator _pageCalculator;
+  double _fontSize = EpubPageCalculator.DEFAULT_FONT_SIZE;
+  int _totalWordsInBook = 0;
+  Map<int, int> _wordsPerChapter = {};
+  final Map<int, int> _absolutePageMapping = {};
+  int _nextAbsolutePage = 1;
 
   // Add this getter to ensure valid slider values
   double get _sliderMax => _totalPages > 0 ? _totalPages.toDouble() : 1.0;
-  double get _sliderValue =>
-      _calculateCurrentPage().toDouble().clamp(1, _sliderMax);
+  double get _sliderValue => _getCurrentPage().toDouble().clamp(1, _sliderMax);
 
   // Highlight management
   final Map<int, List<EpubHighlight>> _highlights = {};
@@ -358,6 +524,17 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   late AnimationController _pulseController;
   Animation<double>? _pulseAnimation;
   Timer? _pulseTimer;
+
+  // Helper: Flatten pages across chapters.
+  List<PageContent> get _flattenedPages {
+    List<PageContent> allPages = [];
+    for (int i = 0; i < _flatChapters.length; i++) {
+      if (_chapterPagesCache.containsKey(i)) {
+        allPages.addAll(_chapterPagesCache[i]!);
+      }
+    }
+    return allPages;
+  }
 
   @override
   void initState() {
@@ -407,7 +584,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     await Future.delayed(Duration.zero); // Wait for widget to be mounted
     if (!mounted) return;
 
-    NavScreen.globalKey.currentState?.setNavBarVisibility(true);
+    NavScreen.globalKey.currentState?.hideNavBar(true);
     _positionsListener.itemPositions.addListener(_onScroll);
     await _loadEpub();
   }
@@ -429,22 +606,26 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     if (positions.isEmpty) return;
 
     final firstIndex = positions.first.index;
-    if (firstIndex != _currentChapterIndex) {
-      if (!_isDisposed) {
+
+    if (_layoutMode == EpubLayoutMode.vertical) {
+      // Update current page directly from the scroll position
+      final newPage = firstIndex + 1;
+      if (newPage != _currentPage) {
+        setState(() {
+          _currentPage = newPage;
+        });
+        _updateMetadata(newPage);
+      }
+    } else {
+      // Handle horizontal mode chapter tracking
+      if (firstIndex != _currentChapterIndex) {
         setState(() {
           _currentChapterIndex = firstIndex;
           _loadSurroundingChapters(firstIndex);
         });
       }
 
-      // Update the current page in the bloc and metadata
-      if (mounted) {
-        final page = _calculateCurrentPage();
-        context.read<ReaderBloc>().add(JumpToPage(page));
-        _updateMetadata(page);
-      }
-    } else {
-      // Also update progress when scrolling within the same chapter
+      // Update progress when scrolling within the same chapter
       final page = _calculateCurrentPage();
       if (page != _currentPage && !_isSliderInteracting) {
         setState(() {
@@ -456,83 +637,17 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   }
 
   int _calculateCurrentPage() {
-    if (_layoutMode == EpubLayoutMode.horizontal) {
+    if (_layoutMode == EpubLayoutMode.vertical) {
+      final positions = _positionsListener.itemPositions.value;
+      if (positions.isNotEmpty) {
+        // In vertical mode, first visible item's index + 1 is the page number
+        final firstIndex = positions.first.index;
+        return firstIndex + 1;
+      }
+      return 1;
+    } else {
+      // For horizontal mode, use existing page tracking
       return _currentPage.clamp(1, _totalPages);
-    }
-
-    // Calculate total pages up to current position
-    int page = 1;
-    final positions = _positionsListener.itemPositions.value;
-    if (positions.isEmpty) return page;
-
-    // Calculate total words read
-    int totalWordsRead = 0;
-
-    // Add words from completed chapters
-    for (var i = 0; i < _currentChapterIndex; i++) {
-      if (_chapterPagesCache.containsKey(i)) {
-        totalWordsRead +=
-            _chapterPagesCache[i]!.length * EpubPageCalculator.WORDS_PER_PAGE;
-      }
-    }
-
-    // Add words from current chapter
-    if (_chapterPagesCache[_currentChapterIndex] != null) {
-      final currentChapterPages = _chapterPagesCache[_currentChapterIndex]!;
-      final firstPosition = positions.first;
-
-      // Calculate progress through current chapter
-      final progress = 1.0 - firstPosition.itemLeadingEdge;
-      final wordsInCurrentChapter =
-          currentChapterPages.length * EpubPageCalculator.WORDS_PER_PAGE;
-      totalWordsRead += (progress * wordsInCurrentChapter).floor();
-    }
-
-    // Convert total words read to pages
-    page = (totalWordsRead / EpubPageCalculator.WORDS_PER_PAGE).ceil();
-    return page.clamp(1, _totalPages);
-  }
-
-  Future<void> _jumpToPage(int targetPage) async {
-    if (targetPage < 1 || targetPage > _totalPages) return;
-
-    if (_layoutMode == EpubLayoutMode.horizontal) {
-      setState(() {
-        _currentPage = targetPage;
-      });
-      return;
-    }
-
-    // Calculate which chapter contains the target page
-    int currentPageCount = 0;
-    int targetChapterIndex = 0;
-    double targetOffset = 0.0;
-
-    for (var i = 0; i < _flatChapters.length; i++) {
-      final chapterPages = _chapterPagesCache[i]?.length ?? 0;
-      if (currentPageCount + chapterPages >= targetPage) {
-        targetChapterIndex = i;
-        final pagesIntoChapter = targetPage - currentPageCount;
-        targetOffset = 1.0 - (pagesIntoChapter / chapterPages);
-        break;
-      }
-      currentPageCount += chapterPages;
-    }
-
-    // Load the target chapter and surrounding chapters
-    await _loadSurroundingChapters(targetChapterIndex);
-
-    if (_scrollController.isAttached && mounted) {
-      setState(() {
-        _currentPage = targetPage;
-        _currentChapterIndex = targetChapterIndex;
-      });
-
-      await _scrollController.scrollTo(
-        index: targetChapterIndex,
-        duration: const Duration(milliseconds: 300),
-        alignment: targetOffset.clamp(0.0, 1.0),
-      );
     }
   }
 
@@ -572,8 +687,8 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
       setState(() {
         _isLoading = true;
-        _currentPage = 1; // Always start at page 1
-        _totalPages = 0; // Reset total pages
+        _currentPage = 1;
+        _totalPages = 0;
       });
 
       final filePath = state.filePath;
@@ -582,36 +697,33 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       _epubBook = await EpubReader.readBook(bytes);
 
       if (_epubBook != null) {
-        // Get chapters from the EPUB book
         _flatChapters = _flattenChapters(_epubBook!.Chapters ?? []);
 
         // Initialize metadata
         final metadata = await _metadataRepository.getMetadata(filePath);
         setState(() {
           _metadata = metadata;
-          // Only set current page from metadata if it's valid
           if (metadata?.lastOpenedPage != null &&
               metadata!.lastOpenedPage > 0) {
             _currentPage = metadata.lastOpenedPage;
           }
         });
 
-        // Load initial chapter and surrounding chapters
-        WidgetsBinding.instance.addPostFrameCallback((_) async {
-          // Preload all chapters' content first
-          await Future.wait(_flatChapters
-              .asMap()
-              .entries
-              .map((entry) => _preloadChapter(entry.key)));
-
-          // Calculate pages for initial chapters
+        // In vertical mode, preload all chapters
+        if (_layoutMode == EpubLayoutMode.vertical) {
+          for (int i = 0; i < _flatChapters.length; i++) {
+            await _preloadChapter(i);
+            await _splitChapterIntoPages(i);
+          }
+        } else {
+          // In horizontal mode, load surrounding chapters
           await _splitChapterIntoPages(_currentChapterIndex);
           await _loadSurroundingChapters(_currentChapterIndex);
-          _updateTotalPages();
+        }
 
-          setState(() {
-            _isLoading = false;
-          });
+        _calculateTotalPages();
+        setState(() {
+          _isLoading = false;
         });
       }
     } catch (e) {
@@ -622,44 +734,19 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     }
   }
 
-  void _updateTotalPages() {
-    if (_isDisposed) return;
-
-    int totalWords = 0;
-    // Calculate total words across all chapters
-    for (var i = 0; i < _flatChapters.length; i++) {
-      if (_chapterPagesCache.containsKey(i)) {
-        totalWords +=
-            _chapterPagesCache[i]!.length * EpubPageCalculator.WORDS_PER_PAGE;
-      }
-    }
-
-    // Convert total words to pages, ensuring at least 1 page
-    final total = (totalWords / EpubPageCalculator.WORDS_PER_PAGE).ceil();
-    final newTotal = total > 0 ? total : 1;
-
-    if (newTotal != _totalPages) {
+  void _calculateTotalPages() {
+    if (_layoutMode == EpubLayoutMode.vertical) {
       setState(() {
-        _totalPages = newTotal;
+        _totalPages = _flattenedPages.length;
       });
-
-      // Update metadata with new total pages and recalculate progress
-      if (_metadata != null) {
-        final currentPage = _calculateCurrentPage();
-        final progress =
-            newTotal > 0 ? (currentPage / newTotal).clamp(0.0, 1.0) : 0.0;
-
-        final updatedMetadata = _metadata!.copyWith(
-          totalPages: newTotal,
-          lastOpenedPage: currentPage,
-          readingProgress: progress,
-        );
-
-        _metadataRepository.saveMetadata(updatedMetadata);
-        setState(() {
-          _metadata = updatedMetadata;
-        });
+    } else {
+      int total = 0;
+      for (var i = 0; i < _flatChapters.length; i++) {
+        total += _chapterPagesCache[i]?.length ?? 0;
       }
+      setState(() {
+        _totalPages = total > 0 ? total : 1;
+      });
     }
   }
 
@@ -670,21 +757,20 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     try {
       final chapter = _flatChapters[index];
       String content = chapter.HtmlContent ?? '';
-
-      // Clean up HTML content
       content = content.replaceAll(RegExp(r'\s+'), ' ').trim();
 
-      // Ensure content isn't empty
       if (content.isEmpty) {
-        print('Warning: Empty content for chapter $index');
         content = '<p>Chapter content unavailable</p>';
       }
 
       _chapterContentCache[index] = content;
+      final wordCount = content.split(RegExp(r'\s+')).length;
+      _wordsPerChapter[index] = wordCount;
+      _calculateTotalPages();
     } catch (e) {
       print('Error preloading chapter $index: $e');
-      // Add placeholder content to prevent repeated loading attempts
       _chapterContentCache[index] = '<p>Error loading chapter content</p>';
+      _wordsPerChapter[index] = 0;
     }
   }
 
@@ -794,7 +880,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
         setState(() {
           _chapterPagesCache[chapterIndex] = pages;
         });
-        _updateTotalPages();
+        _calculateTotalPages();
       }
     } catch (e) {
       print('Error splitting chapter $chapterIndex into pages: $e');
@@ -839,110 +925,52 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     return BlocConsumer<ReaderBloc, ReaderState>(
       listener: (context, state) {},
       builder: (context, state) {
-        if (_isLoading) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
+        if (state is ReaderLoaded) {
+          final showUI = state.showUI;
 
-        if (_epubBook == null) {
-          return const Scaffold(
-            body: Center(child: Text('Failed to load EPUB')),
-          );
-        }
-
-        if (state is! ReaderLoaded) {
-          return const Scaffold(
-            body: Center(child: Text('Reader not loaded')),
-          );
-        }
-
-        final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-        final isKeyboardVisible = keyboardHeight > 0;
-        final showUI = state.showUI;
-
-        return PopScope(
-          canPop: true,
-          onPopInvoked: (didPop) async {
-            if (didPop) {
-              await _handleBackPress();
-            }
-          },
-          child: GestureDetector(
-            onTapDown: (details) {
-              if (_showChapters) {
-                final sideNavWidth =
-                    ResponsiveConstants.getSideNavWidth(context);
-                if (details.globalPosition.dx > sideNavWidth) {
-                  setState(() {
-                    _showChapters = false;
-                  });
-                }
+          return PopScope(
+            canPop: true,
+            onPopInvoked: (didPop) async {
+              if (didPop) {
+                await _handleBackPress();
               }
             },
-            child: Scaffold(
-              resizeToAvoidBottomInset: false,
-              body: Stack(
-                children: [
-                  if (_layoutMode == EpubLayoutMode.horizontal)
-                    _buildHorizontalLayout()
-                  else
-                    ScrollablePositionedList.builder(
-                      itemCount: _flatChapters.length,
-                      itemBuilder: (context, index) =>
-                          _buildChapter(_flatChapters[index]),
-                      itemScrollController: _scrollController,
-                      itemPositionsListener: _positionsListener,
-                    ),
-                  if (showUI) ...[
-                    // Top app bar
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      child: AppBar(
-                        backgroundColor:
-                            Theme.of(context).brightness == Brightness.dark
-                                ? const Color(0xFF251B2F).withOpacity(0.95)
-                                : const Color(0xFFFAF9F7).withOpacity(0.95),
-                        elevation: 0,
-                        toolbarHeight:
-                            ResponsiveConstants.getBottomBarHeight(context),
-                        leading: IconButton(
-                          icon: Icon(
-                            Icons.arrow_back,
-                            color:
-                                Theme.of(context).brightness == Brightness.dark
-                                    ? const Color(0xFFF2F2F7)
-                                    : const Color(0xFF1C1C1E),
-                            size: ResponsiveConstants.getIconSize(context),
-                          ),
-                          onPressed: () {
-                            Navigator.pop(context);
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              if (mounted) {
-                                NavScreen.globalKey.currentState
-                                    ?.setNavBarVisibility(false);
-                              }
-                            });
-                          },
-                        ),
-                        title: Text(
-                          _epubBook?.Title ?? path.basename(state.file.path),
-                          style: TextStyle(
-                            fontSize:
-                                ResponsiveConstants.getBodyFontSize(context),
-                            color:
-                                Theme.of(context).brightness == Brightness.dark
-                                    ? const Color(0xFFF2F2F7)
-                                    : const Color(0xFF1C1C1E),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        actions: [
-                          IconButton(
+            child: GestureDetector(
+              onTap: _handleTap,
+              behavior: HitTestBehavior.deferToChild,
+              child: Scaffold(
+                resizeToAvoidBottomInset: false,
+                body: Stack(
+                  children: [
+                    // Content layer
+                    if (_layoutMode == EpubLayoutMode.vertical)
+                      ScrollablePositionedList.builder(
+                        itemCount: _flattenedPages.length,
+                        itemBuilder: (context, index) =>
+                            _buildPage(_flattenedPages[index]),
+                        itemScrollController: _scrollController,
+                        itemPositionsListener: _positionsListener,
+                      )
+                    else
+                      _buildHorizontalLayout(),
+
+                    // UI elements
+                    if (showUI) ...[
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: AppBar(
+                          backgroundColor:
+                              Theme.of(context).brightness == Brightness.dark
+                                  ? const Color(0xFF251B2F).withOpacity(0.95)
+                                  : const Color(0xFFFAF9F7).withOpacity(0.95),
+                          elevation: 0,
+                          toolbarHeight:
+                              ResponsiveConstants.getBottomBarHeight(context),
+                          leading: IconButton(
                             icon: Icon(
-                              Icons.search,
+                              Icons.arrow_back,
                               color: Theme.of(context).brightness ==
                                       Brightness.dark
                                   ? const Color(0xFFF2F2F7)
@@ -950,246 +978,310 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                               size: ResponsiveConstants.getIconSize(context),
                             ),
                             onPressed: () {
-                              // TODO: Implement search functionality for EPUB
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content:
-                                      Text('Search coming soon for EPUB files'),
-                                ),
-                              );
-                            },
-                            padding: EdgeInsets.all(
-                                ResponsiveConstants.isTablet(context) ? 12 : 8),
-                          ),
-                          IconButton(
-                            icon: Icon(
-                              Icons.menu,
-                              color: Theme.of(context).brightness ==
-                                      Brightness.dark
-                                  ? const Color(0xFFF2F2F7)
-                                  : const Color(0xFF1C1C1E),
-                              size: ResponsiveConstants.getIconSize(context),
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                _showChapters = !_showChapters;
+                              Navigator.pop(context);
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (mounted) {
+                                  NavScreen.globalKey.currentState
+                                      ?.hideNavBar(false);
+                                }
                               });
                             },
-                            padding: EdgeInsets.all(
-                                ResponsiveConstants.isTablet(context) ? 12 : 8),
                           ),
-                          PopupMenuButton<String>(
-                            elevation: 8,
-                            color:
-                                Theme.of(context).brightness == Brightness.dark
-                                    ? const Color(0xFF352A3B)
-                                    : const Color(0xFFF8F1F1),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            icon: Icon(
-                              Icons.more_vert,
+                          title: Text(
+                            _epubBook?.Title ?? path.basename(state.file.path),
+                            style: TextStyle(
+                              fontSize:
+                                  ResponsiveConstants.getBodyFontSize(context),
                               color: Theme.of(context).brightness ==
                                       Brightness.dark
                                   ? const Color(0xFFF2F2F7)
                                   : const Color(0xFF1C1C1E),
-                              size: ResponsiveConstants.getIconSize(context),
+                              fontWeight: FontWeight.w500,
                             ),
-                            padding: EdgeInsets.all(
-                                ResponsiveConstants.isTablet(context) ? 12 : 8),
-                            position: PopupMenuPosition.under,
-                            onSelected: (val) async {
-                              switch (val) {
-                                case 'layout_mode':
-                                  final RenderBox button =
-                                      context.findRenderObject() as RenderBox;
-                                  final RenderBox overlay =
-                                      Navigator.of(context)
-                                          .overlay!
-                                          .context
-                                          .findRenderObject() as RenderBox;
-                                  final buttonPos =
-                                      button.localToGlobal(Offset.zero);
-                                  final overlayPos =
-                                      overlay.localToGlobal(Offset.zero);
+                          ),
+                          actions: [
+                            IconButton(
+                              icon: Icon(
+                                Icons.search,
+                                color: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? const Color(0xFFF2F2F7)
+                                    : const Color(0xFF1C1C1E),
+                                size: ResponsiveConstants.getIconSize(context),
+                              ),
+                              onPressed: () {
+                                // TODO: Implement search functionality for EPUB
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                        'Search coming soon for EPUB files'),
+                                  ),
+                                );
+                              },
+                              padding: EdgeInsets.all(
+                                  ResponsiveConstants.isTablet(context)
+                                      ? 12
+                                      : 8),
+                            ),
+                            IconButton(
+                              icon: Icon(
+                                Icons.menu,
+                                color: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? const Color(0xFFF2F2F7)
+                                    : const Color(0xFF1C1C1E),
+                                size: ResponsiveConstants.getIconSize(context),
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _showChapters = !_showChapters;
+                                });
+                              },
+                              padding: EdgeInsets.all(
+                                  ResponsiveConstants.isTablet(context)
+                                      ? 12
+                                      : 8),
+                            ),
+                            PopupMenuButton<String>(
+                              elevation: 8,
+                              color: Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? const Color(0xFF352A3B)
+                                  : const Color(0xFFF8F1F1),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              icon: Icon(
+                                Icons.more_vert,
+                                color: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? const Color(0xFFF2F2F7)
+                                    : const Color(0xFF1C1C1E),
+                                size: ResponsiveConstants.getIconSize(context),
+                              ),
+                              padding: EdgeInsets.all(
+                                  ResponsiveConstants.isTablet(context)
+                                      ? 12
+                                      : 8),
+                              position: PopupMenuPosition.under,
+                              onSelected: (val) async {
+                                switch (val) {
+                                  case 'layout_mode':
+                                    final RenderBox button =
+                                        context.findRenderObject() as RenderBox;
+                                    final RenderBox overlay =
+                                        Navigator.of(context)
+                                            .overlay!
+                                            .context
+                                            .findRenderObject() as RenderBox;
+                                    final buttonPos =
+                                        button.localToGlobal(Offset.zero);
+                                    final overlayPos =
+                                        overlay.localToGlobal(Offset.zero);
 
-                                  final RelativeRect position =
-                                      RelativeRect.fromLTRB(
-                                    buttonPos.dx,
-                                    buttonPos.dy + button.size.height,
-                                    overlayPos.dx +
-                                        overlay.size.width -
-                                        buttonPos.dx -
-                                        button.size.width,
-                                    overlayPos.dy +
-                                        overlay.size.height -
-                                        buttonPos.dy,
-                                  );
+                                    final RelativeRect position =
+                                        RelativeRect.fromLTRB(
+                                      buttonPos.dx,
+                                      buttonPos.dy + button.size.height,
+                                      overlayPos.dx +
+                                          overlay.size.width -
+                                          buttonPos.dx -
+                                          button.size.width,
+                                      overlayPos.dy +
+                                          overlay.size.height -
+                                          buttonPos.dy,
+                                    );
 
-                                  showMenu<EpubLayoutMode>(
-                                    context: context,
-                                    position: position,
-                                    color: Theme.of(context).brightness ==
-                                            Brightness.dark
-                                        ? const Color(0xFF352A3B)
-                                        : const Color(0xFFF8F1F1),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    items: [
-                                      PopupMenuItem(
-                                        value: EpubLayoutMode.vertical,
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              Icons.vertical_distribute,
-                                              color: _layoutMode ==
-                                                      EpubLayoutMode.vertical
-                                                  ? Theme.of(context)
-                                                      .primaryColor
-                                                  : null,
-                                              size: 20,
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Text('Vertical Scroll',
-                                                style: TextStyle(
-                                                  color: _layoutMode ==
-                                                          EpubLayoutMode
-                                                              .vertical
-                                                      ? Theme.of(context)
-                                                          .primaryColor
-                                                      : null,
-                                                )),
-                                          ],
+                                    showMenu<EpubLayoutMode>(
+                                      context: context,
+                                      position: position,
+                                      color: Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? const Color(0xFF352A3B)
+                                          : const Color(0xFFF8F1F1),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      items: [
+                                        PopupMenuItem(
+                                          value: EpubLayoutMode.vertical,
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.vertical_distribute,
+                                                color: _layoutMode ==
+                                                        EpubLayoutMode.vertical
+                                                    ? Theme.of(context)
+                                                        .primaryColor
+                                                    : null,
+                                                size: 20,
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Text('Vertical Scroll',
+                                                  style: TextStyle(
+                                                    color: _layoutMode ==
+                                                            EpubLayoutMode
+                                                                .vertical
+                                                        ? Theme.of(context)
+                                                            .primaryColor
+                                                        : null,
+                                                  )),
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                      PopupMenuItem(
-                                        value: EpubLayoutMode.horizontal,
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              Icons.horizontal_distribute,
-                                              color: _layoutMode ==
-                                                      EpubLayoutMode.horizontal
-                                                  ? Theme.of(context)
-                                                      .primaryColor
-                                                  : null,
-                                              size: 20,
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Text('Horizontal Scroll',
-                                                style: TextStyle(
-                                                  color: _layoutMode ==
-                                                          EpubLayoutMode
-                                                              .horizontal
-                                                      ? Theme.of(context)
-                                                          .primaryColor
-                                                      : null,
-                                                )),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ).then((EpubLayoutMode? mode) {
-                                    if (mode != null && mounted) {
-                                      _handleLayoutChange(mode);
-                                    }
-                                  });
-                                  break;
-                                case 'reading_mode':
-                                  final readingMode =
-                                      await showMenu<ReadingMode>(
-                                    context: context,
-                                    position: RelativeRect.fromLTRB(
-                                      MediaQuery.of(context).size.width - 200,
-                                      kToolbarHeight + 20,
-                                      MediaQuery.of(context).size.width - 10,
-                                      kToolbarHeight + 100,
-                                    ),
-                                    color: Theme.of(context).brightness ==
-                                            Brightness.dark
-                                        ? const Color(0xFF352A3B)
-                                        : const Color(0xFFF8F1F1),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    items: [
-                                      PopupMenuItem(
-                                        value: ReadingMode.light,
-                                        child: Text('Light',
-                                            style: TextStyle(
-                                                color: Theme.of(context)
-                                                            .brightness ==
-                                                        Brightness.dark
-                                                    ? const Color(0xFFF2F2F7)
-                                                    : const Color(0xFF1C1C1E))),
-                                      ),
-                                      PopupMenuItem(
-                                        value: ReadingMode.dark,
-                                        child: Text('Dark',
-                                            style: TextStyle(
-                                                color: Theme.of(context)
-                                                            .brightness ==
-                                                        Brightness.dark
-                                                    ? const Color(0xFFF2F2F7)
-                                                    : const Color(0xFF1C1C1E))),
-                                      ),
-                                      PopupMenuItem(
-                                        value: ReadingMode.sepia,
-                                        child: Text('Sepia',
-                                            style: TextStyle(
-                                                color: Theme.of(context)
-                                                            .brightness ==
-                                                        Brightness.dark
-                                                    ? const Color(0xFFF2F2F7)
-                                                    : const Color(0xFF1C1C1E))),
-                                      ),
-                                    ],
-                                  );
-                                  if (readingMode != null && mounted) {
-                                    context
-                                        .read<ReaderBloc>()
-                                        .add(setReadingMode(readingMode));
-                                  }
-                                  break;
-                                case 'move_trash':
-                                  final shouldDelete = await showDialog<bool>(
-                                    context: context,
-                                    builder: (context) => AlertDialog(
-                                      title: const Text('Delete File'),
-                                      content: const Text(
-                                          'Are you sure you want to delete this file? This action cannot be undone.'),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.of(context).pop(false),
-                                          child: const Text('Cancel'),
-                                        ),
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.of(context).pop(true),
-                                          style: TextButton.styleFrom(
-                                              foregroundColor: Colors.red),
-                                          child: const Text('Delete'),
+                                        PopupMenuItem(
+                                          value: EpubLayoutMode.horizontal,
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.horizontal_distribute,
+                                                color: _layoutMode ==
+                                                        EpubLayoutMode
+                                                            .horizontal
+                                                    ? Theme.of(context)
+                                                        .primaryColor
+                                                    : null,
+                                                size: 20,
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Text('Horizontal Scroll',
+                                                  style: TextStyle(
+                                                    color: _layoutMode ==
+                                                            EpubLayoutMode
+                                                                .horizontal
+                                                        ? Theme.of(context)
+                                                            .primaryColor
+                                                        : null,
+                                                  )),
+                                            ],
+                                          ),
                                         ),
                                       ],
-                                    ),
-                                  );
+                                    ).then((EpubLayoutMode? mode) {
+                                      if (mode != null && mounted) {
+                                        _handleLayoutChange(mode);
+                                      }
+                                    });
+                                    break;
+                                  case 'reading_mode':
+                                    final readingMode =
+                                        await showMenu<ReadingMode>(
+                                      context: context,
+                                      position: RelativeRect.fromLTRB(
+                                        MediaQuery.of(context).size.width - 200,
+                                        kToolbarHeight + 20,
+                                        MediaQuery.of(context).size.width - 10,
+                                        kToolbarHeight + 100,
+                                      ),
+                                      color: Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? const Color(0xFF352A3B)
+                                          : const Color(0xFFF8F1F1),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      items: [
+                                        PopupMenuItem(
+                                          value: ReadingMode.light,
+                                          child: Text('Light',
+                                              style: TextStyle(
+                                                  color: Theme.of(context)
+                                                              .brightness ==
+                                                          Brightness.dark
+                                                      ? const Color(0xFFF2F2F7)
+                                                      : const Color(
+                                                          0xFF1C1C1E))),
+                                        ),
+                                        PopupMenuItem(
+                                          value: ReadingMode.dark,
+                                          child: Text('Dark',
+                                              style: TextStyle(
+                                                  color: Theme.of(context)
+                                                              .brightness ==
+                                                          Brightness.dark
+                                                      ? const Color(0xFFF2F2F7)
+                                                      : const Color(
+                                                          0xFF1C1C1E))),
+                                        ),
+                                        PopupMenuItem(
+                                          value: ReadingMode.sepia,
+                                          child: Text('Sepia',
+                                              style: TextStyle(
+                                                  color: Theme.of(context)
+                                                              .brightness ==
+                                                          Brightness.dark
+                                                      ? const Color(0xFFF2F2F7)
+                                                      : const Color(
+                                                          0xFF1C1C1E))),
+                                        ),
+                                      ],
+                                    );
+                                    if (readingMode != null && mounted) {
+                                      context
+                                          .read<ReaderBloc>()
+                                          .add(setReadingMode(readingMode));
+                                    }
+                                    break;
+                                  case 'move_trash':
+                                    final shouldDelete = await showDialog<bool>(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        title: const Text('Delete File'),
+                                        content: const Text(
+                                            'Are you sure you want to delete this file? This action cannot be undone.'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.of(context)
+                                                    .pop(false),
+                                            child: const Text('Cancel'),
+                                          ),
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.of(context).pop(true),
+                                            style: TextButton.styleFrom(
+                                                foregroundColor: Colors.red),
+                                            child: const Text('Delete'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
 
-                                  if (shouldDelete == true && mounted) {
+                                    if (shouldDelete == true && mounted) {
+                                      try {
+                                        final file = File(state.file.path);
+                                        if (await file.exists()) {
+                                          await file.delete();
+                                          if (mounted) {
+                                            context.read<FileBloc>().add(
+                                                RemoveFile(state.file.path));
+                                            context
+                                                .read<ReaderBloc>()
+                                                .add(CloseReader());
+                                            Navigator.of(context).pop();
+                                          }
+                                        }
+                                      } catch (e) {
+                                        if (mounted) {
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            SnackBar(
+                                                content: Text(
+                                                    'Error deleting file: $e')),
+                                          );
+                                        }
+                                      }
+                                    }
+                                    break;
+                                  case 'share':
                                     try {
                                       final file = File(state.file.path);
                                       if (await file.exists()) {
-                                        await file.delete();
-                                        if (mounted) {
-                                          context
-                                              .read<FileBloc>()
-                                              .add(RemoveFile(state.file.path));
-                                          context
-                                              .read<ReaderBloc>()
-                                              .add(CloseReader());
-                                          Navigator.of(context).pop();
-                                        }
+                                        await Share.share(
+                                          state.file.path,
+                                          subject:
+                                              path.basename(state.file.path),
+                                        );
                                       }
                                     } catch (e) {
                                       if (mounted) {
@@ -1197,389 +1289,432 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                                             .showSnackBar(
                                           SnackBar(
                                               content: Text(
-                                                  'Error deleting file: $e')),
+                                                  'Error sharing file: $e')),
                                         );
                                       }
                                     }
-                                  }
-                                  break;
-                                case 'share':
-                                  try {
-                                    final file = File(state.file.path);
-                                    if (await file.exists()) {
-                                      await Share.share(
-                                        state.file.path,
-                                        subject: path.basename(state.file.path),
-                                      );
-                                    }
-                                  } catch (e) {
-                                    if (mounted) {
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        SnackBar(
-                                            content:
-                                                Text('Error sharing file: $e')),
-                                      );
-                                    }
-                                  }
-                                  break;
-                                case 'toggle_star':
-                                  context
-                                      .read<FileBloc>()
-                                      .add(ToggleStarred(state.file.path));
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Updated starred status'),
-                                      duration: Duration(seconds: 1),
-                                    ),
-                                  );
-                                  break;
-                                case 'mark_as_read':
-                                  context
-                                      .read<FileBloc>()
-                                      .add(ViewFile(state.file.path));
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Marked as read'),
-                                      duration: Duration(seconds: 1),
-                                    ),
-                                  );
-                                  break;
-                              }
-                            },
-                            itemBuilder: (context) => [
-                              PopupMenuItem(
-                                value: 'layout_mode',
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.view_agenda_outlined,
-                                      color: Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFFF2F2F7)
-                                          : const Color(0xFF1C1C1E),
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      'Page Layout',
-                                      style: TextStyle(
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
+                                    break;
+                                  case 'toggle_star':
+                                    context
+                                        .read<FileBloc>()
+                                        .add(ToggleStarred(state.file.path));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Updated starred status'),
+                                        duration: Duration(seconds: 1),
                                       ),
-                                    ),
-                                    const Spacer(),
-                                    Icon(
-                                      Icons.arrow_right,
-                                      color: Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFFF2F2F7)
-                                          : const Color(0xFF1C1C1E),
-                                      size: 20,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              PopupMenuItem(
-                                value: 'reading_mode',
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.palette_outlined,
-                                      color: Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFFF2F2F7)
-                                          : const Color(0xFF1C1C1E),
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      'Reading Mode',
-                                      style: TextStyle(
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
+                                    );
+                                    break;
+                                  case 'mark_as_read':
+                                    context
+                                        .read<FileBloc>()
+                                        .add(ViewFile(state.file.path));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Marked as read'),
+                                        duration: Duration(seconds: 1),
                                       ),
-                                    ),
-                                    const Spacer(),
-                                    Icon(
-                                      Icons.arrow_right,
-                                      color: Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFFF2F2F7)
-                                          : const Color(0xFF1C1C1E),
-                                      size: 20,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              PopupMenuItem(
-                                value: 'move_trash',
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.delete_outline,
-                                      color: Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFFF2F2F7)
-                                          : const Color(0xFF1C1C1E),
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      'Move to trash',
-                                      style: TextStyle(
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
+                                    );
+                                    break;
+                                  case 'font_size':
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        title: const Text('Font Size'),
+                                        content: StatefulBuilder(
+                                          builder: (context, setState) =>
+                                              Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Slider(
+                                                value: _fontSize,
+                                                min: 12.0,
+                                                max: 24.0,
+                                                divisions: 12,
+                                                label: _fontSize
+                                                    .round()
+                                                    .toString(),
+                                                onChanged: (value) {
+                                                  setState(() {
+                                                    _fontSize = value;
+                                                  });
+                                                },
+                                                onChangeEnd: (value) {
+                                                  // Update font size and recalculate pages
+                                                  _pageCalculator =
+                                                      EpubPageCalculator(
+                                                    viewportWidth:
+                                                        MediaQuery.of(context)
+                                                            .size
+                                                            .width,
+                                                    viewportHeight:
+                                                        MediaQuery.of(context)
+                                                            .size
+                                                            .height,
+                                                    fontSize: value,
+                                                  );
+                                                  _chapterPagesCache.clear();
+                                                  _loadSurroundingChapters(
+                                                      _currentChapterIndex);
+                                                },
+                                              ),
+                                              const SizedBox(height: 16),
+                                              Text(
+                                                'Sample Text',
+                                                style: TextStyle(
+                                                    fontSize: _fontSize),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(context),
+                                            child: const Text('Close'),
+                                          ),
+                                        ],
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              PopupMenuItem(
-                                value: 'share',
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.share_outlined,
-                                      color: Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFFF2F2F7)
-                                          : const Color(0xFF1C1C1E),
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      'Share file',
-                                      style: TextStyle(
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              PopupMenuItem(
-                                value: 'toggle_star',
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.star_outline,
-                                      color: Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFFF2F2F7)
-                                          : const Color(0xFF1C1C1E),
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      'Toggle star',
-                                      style: TextStyle(
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              PopupMenuItem(
-                                value: 'mark_as_read',
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.check_circle_outline,
-                                      color: Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFFF2F2F7)
-                                          : const Color(0xFF1C1C1E),
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      'Mark as read',
-                                      style: TextStyle(
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Side navigation (Chapters)
-                    AnimatedPositioned(
-                      duration: const Duration(milliseconds: 300),
-                      top: 0,
-                      bottom: 0,
-                      left: _showChapters
-                          ? 0
-                          : -ResponsiveConstants.getSideNavWidth(context),
-                      child: GestureDetector(
-                        onHorizontalDragUpdate: (details) {
-                          if (details.delta.dx < 0) {
-                            // Only handle left swipes
-                            setState(() {
-                              _showChapters = false;
-                            });
-                          }
-                        },
-                        child: Container(
-                          width: ResponsiveConstants.getSideNavWidth(context),
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF251B2F).withOpacity(0.98)
-                              : const Color(0xFFFAF9F7).withOpacity(0.98),
-                          child: SafeArea(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal:
-                                        ResponsiveConstants.isTablet(context)
-                                            ? 24
-                                            : 16,
-                                    vertical:
-                                        ResponsiveConstants.isTablet(context)
-                                            ? 16
-                                            : 12,
-                                  ),
+                                    );
+                                    break;
+                                }
+                              },
+                              itemBuilder: (context) => [
+                                PopupMenuItem(
+                                  value: 'layout_mode',
                                   child: Row(
                                     children: [
+                                      Icon(
+                                        Icons.view_agenda_outlined,
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFF2F2F7)
+                                            : const Color(0xFF1C1C1E),
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
                                       Text(
-                                        'Chapters',
+                                        'Page Layout',
                                         style: TextStyle(
                                           color: Theme.of(context).brightness ==
                                                   Brightness.dark
                                               ? const Color(0xFFF2F2F7)
                                               : const Color(0xFF1C1C1E),
-                                          fontSize: ResponsiveConstants
-                                              .getTitleFontSize(context),
-                                          fontWeight: FontWeight.w600,
                                         ),
                                       ),
                                       const Spacer(),
-                                      IconButton(
-                                        padding: EdgeInsets.zero,
-                                        constraints: BoxConstraints(
-                                          minWidth:
-                                              ResponsiveConstants.getIconSize(
-                                                  context),
-                                          minHeight:
-                                              ResponsiveConstants.getIconSize(
-                                                  context),
-                                        ),
-                                        icon: Icon(
-                                          Icons.close,
-                                          color: Theme.of(context).brightness ==
-                                                  Brightness.dark
-                                              ? const Color(0xFF8E8E93)
-                                              : const Color(0xFF6E6E73),
-                                          size: ResponsiveConstants.getIconSize(
-                                              context),
-                                        ),
-                                        onPressed: () {
-                                          setState(() {
-                                            _showChapters = false;
-                                          });
-                                        },
+                                      Icon(
+                                        Icons.arrow_right,
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFF2F2F7)
+                                            : const Color(0xFF1C1C1E),
+                                        size: 20,
                                       ),
                                     ],
                                   ),
                                 ),
-                                Expanded(
-                                  child: ListView.builder(
-                                    itemCount: _flatChapters.length,
-                                    itemBuilder: (context, index) {
-                                      final chapter = _flatChapters[index];
-                                      return ListTile(
-                                        title: Text(
-                                          chapter.Title ??
-                                              'Chapter ${index + 1}',
-                                          style: TextStyle(
-                                            color: _currentChapterIndex == index
-                                                ? Theme.of(context).primaryColor
-                                                : Theme.of(context)
-                                                            .brightness ==
-                                                        Brightness.dark
-                                                    ? const Color(0xFFF2F2F7)
-                                                    : const Color(0xFF1C1C1E),
-                                            fontSize: ResponsiveConstants
-                                                .getBodyFontSize(context),
-                                          ),
+                                PopupMenuItem(
+                                  value: 'reading_mode',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.palette_outlined,
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFF2F2F7)
+                                            : const Color(0xFF1C1C1E),
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        'Reading Mode',
+                                        style: TextStyle(
+                                          color: Theme.of(context).brightness ==
+                                                  Brightness.dark
+                                              ? const Color(0xFFF2F2F7)
+                                              : const Color(0xFF1C1C1E),
                                         ),
-                                        onTap: () {
-                                          _scrollController.scrollTo(
-                                            index: index,
-                                            duration: const Duration(
-                                                milliseconds: 300),
-                                          );
-                                          setState(() {
-                                            _showChapters = false;
-                                          });
-                                        },
-                                      );
-                                    },
+                                      ),
+                                      const Spacer(),
+                                      Icon(
+                                        Icons.arrow_right,
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFF2F2F7)
+                                            : const Color(0xFF1C1C1E),
+                                        size: 20,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'move_trash',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.delete_outline,
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFF2F2F7)
+                                            : const Color(0xFF1C1C1E),
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        'Move to trash',
+                                        style: TextStyle(
+                                          color: Theme.of(context).brightness ==
+                                                  Brightness.dark
+                                              ? const Color(0xFFF2F2F7)
+                                              : const Color(0xFF1C1C1E),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'share',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.share_outlined,
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFF2F2F7)
+                                            : const Color(0xFF1C1C1E),
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        'Share file',
+                                        style: TextStyle(
+                                          color: Theme.of(context).brightness ==
+                                                  Brightness.dark
+                                              ? const Color(0xFFF2F2F7)
+                                              : const Color(0xFF1C1C1E),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'toggle_star',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.star_outline,
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFF2F2F7)
+                                            : const Color(0xFF1C1C1E),
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        'Toggle star',
+                                        style: TextStyle(
+                                          color: Theme.of(context).brightness ==
+                                                  Brightness.dark
+                                              ? const Color(0xFFF2F2F7)
+                                              : const Color(0xFF1C1C1E),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'mark_as_read',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.check_circle_outline,
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFF2F2F7)
+                                            : const Color(0xFF1C1C1E),
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        'Mark as read',
+                                        style: TextStyle(
+                                          color: Theme.of(context).brightness ==
+                                                  Brightness.dark
+                                              ? const Color(0xFFF2F2F7)
+                                              : const Color(0xFF1C1C1E),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'font_size',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.format_size,
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFF2F2F7)
+                                            : const Color(0xFF1C1C1E),
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        'Font Size',
+                                        style: TextStyle(
+                                          color: Theme.of(context).brightness ==
+                                                  Brightness.dark
+                                              ? const Color(0xFFF2F2F7)
+                                              : const Color(0xFF1C1C1E),
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      Icon(
+                                        Icons.arrow_right,
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFFF2F2F7)
+                                            : const Color(0xFF1C1C1E),
+                                        size: 20,
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
                             ),
+                          ],
+                        ),
+                      ),
+
+                      // Side navigation (Chapters)
+                      AnimatedPositioned(
+                        duration: const Duration(milliseconds: 300),
+                        top: 0,
+                        bottom: 0,
+                        left: _showChapters
+                            ? 0
+                            : -ResponsiveConstants.getSideNavWidth(context),
+                        child: GestureDetector(
+                          onHorizontalDragUpdate: (details) {
+                            if (details.delta.dx < 0) {
+                              // Only handle left swipes
+                              setState(() {
+                                _showChapters = false;
+                              });
+                            }
+                          },
+                          child: Container(
+                            width: ResponsiveConstants.getSideNavWidth(context),
+                            color:
+                                Theme.of(context).brightness == Brightness.dark
+                                    ? const Color(0xFF251B2F).withOpacity(0.98)
+                                    : const Color(0xFFFAF9F7).withOpacity(0.98),
+                            child: SafeArea(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal:
+                                          ResponsiveConstants.isTablet(context)
+                                              ? 24
+                                              : 16,
+                                      vertical:
+                                          ResponsiveConstants.isTablet(context)
+                                              ? 16
+                                              : 12,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Text(
+                                          'Chapters',
+                                          style: TextStyle(
+                                            color:
+                                                Theme.of(context).brightness ==
+                                                        Brightness.dark
+                                                    ? const Color(0xFFF2F2F7)
+                                                    : const Color(0xFF1C1C1E),
+                                            fontSize: ResponsiveConstants
+                                                .getTitleFontSize(context),
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        IconButton(
+                                          padding: EdgeInsets.zero,
+                                          constraints: BoxConstraints(
+                                            minWidth:
+                                                ResponsiveConstants.getIconSize(
+                                                    context),
+                                            minHeight:
+                                                ResponsiveConstants.getIconSize(
+                                                    context),
+                                          ),
+                                          icon: Icon(
+                                            Icons.close,
+                                            color:
+                                                Theme.of(context).brightness ==
+                                                        Brightness.dark
+                                                    ? const Color(0xFF8E8E93)
+                                                    : const Color(0xFF6E6E73),
+                                            size:
+                                                ResponsiveConstants.getIconSize(
+                                                    context),
+                                          ),
+                                          onPressed: () {
+                                            setState(() {
+                                              _showChapters = false;
+                                            });
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: ListView.builder(
+                                      itemCount: _flatChapters.length,
+                                      itemBuilder: (context, index) {
+                                        final chapter = _flatChapters[index];
+                                        return ListTile(
+                                          title: Text(
+                                            chapter.Title ??
+                                                'Chapter ${index + 1}',
+                                            style: TextStyle(
+                                              color: _currentChapterIndex ==
+                                                      index
+                                                  ? Theme.of(context)
+                                                      .primaryColor
+                                                  : Theme.of(context)
+                                                              .brightness ==
+                                                          Brightness.dark
+                                                      ? const Color(0xFFF2F2F7)
+                                                      : const Color(0xFF1C1C1E),
+                                              fontSize: ResponsiveConstants
+                                                  .getBodyFontSize(context),
+                                            ),
+                                          ),
+                                          onTap: () {
+                                            _scrollController.scrollTo(
+                                              index: index,
+                                              duration: const Duration(
+                                                  milliseconds: 300),
+                                            );
+                                            setState(() {
+                                              _showChapters = false;
+                                            });
+                                          },
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-
-                    // Floating chat widget
-                    FloatingChatWidget(
-                      character: _characterService.getSelectedCharacter() ??
-                          AiCharacter(
-                            name: 'Amelia',
-                            avatarImagePath:
-                                'assets/images/ai_characters/amelia.png',
-                            personality: 'A friendly and helpful AI assistant.',
-                            summary:
-                                'Amelia is a friendly AI assistant who helps readers understand and engage with their books.',
-                            scenario:
-                                'You are reading with Amelia, who is eager to help you understand and enjoy your book.',
-                            greetingMessage:
-                                'Hello! I\'m Amelia. How can I help you with your reading today?',
-                            exampleMessages: [
-                              'Can you explain this passage?',
-                              'What are your thoughts on this chapter?',
-                              'Help me understand the main themes.'
-                            ],
-                            characterVersion: '1',
-                            tags: ['Default', 'Reading Assistant'],
-                            creator: 'ReadLeaf',
-                            createdAt: DateTime.now(),
-                            updatedAt: DateTime.now(),
-                          ),
-                      onSendMessage: _handleChatMessage,
-                      bookId: state.file.path,
-                      bookTitle:
-                          _epubBook?.Title ?? path.basename(state.file.path),
-                      keyboardHeight: keyboardHeight,
-                      isKeyboardVisible: isKeyboardVisible,
-                      key: _floatingChatKey,
-                    ),
-
-                    // Bottom slider
-                    if (showUI)
                       Positioned(
                         bottom: 0,
                         left: 0,
@@ -1588,8 +1723,18 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                           color: Theme.of(context).brightness == Brightness.dark
                               ? const Color(0xFF251B2F).withOpacity(0.95)
                               : const Color(0xFFFAF9F7).withOpacity(0.95),
-                          padding:
-                              ResponsiveConstants.getContentPadding(context),
+                          padding: EdgeInsets.fromLTRB(
+                            ResponsiveConstants.getContentPadding(context)
+                                    .horizontal /
+                                2,
+                            0,
+                            ResponsiveConstants.getContentPadding(context)
+                                    .horizontal /
+                                2,
+                            ResponsiveConstants.getContentPadding(context)
+                                    .bottom +
+                                10.0,
+                          ),
                           height:
                               ResponsiveConstants.getBottomBarHeight(context),
                           child: Row(
@@ -1711,63 +1856,73 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                           ),
                         ),
                       ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
-          ),
+          );
+        }
+        return const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
         );
       },
     );
   }
 
   Widget _buildHorizontalLayout() {
-    return PageView.builder(
-      scrollDirection: Axis.horizontal,
-      controller: PageController(
-        initialPage: _currentPage - 1,
-        keepPage: true,
+    return Container(
+      padding: EdgeInsets.only(
+        top: ResponsiveConstants.getBottomBarHeight(context),
+        bottom: ResponsiveConstants.getBottomBarHeight(context),
       ),
-      onPageChanged: (index) {
-        if (!_isDisposed && mounted) {
-          setState(() {
-            _currentPage = index + 1;
-          });
-          _updateMetadata(_currentPage);
-        }
-      },
-      itemBuilder: (context, pageIndex) {
-        // Find which chapter this page belongs to
-        int currentCount = 0;
-        int targetChapterIndex = 0;
-        int pageInChapter = 0;
-
-        for (var i = 0; i < _flatChapters.length; i++) {
-          final chapterPages = _chapterPagesCache[i]?.length ?? 0;
-          if (currentCount + chapterPages > pageIndex) {
-            targetChapterIndex = i;
-            pageInChapter = pageIndex - currentCount;
-            break;
+      child: PageView.builder(
+        scrollDirection: Axis.horizontal,
+        controller: PageController(
+          initialPage: _currentPage - 1,
+          keepPage: true,
+        ),
+        onPageChanged: (index) {
+          if (!_isDisposed && mounted) {
+            setState(() {
+              _currentPage = index + 1;
+            });
+            _updateMetadata(_currentPage);
           }
-          currentCount += chapterPages;
-        }
+        },
+        itemBuilder: (context, pageIndex) {
+          // Find which chapter this page belongs to
+          int currentCount = 0;
+          int targetChapterIndex = 0;
+          int pageInChapter = 0;
 
-        // Load the chapter if needed
-        if (!_chapterPagesCache.containsKey(targetChapterIndex)) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _loadChapter(targetChapterIndex);
-          });
-          return const Center(child: CircularProgressIndicator());
-        }
+          for (var i = 0; i < _flatChapters.length; i++) {
+            final chapterPages = _chapterPagesCache[i]?.length ?? 0;
+            if (currentCount + chapterPages > pageIndex) {
+              targetChapterIndex = i;
+              pageInChapter = pageIndex - currentCount;
+              break;
+            }
+            currentCount += chapterPages;
+          }
 
-        final pages = _chapterPagesCache[targetChapterIndex];
-        if (pages == null || pageInChapter >= pages.length) {
-          return const Center(child: Text('Page not available'));
-        }
+          // Load the chapter if needed
+          if (!_chapterPagesCache.containsKey(targetChapterIndex)) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _loadChapter(targetChapterIndex);
+            });
+            return const Center(child: CircularProgressIndicator());
+          }
 
-        return _buildPage(pages[pageInChapter]);
-      },
-      itemCount: _totalPages,
+          final pages = _chapterPagesCache[targetChapterIndex];
+          if (pages == null || pageInChapter >= pages.length) {
+            return const Center(child: Text('Page not available'));
+          }
+
+          return _buildPage(pages[pageInChapter]);
+        },
+        itemCount: _totalPages,
+      ),
     );
   }
 
@@ -1801,8 +1956,27 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     );
   }
 
+  void _handleTap() {
+    // Close any open side widgets first
+    if (_showChapters) {
+      setState(() {
+        _showChapters = false;
+      });
+      return;
+    }
+
+    // Toggle UI visibility after handling side widgets
+    context.read<ReaderBloc>().add(ToggleUIVisibility());
+  }
+
   Widget _buildPage(PageContent page) {
     return SelectionArea(
+      selectionControls: MaterialTextSelectionControls(),
+      onSelectionChanged: (selection) {
+        setState(() {
+          _selectedText = selection?.plainText;
+        });
+      },
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 16.0),
         decoration: BoxDecoration(
@@ -1840,7 +2014,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
               HtmlWidget(
                 page.content,
                 textStyle: TextStyle(
-                  fontSize: EpubPageCalculator.DEFAULT_FONT_SIZE,
+                  fontSize: _fontSize,
                   height: EpubPageCalculator.LINE_HEIGHT_MULTIPLIER,
                   color: Theme.of(context).brightness == Brightness.dark
                       ? const Color(0xFFF2F2F7)
@@ -1878,7 +2052,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
           _chapterPagesCache[index] = pages;
         });
         // Update total pages whenever a new chapter is loaded
-        _updateTotalPages();
+        _calculateTotalPages();
       }
     } catch (e) {
       print('Error calculating pages for chapter $index: $e');
@@ -2012,7 +2186,8 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     }
   }
 
-  void _handleTextSelection(String? selectedText, int chapterIndex, String content) {
+  void _handleTextSelection(
+      String? selectedText, int chapterIndex, String content) {
     if (selectedText == null || selectedText.isEmpty) return;
 
     showDialog(
@@ -2128,5 +2303,124 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
           .addUserMessage('Imported Text: """$selectedText"""');
       _handleChatMessage(null, selectedText: selectedText);
     });
+  }
+
+  void _calculatePages() {
+    if (_isDisposed) return;
+
+    // Reset mappings if needed
+    if (_absolutePageMapping.isEmpty) {
+      _nextAbsolutePage = 1;
+    }
+
+    // Calculate fixed pages for each chapter
+    for (var i = 0; i < _flatChapters.length; i++) {
+      if (!_absolutePageMapping.containsKey(i) &&
+          _chapterPagesCache.containsKey(i)) {
+        final pages = _chapterPagesCache[i]!;
+        for (var j = 0; j < pages.length; j++) {
+          _absolutePageMapping[_nextAbsolutePage] = i;
+          _nextAbsolutePage++;
+        }
+      }
+    }
+
+    setState(() {
+      _totalPages = _nextAbsolutePage - 1;
+    });
+  }
+
+  int _getCurrentPage() {
+    // Find the absolute page number based on current chapter and scroll position
+    final positions = _positionsListener.itemPositions.value;
+    if (positions.isEmpty) return 1;
+
+    final firstPosition = positions.first;
+    final chapterIndex = firstPosition.index;
+
+    // Find the first absolute page number for this chapter
+    int absolutePage = 1;
+    for (var entry in _absolutePageMapping.entries) {
+      if (entry.value == chapterIndex) {
+        absolutePage = entry.key;
+        break;
+      }
+    }
+
+    // Add offset based on scroll position within chapter
+    if (_chapterPagesCache.containsKey(chapterIndex)) {
+      final chapterPages = _chapterPagesCache[chapterIndex]!;
+      final progress = 1.0 - firstPosition.itemLeadingEdge;
+      final pageOffset = (progress * chapterPages.length).floor();
+      absolutePage += pageOffset;
+    }
+
+    return absolutePage.clamp(1, _totalPages);
+  }
+
+  Future<void> _jumpToPage(int targetPage) async {
+    if (targetPage < 1 || targetPage > _totalPages) return;
+
+    if (_layoutMode == EpubLayoutMode.vertical) {
+      // For vertical mode, scroll directly to the target page index (minus one)
+      if (_scrollController.isAttached && mounted) {
+        await _scrollController.scrollTo(
+          index: targetPage - 1,
+          duration: const Duration(milliseconds: 300),
+        );
+      }
+      setState(() {
+        _currentPage = targetPage;
+      });
+    } else {
+      // For horizontal mode, find the chapter and offset
+      int currentPageCount = 0;
+      int targetChapterIndex = 0;
+      int pageInChapter = 0;
+
+      for (var i = 0; i < _flatChapters.length; i++) {
+        final chapterPages = _chapterPagesCache[i]?.length ?? 0;
+        if (currentPageCount + chapterPages >= targetPage) {
+          targetChapterIndex = i;
+          pageInChapter = targetPage - currentPageCount - 1;
+          break;
+        }
+        currentPageCount += chapterPages;
+      }
+
+      // Load the target chapter and surrounding chapters
+      await _loadSurroundingChapters(targetChapterIndex);
+
+      if (_scrollController.isAttached && mounted) {
+        setState(() {
+          _currentPage = targetPage;
+          _currentChapterIndex = targetChapterIndex;
+        });
+
+        // For horizontal mode, update the page view controller
+        if (_layoutMode == EpubLayoutMode.horizontal) {
+          final pageController = PageController(initialPage: targetPage - 1);
+          pageController.jumpToPage(targetPage - 1);
+        }
+      }
+    }
+  }
+
+  // Add this method to check if a tap position is on a UI element
+  bool _isUIElement(Offset position) {
+    // Get screen dimensions
+    final size = MediaQuery.of(context).size;
+
+    // Define UI element regions
+    final topBarRegion = Rect.fromLTWH(0, 0, size.width, kToolbarHeight);
+    final bottomBarRegion = Rect.fromLTWH(
+        0,
+        size.height - ResponsiveConstants.getBottomBarHeight(context),
+        size.width,
+        ResponsiveConstants.getBottomBarHeight(context));
+
+    // Check if tap is in any UI region
+    return topBarRegion.contains(position) ||
+        bottomBarRegion.contains(position);
   }
 }
