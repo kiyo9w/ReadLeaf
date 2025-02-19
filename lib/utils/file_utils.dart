@@ -184,7 +184,7 @@ class FileUtils {
     required AnnasArchieve annasArchieve,
   }) async {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      NavScreen.globalKey.currentState?.setNavBarVisibility(true);
+      NavScreen.globalKey.currentState?.hideNavBar(true);
     });
     showDialog(
       context: context,

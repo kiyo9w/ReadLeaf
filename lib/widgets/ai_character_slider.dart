@@ -737,7 +737,7 @@ class _ExpandableDescriptionState extends State<ExpandableDescription> {
                     Text(
                       _isExpanded ? 'Show less' : 'Read more',
                       style: TextStyle(
-                        color: Colors.blue[700],
+                        color: Theme.of(context).primaryColor,
                         fontWeight: FontWeight.w500,
                         fontSize: 14,
                       ),
@@ -748,7 +748,7 @@ class _ExpandableDescriptionState extends State<ExpandableDescription> {
                           ? Icons.keyboard_arrow_up
                           : Icons.keyboard_arrow_down,
                       size: 20,
-                      color: Colors.blue[700],
+                      color: Theme.of(context).primaryColor,
                     ),
                   ],
                 ),

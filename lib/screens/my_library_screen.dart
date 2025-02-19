@@ -40,14 +40,14 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
         ScrollDirection.reverse) {
       if (!_isScrollingDown) {
         _isScrollingDown = true;
-        NavScreen.globalKey.currentState?.setNavBarVisibility(true);
+        NavScreen.globalKey.currentState?.hideNavBar(true);
       }
     }
     if (_scrollController.position.userScrollDirection ==
         ScrollDirection.forward) {
       if (_isScrollingDown) {
         _isScrollingDown = false;
-        NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+        NavScreen.globalKey.currentState?.hideNavBar(false);
       }
     }
   }

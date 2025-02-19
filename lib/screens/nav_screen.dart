@@ -25,7 +25,7 @@ class NavScreen extends StatefulWidget {
 class _NavScreenState extends State<NavScreen> {
   final ValueNotifier<bool> _hideNavBarNotifier = ValueNotifier<bool>(false);
 
-  void setNavBarVisibility(bool hide) {
+  void hideNavBar(bool hide) {
     _hideNavBarNotifier.value = hide;
   }
 
@@ -55,7 +55,7 @@ class _NavScreenState extends State<NavScreen> {
           final fileExtension = file.path.toLowerCase().split('.').last;
           switch (fileExtension) {
             case 'pdf':
-          Navigator.pushNamed(context, '/pdf_viewer');
+              Navigator.pushNamed(context, '/pdf_viewer');
               break;
             case 'epub':
               Navigator.pushNamed(context, '/epub_viewer');

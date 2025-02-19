@@ -5,7 +5,7 @@ import '../screens/nav_screen.dart';
 class AuthDialogService {
   static Future<void> showAuthDialog(BuildContext context) async {
     // Hide the nav bar before showing the dialog
-    NavScreen.globalKey.currentState?.setNavBarVisibility(true);
+    NavScreen.globalKey.currentState?.hideNavBar(true);
 
     // Show the dialog
     await showModalBottomSheet(
@@ -20,7 +20,7 @@ class AuthDialogService {
     ).whenComplete(() {
       FocusScope.of(context).unfocus();
       // Show the nav bar after the dialog is closed
-      NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+      NavScreen.globalKey.currentState?.hideNavBar(false);
     });
   }
 }

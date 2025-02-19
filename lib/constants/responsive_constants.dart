@@ -14,9 +14,9 @@ class ResponsiveConstants {
   // Bottom bar heights
   static double getBottomBarHeight(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-    if (isLargeTablet(context)) return 100.0 + bottomPadding;
-    if (isTablet(context)) return 80.0 + bottomPadding;
-    return 65.0 + bottomPadding;
+    if (isLargeTablet(context)) return 50.0 + bottomPadding;
+    if (isTablet(context)) return 40.0 + bottomPadding;
+    return 24.0 + bottomPadding;
   }
 
   // Side navigation width
@@ -52,12 +52,12 @@ class ResponsiveConstants {
   // Content padding
   static EdgeInsets getContentPadding(BuildContext context) {
     if (isLargeTablet(context)) {
-      return const EdgeInsets.symmetric(horizontal: 32.0, vertical: 24.0);
+      return const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0);
     }
     if (isTablet(context)) {
-      return const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0);
+      return const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0);
     }
-    return const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0);
+    return const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0);
   }
 
   // Font sizes
@@ -74,8 +74,8 @@ class ResponsiveConstants {
 
   // Icon sizes
   static double getIconSize(BuildContext context) {
-    if (isTablet(context)) return 28.0;
-    return 24.0;
+    if (isTablet(context)) return 24.0;
+    return 20.0;
   }
 
   // Button heights

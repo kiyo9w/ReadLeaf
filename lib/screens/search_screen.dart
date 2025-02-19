@@ -53,14 +53,14 @@ class _SearchScreenState extends State<SearchScreen>
         ScrollDirection.reverse) {
       if (!_isScrollingDown) {
         _isScrollingDown = true;
-        NavScreen.globalKey.currentState?.setNavBarVisibility(true);
+        NavScreen.globalKey.currentState?.hideNavBar(true);
       }
     }
     if (_scrollController.position.userScrollDirection ==
         ScrollDirection.forward) {
       if (_isScrollingDown) {
         _isScrollingDown = false;
-        NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+        NavScreen.globalKey.currentState?.hideNavBar(false);
       }
     }
   }
@@ -110,7 +110,7 @@ class _SearchScreenState extends State<SearchScreen>
     final isDark = theme.brightness == Brightness.dark;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      NavScreen.globalKey.currentState?.setNavBarVisibility(true);
+      NavScreen.globalKey.currentState?.hideNavBar(true);
     });
 
     _expandedSections['Genre'] = true;
@@ -252,7 +252,7 @@ class _SearchScreenState extends State<SearchScreen>
         );
       },
     ).whenComplete(() {
-      NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+      NavScreen.globalKey.currentState?.hideNavBar(false);
     });
   }
 
@@ -307,7 +307,7 @@ class _SearchScreenState extends State<SearchScreen>
       selected: selected,
       onSelected: onSelected,
       selectedColor: theme.primaryColor.withOpacity(0.2),
-      backgroundColor: isDark ? theme.cardColor : Colors.grey[100],
+      backgroundColor: theme.cardColor,
       labelStyle: TextStyle(
         color: selected
             ? theme.primaryColor
@@ -579,7 +579,7 @@ class _SearchScreenState extends State<SearchScreen>
                     padding: const EdgeInsets.all(15.0),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: isDark ? theme.cardColor : Colors.white54,
+                        color: theme.cardColor,
                         borderRadius: BorderRadius.circular(50),
                       ),
                       child: Row(
@@ -594,12 +594,14 @@ class _SearchScreenState extends State<SearchScreen>
                             child: TextField(
                               onTap: () => {
                                 NavScreen.globalKey.currentState
-                                    ?.setNavBarVisibility(true)
+                                    ?.hideNavBar(true)
                               },
                               onTapOutside: (value) {
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                WidgetsBinding.instance
+                                    .addPostFrameCallback((_) {
                                   if (mounted) {
-                                    NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+                                    NavScreen.globalKey.currentState
+                                        ?.hideNavBar(false);
                                   }
                                 });
                               },
@@ -611,11 +613,12 @@ class _SearchScreenState extends State<SearchScreen>
                                 contentPadding:
                                     const EdgeInsets.symmetric(vertical: 15),
                                 border: InputBorder.none,
-                                hintText: "    Find some books...",
+                                hintText: "Find some books...",
                                 hintStyle: TextStyle(
                                   color: isDark ? Colors.white54 : Colors.grey,
                                   fontWeight: FontWeight.bold,
                                 ),
+                                fillColor: theme.cardColor,
                               ),
                               onSubmitted: (_) => onSubmit(context),
                               style: TextStyle(
@@ -633,7 +636,7 @@ class _SearchScreenState extends State<SearchScreen>
                             onPressed: () => {
                               WidgetsBinding.instance.addPostFrameCallback((_) {
                                 NavScreen.globalKey.currentState
-                                    ?.setNavBarVisibility(true);
+                                    ?.hideNavBar(true);
                               }),
                               _showFilterModal(context),
                             },

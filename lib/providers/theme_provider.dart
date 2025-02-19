@@ -13,6 +13,7 @@ enum AppThemeMode {
   classicDark, // Archaic
   darkForest, // Forest
   pinkCutesy, // Candy
+  midNight, // Midnight
 }
 
 class ThemeProvider extends ChangeNotifier {
@@ -51,6 +52,8 @@ class ThemeProvider extends ChangeNotifier {
         return 'Forest';
       case AppThemeMode.pinkCutesy:
         return 'Cutesy';
+      case AppThemeMode.midNight:
+        return 'Midnight';
     }
   }
 
@@ -66,17 +69,17 @@ class ThemeProvider extends ChangeNotifier {
   void setSystemTheme() {
     _useSystemTheme = true;
     final brightness = WidgetsBinding.instance.window.platformBrightness;
-    final newMode = brightness == Brightness.dark 
-        ? AppThemeMode.mysteriousDark 
+    final newMode = brightness == Brightness.dark
+        ? AppThemeMode.mysteriousDark
         : AppThemeMode.readLeafLight;
-    
+
     // Store as last used theme before switching
     if (brightness == Brightness.dark) {
       _lastDarkTheme = newMode;
     } else {
       _lastLightTheme = newMode;
     }
-    
+
     _currentThemeMode = newMode;
     _updateTheme();
     _savePreferences();
@@ -123,6 +126,9 @@ class ThemeProvider extends ChangeNotifier {
         break;
       case AppThemeMode.pinkCutesy:
         _theme = pinkCutesyTheme;
+        break;
+      case AppThemeMode.midNight:
+        _theme = _midNightTheme;
         break;
     }
     notifyListeners();
@@ -801,26 +807,28 @@ class ThemeProvider extends ChangeNotifier {
 
     primaryColor: Colors.black,
     scaffoldBackgroundColor: Colors.white,
-    cardColor: Colors.white,
-    dividerColor: const Color(0xFFE0E0E0),
+    cardColor:
+        const Color(0xFFF8F8F8), // Slightly off-white for better contrast
+    dividerColor:
+        const Color(0xFFD6D6D6), // Slightly darker for better visibility
     hintColor: Colors.grey,
     highlightColor: const Color(0xFFFE2C55), // Vibrant TikTok red/pink accent
 
     colorScheme: const ColorScheme.light(
-      primary: Colors.black, // Black text or icons on white
+      primary: Color(0xFF1A1A1A), // Slightly darker black for better contrast
       secondary: Color(0xFFFE2C55), // TikTok accent color
-      tertiary: Color(0xFFFF8787), // Another pinkish accent if needed
+      tertiary: Color(0xFFFF8787), // Additional pinkish accent
       background: Colors.white,
       surface: Colors.white,
       error: Color(0xFFB00020),
-      onPrimary: Colors.white, // White text on black
-      onSecondary: Colors.white, // White text on accent
+      onPrimary: Colors.white,
+      onSecondary: Colors.white,
       onSurface: Colors.black,
       onBackground: Colors.black,
       onError: Colors.white,
       surfaceTint: Colors.black,
-      primaryContainer: Color(0xFFE3E3E3),
-      secondaryContainer: Color(0xFFFFD8DF),
+      primaryContainer: Color(0xFFE0E0E0), // More visible gray tone
+      secondaryContainer: Color(0xFFFFD1D9), // Warmer pink tone
       tertiaryContainer: Color(0xFFFFE3E3),
     ),
 
@@ -865,8 +873,8 @@ class ThemeProvider extends ChangeNotifier {
     ),
 
     cardTheme: CardTheme(
-      color: Colors.white,
-      elevation: 2,
+      color: const Color(0xFFF8F8F8), // Subtle contrast with white background
+      elevation: 3,
       shadowColor: Colors.black.withOpacity(0.1),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
@@ -893,7 +901,7 @@ class ThemeProvider extends ChangeNotifier {
     ),
 
     dividerTheme: const DividerThemeData(
-      color: Color(0xFFE0E0E0),
+      color: Color(0xFFD6D6D6),
       thickness: 1,
       space: 1,
     ),
@@ -949,11 +957,11 @@ class ThemeProvider extends ChangeNotifier {
 
     extensions: [
       const CustomThemeExtension(
-        fileCardBackground: Colors.white,
+        fileCardBackground: Color(0xFFF8F8F8),
         fileCardText: Colors.black,
         aiMessageBackground: Color(0xFFF9F9F9),
         aiMessageText: Colors.black,
-        minimalFileCardBackground: Colors.white,
+        minimalFileCardBackground: Color(0xFFF8F8F8),
         minimalFileCardText: Colors.black,
       ),
     ],
@@ -1456,11 +1464,280 @@ class ThemeProvider extends ChangeNotifier {
     ],
   );
 
+  static final _midNightTheme = ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.dark,
+
+    //
+    // Primary (lighter purple) so text/icons using "primary" stand out clearly
+    //
+    primaryColor: const Color(0xFF9F6CD2), // Lighter purple accent
+
+    //
+    // Most widget backgrounds revolve around #15032C (Sapphire)
+    //
+    scaffoldBackgroundColor: const Color(0xFF15032C),
+    cardColor:
+        const Color(0xFF1E062E), // Slightly lighter than #15032C for contrast
+    dividerColor: const Color(0xFF321246),
+    hintColor: const Color(0xFF808080), // Neutral grey hint
+    highlightColor: const Color(0xFF270652), // Deep purple highlight
+
+    colorScheme: const ColorScheme.dark(
+      primary: Color(0xFF9F6CD2), // Lighter purple accent
+      secondary: Color(0xFFC7A7E3), // A complementary lighter purple
+      tertiary: Color(0xFFE1C6F7), // Subtle pastel purple
+      background: Color(0xFF15032C), // Sapphire background
+      surface: Color(0xFF15032C), // Same for surfaces to unify the "night" feel
+      error: Color(0xFFCF6679),
+      onPrimary:
+          Colors.black, // Text on the lighter purple is black for contrast
+      onSecondary: Colors.black,
+      onSurface: Color(0xFFE6E6E6),
+      onBackground: Color(0xFFE6E6E6),
+      onError: Color(0xFFFFFFFF),
+      surfaceTint: Color(0xFF9F6CD2),
+      // Container variants
+      primaryContainer: Color(0xFFBFA1E5),
+      secondaryContainer: Color(0xFFD8C4F1),
+      tertiaryContainer: Color(0xFFF1E3FD),
+    ),
+
+    //
+    // AppBar theme
+    //
+    appBarTheme: const AppBarTheme(
+      backgroundColor: Color(0xFF15032C),
+      foregroundColor: Color(0xFFE6E6E6),
+      elevation: 0,
+      iconTheme: IconThemeData(color: Color(0xFFE6E6E6)),
+      titleTextStyle: TextStyle(
+        color: Color(0xFFE6E6E6),
+        fontSize: 32.0,
+        fontWeight: FontWeight.bold,
+      ),
+      systemOverlayStyle: SystemUiOverlayStyle.light,
+      surfaceTintColor: Colors.transparent,
+      scrolledUnderElevation: 0,
+    ),
+
+    //
+    // Text themes
+    //
+    textTheme: const TextTheme(
+      displayLarge: TextStyle(
+        color: Color(0xFFE6E6E6),
+        fontSize: 32,
+        fontWeight: FontWeight.bold,
+      ),
+      displayMedium: TextStyle(
+        color: Color(0xFFE6E6E6),
+        fontSize: 28,
+        fontWeight: FontWeight.bold,
+      ),
+      bodyLarge: TextStyle(
+        color: Color(0xFFD0D0D0),
+        fontSize: 16,
+      ),
+      bodyMedium: TextStyle(
+        color: Color(0xFFD0D0D0),
+        fontSize: 14,
+      ),
+      titleLarge: TextStyle(
+        color: Color(0xFFE6E6E6),
+        fontSize: 20,
+        fontWeight: FontWeight.bold,
+      ),
+      titleMedium: TextStyle(
+        color: Color(0xFFE6E6E6),
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+      ),
+      labelLarge: TextStyle(
+        color: Color(0xFFD0D0D0),
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+      ),
+      bodySmall: TextStyle(
+        color: Color(0xFFB3B3B3),
+        fontSize: 12,
+      ),
+      labelSmall: TextStyle(
+        color: Color(0xFFB3B3B3),
+        fontSize: 11,
+      ),
+    ),
+
+    //
+    // Icon theme
+    //
+    iconTheme: const IconThemeData(
+      color: Color(0xFFE6E6E6),
+      size: 24,
+    ),
+
+    //
+    // Navigation bar theme
+    //
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: const Color(0xFF15032C),
+      indicatorColor: const Color(0xFF9F6CD2).withOpacity(0.2),
+      labelTextStyle: MaterialStateProperty.all(
+        const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: Color(0xFFE6E6E6),
+        ),
+      ),
+    ),
+
+    //
+    // Card theme
+    //
+    cardTheme: CardTheme(
+      color: const Color(0xFF1E062E),
+      elevation: 4,
+      shadowColor: Colors.black.withOpacity(0.6),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+    ),
+
+    //
+    // Dialog theme
+    //
+    dialogTheme: DialogTheme(
+      backgroundColor: const Color(0xFF1E062E),
+      elevation: 8,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+    ),
+
+    //
+    // Input decoration theme
+    //
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: const Color(0xFF15032C),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: Color(0xFF9F6CD2), // Use the lighter purple accent
+          width: 2,
+        ),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      hintStyle: const TextStyle(color: Color(0xFF808080)),
+    ),
+
+    //
+    // Divider theme
+    //
+    dividerTheme: const DividerThemeData(
+      color: Color(0xFF321246),
+      thickness: 1,
+      space: 1,
+    ),
+
+    //
+    // Floating Action Button theme
+    //
+    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      backgroundColor: Color(0xFF9F6CD2),
+      foregroundColor: Colors.black,
+    ),
+
+    //
+    // Checkbox theme
+    //
+    checkboxTheme: CheckboxThemeData(
+      fillColor: MaterialStateProperty.resolveWith<Color>((states) {
+        if (states.contains(MaterialState.selected)) {
+          return const Color(0xFF9F6CD2);
+        }
+        return const Color(0xFF321246);
+      }),
+    ),
+
+    //
+    // Radio theme
+    //
+    radioTheme: RadioThemeData(
+      fillColor: MaterialStateProperty.resolveWith<Color>((states) {
+        if (states.contains(MaterialState.selected)) {
+          return const Color(0xFF9F6CD2);
+        }
+        return const Color(0xFF321246);
+      }),
+    ),
+
+    //
+    // Switch theme
+    //
+    switchTheme: SwitchThemeData(
+      thumbColor: MaterialStateProperty.resolveWith<Color>((states) {
+        if (states.contains(MaterialState.selected)) {
+          return const Color(0xFF9F6CD2);
+        }
+        return const Color(0xFF444444);
+      }),
+      trackColor: MaterialStateProperty.resolveWith<Color>((states) {
+        if (states.contains(MaterialState.selected)) {
+          return const Color(0xFF9F6CD2).withOpacity(0.5);
+        }
+        return const Color(0xFF444444).withOpacity(0.3);
+      }),
+    ),
+
+    //
+    // Progress indicator theme
+    //
+    progressIndicatorTheme: const ProgressIndicatorThemeData(
+      color: Color(0xFF9F6CD2),
+    ),
+
+    //
+    // Chip theme
+    //
+    chipTheme: ChipThemeData(
+      backgroundColor: const Color(0xFF15032C),
+      selectedColor: const Color(0xFF9F6CD2).withOpacity(0.2),
+      disabledColor: const Color(0xFF444444),
+      padding: const EdgeInsets.all(8),
+      labelStyle: const TextStyle(color: Color(0xFFE6E6E6)),
+    ),
+
+    //
+    // Custom color extensions for file cards and AI messages
+    // (Everything using #15032C so it all blends nicely)
+    //
+    extensions: [
+      const CustomThemeExtension(
+        fileCardBackground: Color(0xFF15032C),
+        fileCardText: Color(0xFFE6E6E6),
+        aiMessageBackground: Color(0xFF15032C),
+        aiMessageText: Color(0xFFD0D0D0),
+        minimalFileCardBackground: Color(0xFF15032C),
+        minimalFileCardText: Color(0xFFE6E6E6),
+      ),
+    ],
+  );
+
   // Add getter to check if theme is dark
   bool get isDarkMode {
     return _currentThemeMode == AppThemeMode.mysteriousDark ||
         _currentThemeMode == AppThemeMode.classicDark ||
-        _currentThemeMode == AppThemeMode.darkForest;
+        _currentThemeMode == AppThemeMode.darkForest ||
+        _currentThemeMode == AppThemeMode.midNight;
   }
 
   // Add method to toggle between last used light/dark themes

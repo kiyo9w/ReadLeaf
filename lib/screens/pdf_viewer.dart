@@ -111,7 +111,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        NavScreen.globalKey.currentState?.setNavBarVisibility(true);
+        NavScreen.globalKey.currentState?.hideNavBar(true);
       }
     });
   }
@@ -216,7 +216,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
     documentRef.dispose();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+        NavScreen.globalKey.currentState?.hideNavBar(false);
       }
     });
     super.dispose();
@@ -1340,7 +1340,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                   : const Color(0xFFFAF9F7).withOpacity(0.95),
                           elevation: 0,
                           toolbarHeight:
-                              ResponsiveConstants.getBottomBarHeight(context),
+                              ResponsiveConstants.getBottomBarHeight(context) -
+                                  12.0,
                           leading: IconButton(
                             icon: Icon(
                               Icons.arrow_back,
@@ -1357,7 +1358,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                               WidgetsBinding.instance.addPostFrameCallback((_) {
                                 if (mounted) {
                                   NavScreen.globalKey.currentState
-                                      ?.setNavBarVisibility(false);
+                                      ?.hideNavBar(false);
                                 }
                               });
                             },
@@ -1909,8 +1910,18 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                           color: Theme.of(context).brightness == Brightness.dark
                               ? const Color(0xFF251B2F).withOpacity(0.95)
                               : const Color(0xFFFAF9F7).withOpacity(0.95),
-                          padding:
-                              ResponsiveConstants.getContentPadding(context),
+                          padding: EdgeInsets.fromLTRB(
+                            ResponsiveConstants.getContentPadding(context)
+                                    .horizontal /
+                                2,
+                            0,
+                            ResponsiveConstants.getContentPadding(context)
+                                    .horizontal /
+                                2,
+                            ResponsiveConstants.getContentPadding(context)
+                                    .bottom +
+                                10.0,
+                          ),
                           height:
                               ResponsiveConstants.getBottomBarHeight(context),
                           child: Row(

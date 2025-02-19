@@ -36,14 +36,14 @@ class _ResultPageState extends State<ResultPage> {
     _fileBloc = getIt<FileBloc>();
     annasArchieve = getIt<AnnasArchieve>();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      NavScreen.globalKey.currentState?.setNavBarVisibility(true);
+      NavScreen.globalKey.currentState?.hideNavBar(true);
     });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+      NavScreen.globalKey.currentState?.hideNavBar(false);
     });
     super.dispose();
   }

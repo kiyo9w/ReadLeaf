@@ -487,6 +487,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           const Color(0xFF4B3A2B),
                         ],
                       },
+                      {
+                        'mode': AppThemeMode.midNight,
+                        'name': 'Midnight',
+                        'colors': [
+                          const Color(0xFF321246),
+                          const Color(0xFF9F6CD2),
+                          const Color(0xFF1E062E),
+                          const Color(0xFFC7A7E3),
+                          const Color(0xFF15032C),
+                          const Color(0xFFE1C6F7),
+                        ],
+                      },
                     ].map((themeData) => _buildThemeOption(
                           context,
                           mode: themeData['mode'] as AppThemeMode,
@@ -510,7 +522,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     ).whenComplete(() {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+        NavScreen.globalKey.currentState?.hideNavBar(false);
       });
     });
   }
@@ -564,7 +576,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Replace IconButton with Switch
                     Switch(
                       value: themeProvider.isDarkMode,
                       onChanged: (bool value) => themeProvider.toggleTheme(),
@@ -576,7 +587,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onTap: () => {
                   _showThemeSelector(context, themeProvider),
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    NavScreen.globalKey.currentState?.setNavBarVisibility(true);
+                    NavScreen.globalKey.currentState?.hideNavBar(true);
                   })
                 },
               ),

@@ -12,6 +12,7 @@ import 'package:read_leaf/blocs/AuthBloc/auth_state.dart';
 import 'package:read_leaf/widgets/auth/auth_dialog.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:read_leaf/screens/nav_screen.dart';
+
 class ImportCharacterScreen extends StatefulWidget {
   final String filePath;
 
@@ -40,7 +41,7 @@ class _ImportCharacterScreenState extends State<ImportCharacterScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      NavScreen.globalKey.currentState?.setNavBarVisibility(true);
+      NavScreen.globalKey.currentState?.hideNavBar(true);
     });
     _loadCharacterData();
   }
@@ -306,7 +307,7 @@ class _ImportCharacterScreenState extends State<ImportCharacterScreen> {
   @override
   void dispose() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      NavScreen.globalKey.currentState?.setNavBarVisibility(false);
+      NavScreen.globalKey.currentState?.hideNavBar(false);
     });
     _nameController.dispose();
     _taglineController.dispose();
