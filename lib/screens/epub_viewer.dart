@@ -28,7 +28,7 @@ import 'package:read_leaf/widgets/floating_selection_menu.dart';
 import 'package:read_leaf/widgets/full_selection_menu.dart';
 import 'package:flutter/gestures.dart';
 
-enum EpubLayoutMode { vertical, horizontal, facing }
+enum EpubLayoutMode { longStrip, vertical, horizontal, facing }
 
 class PageContent {
   final String content;
@@ -72,6 +72,7 @@ class EpubPageCalculator {
   static const double LINE_HEIGHT_MULTIPLIER = 1.5;
   static const double PAGE_PADDING = 32.0;
   static const int WORDS_PER_PAGE = 550;
+  static const double PAGE_HEIGHT_FRACTION = 0.835;
 
   // Cache structures
   final Map<int, List<PageContent>> _pageCache = {};
@@ -89,8 +90,9 @@ class EpubPageCalculator {
     required double viewportHeight,
     double fontSize = DEFAULT_FONT_SIZE,
   }) {
+    final double fixedHeight = viewportHeight * PAGE_HEIGHT_FRACTION;
     _viewportWidth = viewportWidth - (PAGE_PADDING * 2);
-    _viewportHeight = viewportHeight;
+    _viewportHeight = fixedHeight;
     _fontSize = fontSize;
     _effectiveViewportHeight = _viewportHeight - (PAGE_PADDING * 2);
   }
@@ -605,11 +607,23 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     final positions = _positionsListener.itemPositions.value;
     if (positions.isEmpty) return;
 
-    final firstIndex = positions.first.index;
+    // Find the item that is most visible
+    ItemPosition? bestPosition;
+    double bestVisiblePortion = 0.0;
 
-    if (_layoutMode == EpubLayoutMode.vertical) {
+    for (final pos in positions) {
+      final visiblePortion = pos.itemTrailingEdge - pos.itemLeadingEdge;
+      if (visiblePortion > bestVisiblePortion) {
+        bestVisiblePortion = visiblePortion;
+        bestPosition = pos;
+      }
+    }
+
+    if (bestPosition == null) return;
+
+    if (_layoutMode == EpubLayoutMode.longStrip) {
       // Update current page directly from the scroll position
-      final newPage = firstIndex + 1;
+      final newPage = bestPosition.index + 1;
       if (newPage != _currentPage) {
         setState(() {
           _currentPage = newPage;
@@ -617,7 +631,8 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
         _updateMetadata(newPage);
       }
     } else {
-      // Handle horizontal mode chapter tracking
+      // Handle horizontal/vertical paged mode chapter tracking
+      final firstIndex = positions.first.index;
       if (firstIndex != _currentChapterIndex) {
         setState(() {
           _currentChapterIndex = firstIndex;
@@ -637,14 +652,23 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   }
 
   int _calculateCurrentPage() {
-    if (_layoutMode == EpubLayoutMode.vertical) {
+    if (_layoutMode == EpubLayoutMode.longStrip) {
       final positions = _positionsListener.itemPositions.value;
-      if (positions.isNotEmpty) {
-        // In vertical mode, first visible item's index + 1 is the page number
-        final firstIndex = positions.first.index;
-        return firstIndex + 1;
+      if (positions.isEmpty) return 1;
+
+      // Find most visible item
+      ItemPosition? bestPosition;
+      double bestVisiblePortion = 0.0;
+
+      for (final pos in positions) {
+        final visiblePortion = pos.itemTrailingEdge - pos.itemLeadingEdge;
+        if (visiblePortion > bestVisiblePortion) {
+          bestVisiblePortion = visiblePortion;
+          bestPosition = pos;
+        }
       }
-      return 1;
+
+      return (bestPosition?.index ?? 0) + 1;
     } else {
       // For horizontal mode, use existing page tracking
       return _currentPage.clamp(1, _totalPages);
@@ -943,11 +967,17 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                 body: Stack(
                   children: [
                     // Content layer
-                    if (_layoutMode == EpubLayoutMode.vertical)
+                    if (_layoutMode == EpubLayoutMode.horizontal)
+                      _buildHorizontalLayout()
+                    else if (_layoutMode == EpubLayoutMode.vertical)
+                      _buildVerticalPagedLayout()
+                    else if (_layoutMode == EpubLayoutMode.longStrip)
                       ScrollablePositionedList.builder(
                         itemCount: _flattenedPages.length,
-                        itemBuilder: (context, index) =>
-                            _buildPage(_flattenedPages[index]),
+                        itemBuilder: (context, index) {
+                          final page = _flattenedPages[index];
+                          return _buildPage(page);
+                        },
                         itemScrollController: _scrollController,
                         itemPositionsListener: _positionsListener,
                       )
@@ -1103,6 +1133,32 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       items: [
+                                        PopupMenuItem(
+                                          value: EpubLayoutMode.longStrip,
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.view_day,
+                                                color: _layoutMode ==
+                                                        EpubLayoutMode.longStrip
+                                                    ? Theme.of(context)
+                                                        .primaryColor
+                                                    : null,
+                                                size: 20,
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Text('Long Strip',
+                                                  style: TextStyle(
+                                                    color: _layoutMode ==
+                                                            EpubLayoutMode
+                                                                .longStrip
+                                                        ? Theme.of(context)
+                                                            .primaryColor
+                                                        : null,
+                                                  )),
+                                            ],
+                                          ),
+                                        ),
                                         PopupMenuItem(
                                           value: EpubLayoutMode.vertical,
                                           child: Row(
@@ -1926,33 +1982,59 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     );
   }
 
-  Widget _buildChapter(EpubChapter chapter) {
-    final chapterIndex = _flatChapters.indexOf(chapter);
-    final pages = _chapterPagesCache[chapterIndex];
+  Widget _buildVerticalPagedLayout() {
+    return Container(
+      padding: EdgeInsets.only(
+        top: ResponsiveConstants.getBottomBarHeight(context),
+        bottom: ResponsiveConstants.getBottomBarHeight(context),
+      ),
+      child: PageView.builder(
+        scrollDirection: Axis.vertical,
+        controller: PageController(
+          initialPage: _currentPage - 1,
+          keepPage: true,
+        ),
+        onPageChanged: (index) {
+          if (!_isDisposed && mounted) {
+            setState(() {
+              _currentPage = index + 1;
+            });
+            _updateMetadata(_currentPage);
+          }
+        },
+        itemBuilder: (context, pageIndex) {
+          // Find which chapter this page belongs to
+          int currentCount = 0;
+          int targetChapterIndex = 0;
+          int pageInChapter = 0;
 
-    if (pages == null) {
-      // Schedule page calculation for next frame
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _loadChapter(chapterIndex);
-      });
-      return const Center(child: CircularProgressIndicator());
-    }
+          for (var i = 0; i < _flatChapters.length; i++) {
+            final chapterPages = _chapterPagesCache[i]?.length ?? 0;
+            if (currentCount + chapterPages > pageIndex) {
+              targetChapterIndex = i;
+              pageInChapter = pageIndex - currentCount;
+              break;
+            }
+            currentCount += chapterPages;
+          }
 
-    // For horizontal layout, return pages in a row
-    if (_layoutMode == EpubLayoutMode.horizontal) {
-      return Row(
-        children: pages
-            .map((page) => SizedBox(
-                  width: MediaQuery.of(context).size.width,
-                  child: _buildPage(page),
-                ))
-            .toList(),
-      );
-    }
+          // Load the chapter if needed
+          if (!_chapterPagesCache.containsKey(targetChapterIndex)) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _loadChapter(targetChapterIndex);
+            });
+            return const Center(child: CircularProgressIndicator());
+          }
 
-    // For vertical layout, return pages in a column
-    return Column(
-      children: pages.map((page) => _buildPage(page)).toList(),
+          final pages = _chapterPagesCache[targetChapterIndex];
+          if (pages == null || pageInChapter >= pages.length) {
+            return const Center(child: Text('Page not available'));
+          }
+
+          return _buildPage(pages[pageInChapter]);
+        },
+        itemCount: _totalPages,
+      ),
     );
   }
 
