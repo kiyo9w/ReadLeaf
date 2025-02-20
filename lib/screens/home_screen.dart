@@ -19,6 +19,7 @@ import 'package:read_leaf/models/book_metadata.dart';
 import 'package:path/path.dart' as path;
 import 'package:read_leaf/blocs/SearchBloc/search_bloc.dart';
 import 'package:read_leaf/utils/utils.dart';
+import 'package:read_leaf/widgets/animations/refresh_animation.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -34,6 +35,7 @@ class HomeScreenState extends State<HomeScreen> {
   BookData? _bookOfTheDay;
   final ScrollController _scrollController = ScrollController();
   bool _isScrollingDown = false;
+  double _dragOffset = 0.0;
 
   @override
   void initState() {
@@ -179,6 +181,17 @@ class HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  // Add this method to handle drag offset updates
+  void _updateDragOffset(double offset) {
+    // Only start hiding when drag is more than 20 pixels
+    final shouldHide = offset > 20;
+    if (shouldHide != (_dragOffset > 0)) {
+      setState(() {
+        _dragOffset = shouldHide ? offset : 0;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<FileBloc, FileState>(
@@ -192,61 +205,84 @@ class HomeScreenState extends State<HomeScreen> {
         }
 
         return Scaffold(
-          body: RefreshIndicator(
-            onRefresh: _refreshScreen,
+          body: PullToRefreshAnimation(
+            onRefresh: () async {
+              await _refreshScreen();
+              await _loadBookOfTheDay();
+              await generateNewAIMessage();
+              setState(() {
+                _dragOffset = 0;
+              });
+            },
+            onPull: _updateDragOffset, // Add this callback
             child: CustomScrollView(
               controller: _scrollController,
               slivers: [
                 SliverAppBar(
                   floating: true,
-                  backgroundColor:
-                      Theme.of(context).appBarTheme.backgroundColor,
-                  title: Row(
-                    children: [
-                      Image.asset(
-                        'assets/images/app_logo/logo_nobg.png',
-                        width: 72,
-                        height: 72,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Leafy reader',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                    ],
-                  ),
-                  actions: [
-                    Stack(
+                  snap: true,
+                  elevation: _dragOffset > 0 ? 0 : null,
+                  backgroundColor: _dragOffset > 0
+                      ? Colors.transparent
+                      : Theme.of(context).appBarTheme.backgroundColor,
+                  title: AnimatedOpacity(
+                    opacity: _dragOffset > 0 ? 0.0 : 1.0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Row(
                       children: [
-                        IconButton(
-                          icon: Icon(Icons.card_giftcard,
-                              color: Theme.of(context).iconTheme.color),
-                          onPressed: () {},
+                        Image.asset(
+                          'assets/images/app_logo/logo_nobg.png',
+                          width: 72,
+                          height: 72,
                         ),
-                        Positioned(
-                          right: 8,
-                          top: 8,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).primaryColor,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Text(
-                              '3',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Leafy reader',
+                          style: Theme.of(context).textTheme.titleLarge,
                         ),
                       ],
                     ),
-                    IconButton(
-                      icon: Icon(Icons.more_vert,
-                          color: Theme.of(context).iconTheme.color),
-                      onPressed: () {},
+                  ),
+                  actions: [
+                    AnimatedOpacity(
+                      opacity: _dragOffset > 0 ? 0.0 : 1.0,
+                      duration: const Duration(milliseconds: 200),
+                      child: Row(
+                        children: [
+                          Stack(
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.card_giftcard,
+                                    color: Theme.of(context).iconTheme.color),
+                                onPressed: () {},
+                              ),
+                              Positioned(
+                                right: 8,
+                                top: 8,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).primaryColor,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Text(
+                                    '3',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.more_vert,
+                                color: Theme.of(context).iconTheme.color),
+                            onPressed: () {},
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),

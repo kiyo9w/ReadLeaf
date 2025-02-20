@@ -8,6 +8,7 @@ import 'package:read_leaf/screens/home_screen.dart';
 import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:read_leaf/screens/nav_screen.dart';
+import 'package:read_leaf/widgets/animations/refresh_animation.dart';
 
 class CharacterScreen extends StatefulWidget {
   final VoidCallback? onCharacterChanged;
@@ -541,30 +542,45 @@ class _CharacterScreenState extends State<CharacterScreen>
 
   Widget _buildCategoryContent(String category, ThemeData theme) {
     final characters = _getCharactersByCategory(category);
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildFeaturedCharacters(theme, characters),
-          const SizedBox(height: 16),
-          _buildAllCharacters(theme, characters),
-          const SizedBox(height: 16),
-          _buildRecentCharacters(theme, characters),
-          const SizedBox(height: 80),
-        ],
+    return PullToRefreshAnimation(
+      onRefresh: () async {
+        await Future.delayed(const Duration(seconds: 2));
+        if (mounted) {
+          setState(() {});
+        }
+      },
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildFeaturedCharacters(theme, characters),
+            const SizedBox(height: 16),
+            _buildAllCharacters(theme, characters),
+            const SizedBox(height: 16),
+            _buildRecentCharacters(theme, characters),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildVoicesList(ThemeData theme) {
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      itemCount: _voices.length,
-      itemBuilder: (context, index) {
-        final voice = _voices[index];
-        return _buildVoiceItem(voice, theme);
+    return PullToRefreshAnimation(
+      onRefresh: () async {
+        await Future.delayed(const Duration(seconds: 2));
+        if (mounted) {
+          setState(() {});
+        }
       },
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+        itemCount: _voices.length,
+        itemBuilder: (context, index) {
+          final voice = _voices[index];
+          return _buildVoiceItem(voice, theme);
+        },
+      ),
     );
   }
 
