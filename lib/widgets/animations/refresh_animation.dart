@@ -1,4 +1,3 @@
-// AI generated animation
 import 'dart:math';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';

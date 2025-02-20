@@ -284,7 +284,6 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
                       Text(
                         'Switch',
                         style: TextStyle(
-                          color: theme.primaryColor,
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
                         ),
@@ -737,7 +736,6 @@ class _ExpandableDescriptionState extends State<ExpandableDescription> {
                     Text(
                       _isExpanded ? 'Show less' : 'Read more',
                       style: TextStyle(
-                        color: Theme.of(context).primaryColor,
                         fontWeight: FontWeight.w500,
                         fontSize: 14,
                       ),

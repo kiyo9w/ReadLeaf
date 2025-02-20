@@ -99,7 +99,6 @@ class AIMessageCard extends StatelessWidget {
                         Text(
                           'Continue reading...',
                           style: TextStyle(
-                            color: theme.primaryColor,
                             fontWeight: FontWeight.w500,
                             fontSize: 14,
                           ),
