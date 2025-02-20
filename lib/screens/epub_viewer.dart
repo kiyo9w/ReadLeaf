@@ -97,22 +97,59 @@ class EpubPageCalculator {
     required double viewportWidth,
     required double viewportHeight,
     double fontSize = DEFAULT_FONT_SIZE,
-  }) : _viewportWidth = viewportWidth - (PAGE_PADDING * 2),
-       _viewportHeight = viewportHeight * PAGE_HEIGHT_FRACTION,
-       _fontSize = fontSize,
-       _effectiveViewportHeight = (viewportHeight * PAGE_HEIGHT_FRACTION) - (PAGE_PADDING * 2) {
+  })  : _viewportWidth = viewportWidth - (PAGE_PADDING * 2),
+        _viewportHeight = viewportHeight * PAGE_HEIGHT_FRACTION,
+        _fontSize = fontSize,
+        _effectiveViewportHeight =
+            (viewportHeight * PAGE_HEIGHT_FRACTION) - (PAGE_PADDING * 2) {
     _calculateMetrics();
   }
 
   void _calculateMetrics() {
+    // Calculate available space with exact padding
+    final availableWidth = _viewportWidth - (PAGE_PADDING * 2);
+    final availableHeight = _effectiveViewportHeight - (PAGE_PADDING * 2);
+
+    // Calculate line metrics with exact measurements
     final charWidth = _fontSize * AVERAGE_CHAR_WIDTH_RATIO;
     final wordSpacing = _fontSize * WORD_SPACING_RATIO;
     final averageWordWidth = (charWidth * AVERAGE_WORD_LENGTH) + wordSpacing;
-    _wordsPerLine = (_viewportWidth / averageWordWidth).floor();
-
     final lineHeight = _fontSize * LINE_HEIGHT_MULTIPLIER;
-    _linesPerPage = (_effectiveViewportHeight / lineHeight).floor();
-    _wordsPerPage = (_wordsPerLine * _linesPerPage * 0.95).floor();
+
+    // Calculate maximum words per line (use 98% to account for font variations)
+    _wordsPerLine = ((availableWidth / averageWordWidth) * 0.98).floor();
+
+    // Calculate maximum lines per page (use 98% to account for line height variations)
+    _linesPerPage = ((availableHeight / lineHeight) * 0.98).floor();
+
+    // Calculate total words per page
+    _wordsPerPage = _wordsPerLine * _linesPerPage;
+
+    // Apply device-specific maximum (higher limits than before)
+    final deviceConstraints = _getDeviceSpecificConstraints();
+    _wordsPerPage = math.min(_wordsPerPage, deviceConstraints);
+  }
+
+  int _getDeviceSpecificConstraints() {
+    // Base maximum on viewport size with more generous limits
+    final viewportArea = _viewportWidth * _viewportHeight;
+    final baseMaxWords = (viewportArea / (_fontSize * _fontSize * 1.5))
+        .floor(); // Less conservative multiplier
+
+    // Higher limits for each device category
+    if (_viewportWidth < 400) {
+      // Small phones
+      return math.min(baseMaxWords, 250);
+    } else if (_viewportWidth < 600) {
+      // Regular phones
+      return math.min(baseMaxWords, 300);
+    } else if (_viewportWidth < 800) {
+      // Large phones
+      return math.min(baseMaxWords, 350);
+    } else {
+      // Tablets and larger
+      return math.min(baseMaxWords, 400);
+    }
   }
 
   void updateFontSize(double newFontSize) {
@@ -200,101 +237,175 @@ class EpubPageCalculator {
   }
 
   // Improved page break calculation that maximizes content per page
+  // New version of page-break calculation that uses actual text measurements
   List<PageContent> _calculatePageBreaks(
-    ParsedContent content,
-    int chapterIndex,
-    String chapterTitle,
-  ) {
+      ParsedContent content, int chapterIndex, String chapterTitle) {
     final pages = <PageContent>[];
-    final StringBuffer currentPage = StringBuffer();
-    int currentCharCount = 0;
-    final int maxCharsPerPage = (_wordsPerPage * (AVERAGE_WORD_LENGTH + 1)).floor();
 
-    for (var block in content.blocks) {
-      final String plainText = block.textSpan.text ?? '';
+    // We work with a buffer (for the page's HTML) and a counter for the filled height.
+    final StringBuffer currentPageBuffer = StringBuffer();
+    double currentPageHeight = 0.0;
+    // Our goal is to fill at least 90% of available height.
+    final double pageHeightLimit = _effectiveViewportHeight * 0.95;
+    // We assume a uniform line height (this could be measured more precisely if needed)
+    final double lineHeight = _fontSize * LINE_HEIGHT_MULTIPLIER;
+    // Default style for paragraphs:
+    final TextStyle defaultStyle =
+        TextStyle(fontSize: _fontSize, height: LINE_HEIGHT_MULTIPLIER);
+    // Use the full available width (already subtracted in _viewportWidth)
+    final double availableWidth = _viewportWidth;
+
+    // Process each block (a block might be a paragraph or header)
+    for (final block in content.blocks) {
+      // Determine the tag and style (if not set, default to paragraph)
       final String tag = block.styles['tag'] ?? 'p';
-      
-      // Handle block-level elements (headers)
+      // Use a header style if available; otherwise, use the default style.
+      final TextStyle style = content.styles[tag] ?? defaultStyle;
+
+      // For headers, we force a page break.
       if (tag.startsWith('h')) {
-        if (currentPage.isNotEmpty) {
-          pages.add(_createPage(currentPage.toString(), chapterIndex, pages.length + 1, chapterTitle));
-          currentPage.clear();
-          currentCharCount = 0;
+        if (currentPageBuffer.isNotEmpty) {
+          pages.add(_createPage(currentPageBuffer.toString(), chapterIndex,
+              pages.length + 1, chapterTitle));
+          currentPageBuffer.clear();
+          currentPageHeight = 0.0;
         }
-        
-        currentPage.writeln('<$tag>$plainText</$tag>');
-        pages.add(_createPage(currentPage.toString(), chapterIndex, pages.length + 1, chapterTitle));
-        currentPage.clear();
-        currentCharCount = 0;
+        // Write the header (assumed to fit in one line)
+        currentPageBuffer.writeln('<$tag>${block.textSpan.text}</$tag>');
+        currentPageHeight += lineHeight;
+        // Flush if we've reached our height limit.
+        if (currentPageHeight >= pageHeightLimit) {
+          pages.add(_createPage(currentPageBuffer.toString(), chapterIndex,
+              pages.length + 1, chapterTitle));
+          currentPageBuffer.clear();
+          currentPageHeight = 0.0;
+        }
         continue;
       }
 
-      // Handle regular paragraphs
-      final words = plainText.split(RegExp(r'\s+'));
-      bool isFirstWordInParagraph = true;
+      // For a normal paragraph:
+      final String plainText = block.textSpan.text ?? '';
+      // Split the text into words (ignoring extra whitespace)
+      final List<String> words = plainText.split(RegExp(r'\s+'));
 
-      for (int i = 0; i < words.length; i++) {
-        final word = words[i];
-        final spaceNeeded = word.length + (isFirstWordInParagraph ? 0 : 1); // Add space except for first word
-
-        // Check if adding this word would exceed page capacity
-        if (currentCharCount + spaceNeeded > maxCharsPerPage) {
-          // If the word is very long and would overflow even on a new page
-          if (word.length > maxCharsPerPage * 0.5) { // Only split if word takes up more than half a page
-            // Find best split point
-            final splitPoint = maxCharsPerPage - currentCharCount - 1;
-            if (splitPoint > 0) {
-              currentPage.write(word.substring(0, splitPoint) + '-');
-              pages.add(_createPage(currentPage.toString(), chapterIndex, pages.length + 1, chapterTitle));
-              
-              // Start new page with remainder of word
-              currentPage.clear();
-              currentPage.write('<p>' + word.substring(splitPoint));
-              currentCharCount = word.length - splitPoint;
-              isFirstWordInParagraph = false;
+      String currentLine = "";
+      for (final word in words) {
+        // Check if this word is wider than availableWidth on its own.
+        if (_measureTextWidth(word, style) > availableWidth) {
+          // If so, split the word into smaller segments.
+          final List<String> segments =
+              _splitLongWord(word, style, availableWidth);
+          for (final segment in segments) {
+            // Process each segment as you would a normal word.
+            if (currentLine.isEmpty) {
+              currentLine = segment;
             } else {
-              // Create new page and try to fit word there
-              pages.add(_createPage(currentPage.toString(), chapterIndex, pages.length + 1, chapterTitle));
-              currentPage.clear();
-              currentPage.write('<p>' + word);
-              currentCharCount = word.length;
-              isFirstWordInParagraph = false;
+              final String candidate = '$currentLine $segment';
+              if (_measureTextWidth(candidate, style) <= availableWidth) {
+                currentLine = candidate;
+              } else {
+                // Write out the current line.
+                currentPageBuffer.writeln(currentLine);
+                currentPageHeight += lineHeight;
+                // If adding another line would exceed our limit, flush the page.
+                if (currentPageHeight + lineHeight > pageHeightLimit) {
+                  pages.add(_createPage(currentPageBuffer.toString(),
+                      chapterIndex, pages.length + 1, chapterTitle));
+                  currentPageBuffer.clear();
+                  currentPageHeight = 0.0;
+                }
+                currentLine = segment;
+              }
             }
-          } else {
-            // Normal word - just move to next page
-            pages.add(_createPage(currentPage.toString(), chapterIndex, pages.length + 1, chapterTitle));
-            currentPage.clear();
-            currentPage.write('<p>' + word);
-            currentCharCount = word.length;
-            isFirstWordInParagraph = false;
           }
         } else {
-          // Add word to current page
-          if (isFirstWordInParagraph) {
-            currentPage.write('<p>' + word);
-            isFirstWordInParagraph = false;
+          // Process a normal word.
+          if (currentLine.isEmpty) {
+            currentLine = word;
           } else {
-            currentPage.write(' ' + word);
+            final String candidate = '$currentLine $word';
+            if (_measureTextWidth(candidate, style) <= availableWidth) {
+              currentLine = candidate;
+            } else {
+              // Write out the current line.
+              currentPageBuffer.writeln(currentLine);
+              currentPageHeight += lineHeight;
+              if (currentPageHeight + lineHeight > pageHeightLimit) {
+                pages.add(_createPage(currentPageBuffer.toString(),
+                    chapterIndex, pages.length + 1, chapterTitle));
+                currentPageBuffer.clear();
+                currentPageHeight = 0.0;
+              }
+              currentLine = word;
+            }
           }
-          currentCharCount += spaceNeeded;
         }
+      }
+      // End of the paragraph: flush any remaining text in the line.
+      if (currentLine.isNotEmpty) {
+        currentPageBuffer.writeln(currentLine);
+        currentPageHeight += lineHeight;
+        currentLine = "";
+      }
+      // Optional: add a small extra gap between paragraphs.
+      currentPageBuffer.writeln();
+      currentPageHeight += lineHeight * 0.5;
 
-        // Close paragraph tag if this is the last word
-        if (i == words.length - 1) {
-          currentPage.writeln('</p>');
-        }
+      // If the next line would overflow, flush the page.
+      if (currentPageHeight >= pageHeightLimit) {
+        pages.add(_createPage(currentPageBuffer.toString(), chapterIndex,
+            pages.length + 1, chapterTitle));
+        currentPageBuffer.clear();
+        currentPageHeight = 0.0;
       }
     }
 
-    // Add remaining content as last page
-    if (currentPage.isNotEmpty) {
-      pages.add(_createPage(currentPage.toString(), chapterIndex, pages.length + 1, chapterTitle));
+    // Flush any remaining content into a final page.
+    if (currentPageBuffer.isNotEmpty) {
+      pages.add(_createPage(currentPageBuffer.toString(), chapterIndex,
+          pages.length + 1, chapterTitle));
     }
 
     return pages;
   }
 
-  PageContent _createPage(String content, int chapterIndex, int pageNumber, String chapterTitle) {
+// Helper: measure the width of a text snippet using a given TextStyle.
+  double _measureTextWidth(String text, TextStyle style) {
+    final textPainter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+    return textPainter.width;
+  }
+
+// Helper: if a word is too wide, split it into segments that each fit the available width.
+  List<String> _splitLongWord(
+      String word, TextStyle style, double availableWidth) {
+    final segments = <String>[];
+    String currentSegment = "";
+    for (int i = 0; i < word.length; i++) {
+      final candidate = currentSegment + word[i];
+      if (_measureTextWidth(candidate, style) <= availableWidth) {
+        currentSegment = candidate;
+      } else {
+        if (currentSegment.isEmpty) {
+          // In a worst-case scenario, force-add the single character.
+          segments.add(word[i]);
+        } else {
+          segments.add(currentSegment);
+          currentSegment = word[i];
+        }
+      }
+    }
+    if (currentSegment.isNotEmpty) {
+      segments.add(currentSegment);
+    }
+    return segments;
+  }
+
+  PageContent _createPage(
+      String content, int chapterIndex, int pageNumber, String chapterTitle) {
     return PageContent(
       content: content,
       chapterIndex: chapterIndex,
@@ -306,13 +417,13 @@ class EpubPageCalculator {
   List<String> _splitTextIntoChunks(String text, int maxChunkSize) {
     final chunks = <String>[];
     int start = 0;
-    
+
     while (start < text.length) {
       final end = math.min(start + maxChunkSize, text.length);
       chunks.add(text.substring(start, end));
       start = end;
     }
-    
+
     return chunks;
   }
 
@@ -603,13 +714,9 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   final Map<int, int> _absolutePageMapping = {};
   int _nextAbsolutePage = 1;
 
-  // Add this getter to ensure valid slider values
-  double get _sliderMax => _totalPages > 0 ? _totalPages.toDouble() : 1.0;
-  double get _sliderValue {
-    if (_totalPages == 0) return 1.0;
-    final currentPage = _getCurrentPage();
-    return currentPage.toDouble().clamp(1.0, _sliderMax);
-  }
+  // Add these getters for slider values
+  double get _sliderValue => _currentPage.toDouble();
+  double get _sliderMax => (_totalPages > 0) ? _totalPages.toDouble() : 1.0;
 
   // Highlight management
   final Map<int, List<EpubHighlight>> _highlights = {};
@@ -629,9 +736,19 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     return allPages;
   }
 
+  // Add these class variables near the top of _EPUBViewerScreenState
+  double _sliderWidth = 0.0;
+  final GlobalKey _sliderKey = GlobalKey();
+
+  // Add these member variables near the top of _EPUBViewerScreenState
+  late PageController _verticalPageController;
+  late PageController _horizontalPageController;
+
   @override
   void initState() {
     super.initState();
+    _verticalPageController = PageController(initialPage: _currentPage - 1);
+    _horizontalPageController = PageController(initialPage: _currentPage - 1);
     _initializeReader();
 
     _pulseController = AnimationController(
@@ -689,6 +806,8 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     _positionsListener.itemPositions.removeListener(_onScroll);
     _pulseController.dispose();
     _pulseTimer?.cancel();
+    _verticalPageController.dispose();
+    _horizontalPageController.dispose();
     super.dispose();
   }
 
@@ -967,13 +1086,40 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     }
   }
 
-  void _handleLayoutChange(EpubLayoutMode mode) {
+  void _handleLayoutChange(EpubLayoutMode mode) async {
     setState(() {
+      _isLoading = true;
       _layoutMode = mode;
     });
-    // Re-render the current chapter with new layout
-    if (_scrollController.isAttached && mounted) {
-      _scrollController.jumpTo(index: _currentChapterIndex);
+
+    try {
+      // Re-paginate all chapters when changing layout mode
+      _chapterPagesCache.clear();
+      for (int i = 0; i < _flatChapters.length; i++) {
+        await _splitChapterIntoPages(i);
+      }
+
+      _calculateTotalPages();
+
+      // Reset page controllers
+      _verticalPageController = PageController(initialPage: _currentPage - 1);
+      _horizontalPageController = PageController(initialPage: _currentPage - 1);
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+
+      // Jump to current page in new layout
+      await _jumpToPage(_currentPage);
+    } catch (e) {
+      print('Error changing layout: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -1841,92 +1987,70 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                               ),
                               const SizedBox(width: 10),
                               Expanded(
-                                child: SliderTheme(
-                                  data: SliderThemeData(
-                                    trackHeight:
-                                        ResponsiveConstants.isTablet(context)
-                                            ? 4
-                                            : 2,
-                                    activeTrackColor:
-                                        Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFAA96B6)
-                                            : const Color(0xFF9E7B80),
-                                    inactiveTrackColor:
-                                        Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFF352A3B)
-                                            : const Color(0xFFF8F1F1),
-                                    thumbColor: Theme.of(context).brightness ==
-                                            Brightness.dark
-                                        ? const Color(0xFFAA96B6)
-                                        : const Color(0xFF9E7B80),
-                                    overlayColor:
-                                        Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFAA96B6)
-                                                .withOpacity(0.12)
-                                            : const Color(0xFF9E7B80)
-                                                .withOpacity(0.12),
-                                    thumbShape: RoundSliderThumbShape(
-                                      enabledThumbRadius:
-                                          ResponsiveConstants.isTablet(context)
-                                              ? 8
-                                              : 6,
-                                    ),
-                                    overlayShape: RoundSliderOverlayShape(
-                                      overlayRadius:
-                                          ResponsiveConstants.isTablet(context)
-                                              ? 16
-                                              : 12,
-                                    ),
-                                  ),
-                                  child: _totalPages > 0
-                                      ? Slider(
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    _sliderWidth = constraints.maxWidth;
+                                    return GestureDetector(
+                                      key: _sliderKey,
+                                      behavior: HitTestBehavior.opaque,
+                                      onTapDown: (details) => _handleSliderTap(
+                                          details, constraints.maxWidth),
+                                      child: SliderTheme(
+                                        data: SliderThemeData(
+                                          trackHeight:
+                                              ResponsiveConstants.isTablet(
+                                                      context)
+                                                  ? 4
+                                                  : 2,
+                                          activeTrackColor:
+                                              Theme.of(context).brightness ==
+                                                      Brightness.dark
+                                                  ? const Color(0xFFAA96B6)
+                                                  : const Color(0xFF9E7B80),
+                                          inactiveTrackColor:
+                                              Theme.of(context).brightness ==
+                                                      Brightness.dark
+                                                  ? const Color(0xFF352A3B)
+                                                  : const Color(0xFFF8F1F1),
+                                          thumbColor:
+                                              Theme.of(context).brightness ==
+                                                      Brightness.dark
+                                                  ? const Color(0xFFAA96B6)
+                                                  : const Color(0xFF9E7B80),
+                                          overlayColor:
+                                              Theme.of(context).brightness ==
+                                                      Brightness.dark
+                                                  ? const Color(0xFFAA96B6)
+                                                      .withOpacity(0.12)
+                                                  : const Color(0xFF9E7B80)
+                                                      .withOpacity(0.12),
+                                          thumbShape: RoundSliderThumbShape(
+                                            enabledThumbRadius:
+                                                ResponsiveConstants.isTablet(
+                                                        context)
+                                                    ? 8
+                                                    : 6,
+                                          ),
+                                          overlayShape: RoundSliderOverlayShape(
+                                            overlayRadius:
+                                                ResponsiveConstants.isTablet(
+                                                        context)
+                                                    ? 16
+                                                    : 12,
+                                          ),
+                                        ),
+                                        child: Slider(
                                           value: _sliderValue,
                                           min: 1,
                                           max: _sliderMax,
-                                          onChangeStart: (value) {
-                                            _sliderDwellTimer?.cancel();
-                                            _lastSliderValue = value.toInt();
-                                            _isSliderInteracting = true;
-                                          },
-                                          onChanged: (value) {
-                                            final intValue = value.toInt();
-                                            if (_lastSliderValue != intValue) {
-                                              _sliderDwellTimer?.cancel();
-                                              _lastSliderValue = intValue;
-                                              setState(() {
-                                                _currentPage = intValue;
-                                              });
-                                              _sliderDwellTimer = Timer(
-                                                const Duration(
-                                                    milliseconds: 200),
-                                                () {
-                                                  if (mounted &&
-                                                      _lastSliderValue ==
-                                                          intValue) {
-                                                    _jumpToPage(intValue);
-                                                  }
-                                                },
-                                              );
-                                            }
-                                          },
-                                          onChangeEnd: (value) {
-                                            _sliderDwellTimer?.cancel();
-                                            final intValue = value.toInt();
-                                            _jumpToPage(intValue);
-                                            Future.delayed(
-                                                const Duration(
-                                                    milliseconds: 200), () {
-                                              if (mounted) {
-                                                _isSliderInteracting = false;
-                                                _lastSliderValue = null;
-                                              }
-                                            });
-                                          },
-                                        )
-                                      : const SizedBox.shrink(),
+                                          onChangeStart:
+                                              _handleSliderChangeStart,
+                                          onChanged: _handleSliderChanged,
+                                          onChangeEnd: _handleSliderChangeEnd,
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
                               ),
                               const SizedBox(width: 10),
@@ -1967,10 +2091,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       ),
       child: PageView.builder(
         scrollDirection: Axis.horizontal,
-        controller: PageController(
-          initialPage: _currentPage - 1,
-          keepPage: true,
-        ),
+        controller: _horizontalPageController,
         onPageChanged: (index) {
           if (!_isDisposed && mounted) {
             setState(() {
@@ -2023,10 +2144,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       ),
       child: PageView.builder(
         scrollDirection: Axis.vertical,
-        controller: PageController(
-          initialPage: _currentPage - 1,
-          keepPage: true,
-        ),
+        controller: _verticalPageController,
         onPageChanged: (index) {
           if (!_isDisposed && mounted) {
             setState(() {
@@ -2476,48 +2594,33 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   Future<void> _jumpToPage(int targetPage) async {
     if (targetPage < 1 || targetPage > _totalPages) return;
 
-    if (_layoutMode == EpubLayoutMode.vertical) {
-      // For vertical mode, scroll directly to the target page index (minus one)
-      if (_scrollController.isAttached && mounted) {
-        await _scrollController.scrollTo(
-          index: targetPage - 1,
+    setState(() {
+      _currentPage = targetPage;
+    });
+
+    try {
+      if (_layoutMode == EpubLayoutMode.vertical) {
+        await _verticalPageController.animateToPage(
+          targetPage - 1,
           duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
         );
-      }
-      setState(() {
-        _currentPage = targetPage;
-      });
-    } else {
-      // For horizontal mode, find the chapter and offset
-      int currentPageCount = 0;
-      int targetChapterIndex = 0;
-      int pageInChapter = 0;
-
-      for (var i = 0; i < _flatChapters.length; i++) {
-        final chapterPages = _chapterPagesCache[i]?.length ?? 0;
-        if (currentPageCount + chapterPages >= targetPage) {
-          targetChapterIndex = i;
-          pageInChapter = targetPage - currentPageCount - 1;
-          break;
-        }
-        currentPageCount += chapterPages;
-      }
-
-      // Load the target chapter and surrounding chapters
-      await _loadSurroundingChapters(targetChapterIndex);
-
-      if (_scrollController.isAttached && mounted) {
-        setState(() {
-          _currentPage = targetPage;
-          _currentChapterIndex = targetChapterIndex;
-        });
-
-        // For horizontal mode, update the page view controller
-        if (_layoutMode == EpubLayoutMode.horizontal) {
-          final pageController = PageController(initialPage: targetPage - 1);
-          pageController.jumpToPage(targetPage - 1);
+      } else if (_layoutMode == EpubLayoutMode.horizontal) {
+        await _horizontalPageController.animateToPage(
+          targetPage - 1,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      } else if (_layoutMode == EpubLayoutMode.longStrip) {
+        if (_scrollController.isAttached && mounted) {
+          await _scrollController.scrollTo(
+            index: targetPage - 1,
+            duration: const Duration(milliseconds: 300),
+          );
         }
       }
+    } catch (e) {
+      print('Error jumping to page: $e');
     }
   }
 
@@ -2560,23 +2663,65 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                   });
                 },
                 onChangeEnd: (value) async {
-                  // Create new calculator instance instead of updating existing one
-                  final newCalculator = EpubPageCalculator(
-                    viewportWidth: MediaQuery.of(context).size.width,
-                    viewportHeight: MediaQuery.of(context).size.height,
-                    fontSize: value,
-                  );
-                  
-                  setState(() {
-                    _fontSize = value;
-                    _pageCalculator = newCalculator;
-                    _chapterPagesCache.clear();
-                  });
-
-                  // Reload current chapter and surrounding chapters
+                  // Show loading indicator
                   if (mounted) {
-                    await _loadSurroundingChapters(_currentChapterIndex);
+                    setState(() {
+                      _isLoading = true;
+                    });
+                  }
+
+                  try {
+                    // Capture current progress
+                    double oldProgress =
+                        _totalPages > 0 ? _currentPage / _totalPages : 0.0;
+
+                    // Create new calculator
+                    final newCalculator = EpubPageCalculator(
+                      viewportWidth: MediaQuery.of(context).size.width,
+                      viewportHeight: MediaQuery.of(context).size.height,
+                      fontSize: value,
+                    );
+
+                    // Clear all caches
+                    _chapterPagesCache.clear();
+                    _absolutePageMapping.clear();
+                    _nextAbsolutePage = 1;
+
+                    // Update state
+                    setState(() {
+                      _fontSize = value;
+                      _pageCalculator = newCalculator;
+                    });
+
+                    // Re-paginate all chapters
+                    for (int i = 0; i < _flatChapters.length; i++) {
+                      await _splitChapterIntoPages(i);
+                    }
                     _calculateTotalPages();
+                    int newCurrentPage = _totalPages > 0
+                        ? (oldProgress * _totalPages).round()
+                        : 1;
+                    newCurrentPage = newCurrentPage.clamp(1, _totalPages);
+                    _verticalPageController =
+                        PageController(initialPage: newCurrentPage - 1);
+                    _horizontalPageController =
+                        PageController(initialPage: newCurrentPage - 1);
+
+                    if (mounted) {
+                      setState(() {
+                        _currentPage = newCurrentPage;
+                        _isLoading = false;
+                      });
+                    }
+
+                    await _jumpToPage(newCurrentPage);
+                  } catch (e) {
+                    print('Error updating font size: $e');
+                    if (mounted) {
+                      setState(() {
+                        _isLoading = false;
+                      });
+                    }
                   }
                 },
               ),
@@ -2603,5 +2748,63 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
         ],
       ),
     );
+  }
+  void _handleSliderTap(TapDownDetails details, double width) {
+    if (_totalPages <= 1) return;
+
+    final localOffset = details.localPosition;
+    double tappedRatio = (localOffset.dx / width).clamp(0.0, 1.0);
+    int newPage = ((tappedRatio * (_totalPages - 1)) + 1).round();
+    newPage = newPage.clamp(1, _totalPages);
+
+    setState(() {
+      _currentPage = newPage;
+      _isSliderInteracting = true;
+    });
+
+    _jumpToPage(newPage);
+
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (mounted) {
+        setState(() {
+          _isSliderInteracting = false;
+        });
+      }
+    });
+  }
+
+  void _handleSliderChangeStart(double value) {
+    _sliderDwellTimer?.cancel();
+    _lastSliderValue = value.toInt();
+    setState(() {
+      _isSliderInteracting = true;
+    });
+  }
+
+  void _handleSliderChanged(double value) {
+    final intValue = value.toInt();
+    if (_lastSliderValue != intValue) {
+      _sliderDwellTimer?.cancel();
+      _lastSliderValue = intValue;
+
+      setState(() {
+        _currentPage = intValue;
+      });
+    }
+  }
+
+  void _handleSliderChangeEnd(double value) {
+    _sliderDwellTimer?.cancel();
+    final intValue = value.toInt();
+    _jumpToPage(intValue);
+
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (mounted) {
+        setState(() {
+          _isSliderInteracting = false;
+          _lastSliderValue = null;
+        });
+      }
+    });
   }
 }
