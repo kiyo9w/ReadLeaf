@@ -27,6 +27,9 @@ import 'dart:developer' as dev;
 import 'package:read_leaf/widgets/floating_selection_menu.dart';
 import 'package:read_leaf/widgets/full_selection_menu.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
+import 'dart:math' as math;
+import 'dart:core';
 
 enum EpubLayoutMode { longStrip, vertical, horizontal, facing }
 
@@ -67,34 +70,56 @@ class ContentBlock {
 }
 
 class EpubPageCalculator {
-  // Constants for pagination
   static const double DEFAULT_FONT_SIZE = 23.0;
   static const double LINE_HEIGHT_MULTIPLIER = 1.5;
   static const double PAGE_PADDING = 32.0;
-  static const int WORDS_PER_PAGE = 550;
   static const double PAGE_HEIGHT_FRACTION = 0.835;
+
+  // Font metrics constants
+  static const double AVERAGE_CHAR_WIDTH_RATIO = 0.6;
+  static const double WORD_SPACING_RATIO = 0.3;
+  static const double AVERAGE_WORD_LENGTH = 5.5;
 
   // Cache structures
   final Map<int, List<PageContent>> _pageCache = {};
   final Map<String, TextStyle> _styleCache = {};
 
-  // Content metrics
-  late final double _viewportWidth;
-  late final double _viewportHeight;
-  late final double _fontSize;
-  late final double _effectiveViewportHeight;
+  // Make these non-late final fields regular fields since we'll update them
+  double _viewportWidth;
+  double _viewportHeight;
+  double _fontSize;
+  double _effectiveViewportHeight;
+  int _wordsPerLine = 0;
+  int _linesPerPage = 0;
+  int _wordsPerPage = 0;
 
-  // Initialize calculator with viewport dimensions
   EpubPageCalculator({
     required double viewportWidth,
     required double viewportHeight,
     double fontSize = DEFAULT_FONT_SIZE,
-  }) {
-    final double fixedHeight = viewportHeight * PAGE_HEIGHT_FRACTION;
-    _viewportWidth = viewportWidth - (PAGE_PADDING * 2);
-    _viewportHeight = fixedHeight;
-    _fontSize = fontSize;
-    _effectiveViewportHeight = _viewportHeight - (PAGE_PADDING * 2);
+  }) : _viewportWidth = viewportWidth - (PAGE_PADDING * 2),
+       _viewportHeight = viewportHeight * PAGE_HEIGHT_FRACTION,
+       _fontSize = fontSize,
+       _effectiveViewportHeight = (viewportHeight * PAGE_HEIGHT_FRACTION) - (PAGE_PADDING * 2) {
+    _calculateMetrics();
+  }
+
+  void _calculateMetrics() {
+    final charWidth = _fontSize * AVERAGE_CHAR_WIDTH_RATIO;
+    final wordSpacing = _fontSize * WORD_SPACING_RATIO;
+    final averageWordWidth = (charWidth * AVERAGE_WORD_LENGTH) + wordSpacing;
+    _wordsPerLine = (_viewportWidth / averageWordWidth).floor();
+
+    final lineHeight = _fontSize * LINE_HEIGHT_MULTIPLIER;
+    _linesPerPage = (_effectiveViewportHeight / lineHeight).floor();
+    _wordsPerPage = (_wordsPerLine * _linesPerPage * 0.95).floor();
+  }
+
+  void updateFontSize(double newFontSize) {
+    _fontSize = newFontSize;
+    _calculateMetrics();
+    _pageCache.clear();
+    _styleCache.clear();
   }
 
   // Calculate pages for a chapter
@@ -174,59 +199,121 @@ class EpubPageCalculator {
     return textPainter.height;
   }
 
-  // Calculate page breaks based on measured block heights
+  // Improved page break calculation that maximizes content per page
   List<PageContent> _calculatePageBreaks(
     ParsedContent content,
     int chapterIndex,
     String chapterTitle,
   ) {
     final pages = <PageContent>[];
-    List<String> currentPageBlocks = [];
-    double currentPageHeight = 0.0;
+    final StringBuffer currentPage = StringBuffer();
+    int currentCharCount = 0;
+    final int maxCharsPerPage = (_wordsPerPage * (AVERAGE_WORD_LENGTH + 1)).floor();
 
     for (var block in content.blocks) {
-      final blockHeight = _measureBlockHeight(block);
-      // If adding the block does not exceed the effective page height, add it
-      if (currentPageHeight + blockHeight <= _effectiveViewportHeight) {
-        currentPageBlocks.add(block.rawHtml);
-        currentPageHeight += blockHeight;
-      } else {
-        // If there is content accumulated on this page, push it as a new page
-        if (currentPageBlocks.isNotEmpty) {
-          pages.add(PageContent(
-            content: currentPageBlocks.join('\n'),
-            chapterIndex: chapterIndex,
-            pageNumberInChapter: pages.length + 1,
-            chapterTitle: chapterTitle,
-          ));
-          // Start a new page with the current block
-          currentPageBlocks = [block.rawHtml];
-          currentPageHeight = blockHeight;
+      final String plainText = block.textSpan.text ?? '';
+      final String tag = block.styles['tag'] ?? 'p';
+      
+      // Handle block-level elements (headers)
+      if (tag.startsWith('h')) {
+        if (currentPage.isNotEmpty) {
+          pages.add(_createPage(currentPage.toString(), chapterIndex, pages.length + 1, chapterTitle));
+          currentPage.clear();
+          currentCharCount = 0;
+        }
+        
+        currentPage.writeln('<$tag>$plainText</$tag>');
+        pages.add(_createPage(currentPage.toString(), chapterIndex, pages.length + 1, chapterTitle));
+        currentPage.clear();
+        currentCharCount = 0;
+        continue;
+      }
+
+      // Handle regular paragraphs
+      final words = plainText.split(RegExp(r'\s+'));
+      bool isFirstWordInParagraph = true;
+
+      for (int i = 0; i < words.length; i++) {
+        final word = words[i];
+        final spaceNeeded = word.length + (isFirstWordInParagraph ? 0 : 1); // Add space except for first word
+
+        // Check if adding this word would exceed page capacity
+        if (currentCharCount + spaceNeeded > maxCharsPerPage) {
+          // If the word is very long and would overflow even on a new page
+          if (word.length > maxCharsPerPage * 0.5) { // Only split if word takes up more than half a page
+            // Find best split point
+            final splitPoint = maxCharsPerPage - currentCharCount - 1;
+            if (splitPoint > 0) {
+              currentPage.write(word.substring(0, splitPoint) + '-');
+              pages.add(_createPage(currentPage.toString(), chapterIndex, pages.length + 1, chapterTitle));
+              
+              // Start new page with remainder of word
+              currentPage.clear();
+              currentPage.write('<p>' + word.substring(splitPoint));
+              currentCharCount = word.length - splitPoint;
+              isFirstWordInParagraph = false;
+            } else {
+              // Create new page and try to fit word there
+              pages.add(_createPage(currentPage.toString(), chapterIndex, pages.length + 1, chapterTitle));
+              currentPage.clear();
+              currentPage.write('<p>' + word);
+              currentCharCount = word.length;
+              isFirstWordInParagraph = false;
+            }
+          } else {
+            // Normal word - just move to next page
+            pages.add(_createPage(currentPage.toString(), chapterIndex, pages.length + 1, chapterTitle));
+            currentPage.clear();
+            currentPage.write('<p>' + word);
+            currentCharCount = word.length;
+            isFirstWordInParagraph = false;
+          }
         } else {
-          // In the rare case the block itself exceeds a full page, add it alone
-          pages.add(PageContent(
-            content: block.rawHtml,
-            chapterIndex: chapterIndex,
-            pageNumberInChapter: pages.length + 1,
-            chapterTitle: chapterTitle,
-          ));
-          currentPageBlocks = [];
-          currentPageHeight = 0.0;
+          // Add word to current page
+          if (isFirstWordInParagraph) {
+            currentPage.write('<p>' + word);
+            isFirstWordInParagraph = false;
+          } else {
+            currentPage.write(' ' + word);
+          }
+          currentCharCount += spaceNeeded;
+        }
+
+        // Close paragraph tag if this is the last word
+        if (i == words.length - 1) {
+          currentPage.writeln('</p>');
         }
       }
     }
 
     // Add remaining content as last page
-    if (currentPageBlocks.isNotEmpty) {
-      pages.add(PageContent(
-        content: currentPageBlocks.join('\n'),
-        chapterIndex: chapterIndex,
-        pageNumberInChapter: pages.length + 1,
-        chapterTitle: chapterTitle,
-      ));
+    if (currentPage.isNotEmpty) {
+      pages.add(_createPage(currentPage.toString(), chapterIndex, pages.length + 1, chapterTitle));
     }
 
     return pages;
+  }
+
+  PageContent _createPage(String content, int chapterIndex, int pageNumber, String chapterTitle) {
+    return PageContent(
+      content: content,
+      chapterIndex: chapterIndex,
+      pageNumberInChapter: pageNumber,
+      chapterTitle: chapterTitle,
+    );
+  }
+
+  List<String> _splitTextIntoChunks(String text, int maxChunkSize) {
+    final chunks = <String>[];
+    int start = 0;
+    
+    while (start < text.length) {
+      final end = math.min(start + maxChunkSize, text.length);
+      chunks.add(text.substring(start, end));
+      start = end;
+    }
+    
+    return chunks;
   }
 
   // Clear the cache
@@ -518,7 +605,11 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
   // Add this getter to ensure valid slider values
   double get _sliderMax => _totalPages > 0 ? _totalPages.toDouble() : 1.0;
-  double get _sliderValue => _getCurrentPage().toDouble().clamp(1, _sliderMax);
+  double get _sliderValue {
+    if (_totalPages == 0) return 1.0;
+    final currentPage = _getCurrentPage();
+    return currentPage.toDouble().clamp(1.0, _sliderMax);
+  }
 
   // Highlight management
   final Map<int, List<EpubHighlight>> _highlights = {};
@@ -670,7 +761,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
       return (bestPosition?.index ?? 0) + 1;
     } else {
-      // For horizontal mode, use existing page tracking
+      if (_totalPages == 0) return 1;
       return _currentPage.clamp(1, _totalPages);
     }
   }
@@ -1373,65 +1464,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                                     );
                                     break;
                                   case 'font_size':
-                                    showDialog(
-                                      context: context,
-                                      builder: (context) => AlertDialog(
-                                        title: const Text('Font Size'),
-                                        content: StatefulBuilder(
-                                          builder: (context, setState) =>
-                                              Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Slider(
-                                                value: _fontSize,
-                                                min: 12.0,
-                                                max: 24.0,
-                                                divisions: 12,
-                                                label: _fontSize
-                                                    .round()
-                                                    .toString(),
-                                                onChanged: (value) {
-                                                  setState(() {
-                                                    _fontSize = value;
-                                                  });
-                                                },
-                                                onChangeEnd: (value) {
-                                                  // Update font size and recalculate pages
-                                                  _pageCalculator =
-                                                      EpubPageCalculator(
-                                                    viewportWidth:
-                                                        MediaQuery.of(context)
-                                                            .size
-                                                            .width,
-                                                    viewportHeight:
-                                                        MediaQuery.of(context)
-                                                            .size
-                                                            .height,
-                                                    fontSize: value,
-                                                  );
-                                                  _chapterPagesCache.clear();
-                                                  _loadSurroundingChapters(
-                                                      _currentChapterIndex);
-                                                },
-                                              ),
-                                              const SizedBox(height: 16),
-                                              Text(
-                                                'Sample Text',
-                                                style: TextStyle(
-                                                    fontSize: _fontSize),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(context),
-                                            child: const Text('Close'),
-                                          ),
-                                        ],
-                                      ),
-                                    );
+                                    _showFontSizeDialog();
                                     break;
                                 }
                               },
@@ -2504,5 +2537,71 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     // Check if tap is in any UI region
     return topBarRegion.contains(position) ||
         bottomBarRegion.contains(position);
+  }
+
+  void _showFontSizeDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Font Size'),
+        content: StatefulBuilder(
+          builder: (context, setState) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Slider(
+                value: _fontSize,
+                min: 12.0,
+                max: 32.0,
+                divisions: 20,
+                label: _fontSize.round().toString(),
+                onChanged: (value) {
+                  setState(() {
+                    _fontSize = value;
+                  });
+                },
+                onChangeEnd: (value) async {
+                  // Create new calculator instance instead of updating existing one
+                  final newCalculator = EpubPageCalculator(
+                    viewportWidth: MediaQuery.of(context).size.width,
+                    viewportHeight: MediaQuery.of(context).size.height,
+                    fontSize: value,
+                  );
+                  
+                  setState(() {
+                    _fontSize = value;
+                    _pageCalculator = newCalculator;
+                    _chapterPagesCache.clear();
+                  });
+
+                  // Reload current chapter and surrounding chapters
+                  if (mounted) {
+                    await _loadSurroundingChapters(_currentChapterIndex);
+                    _calculateTotalPages();
+                  }
+                },
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Sample Text\nMultiple lines to preview text size and spacing.',
+                  style: TextStyle(fontSize: _fontSize),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 }
