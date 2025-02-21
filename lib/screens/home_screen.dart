@@ -20,6 +20,7 @@ import 'package:path/path.dart' as path;
 import 'package:read_leaf/blocs/SearchBloc/search_bloc.dart';
 import 'package:read_leaf/utils/utils.dart';
 import 'package:read_leaf/widgets/animations/refresh_animation.dart';
+import 'package:read_leaf/widgets/minimized_character_slider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -36,6 +37,7 @@ class HomeScreenState extends State<HomeScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _isScrollingDown = false;
   double _dragOffset = 0.0;
+  bool _isCharacterSliderMinimized = false;
 
   @override
   void initState() {
@@ -181,13 +183,15 @@ class HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // Add this method to handle drag offset updates
   void _updateDragOffset(double offset) {
-    // Only start hiding when drag is more than 20 pixels
     final shouldHide = offset > 20;
     if (shouldHide != (_dragOffset > 0)) {
-      setState(() {
-        _dragOffset = shouldHide ? offset : 0;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _dragOffset = shouldHide ? offset : 0;
+          });
+        }
       });
     }
   }
@@ -287,10 +291,21 @@ class HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 SliverToBoxAdapter(
-                  child: Container(
-                    padding: EdgeInsets.fromLTRB(0, 8, 0, 8),
-                    child: AiCharacterSlider(),
-                  ),
+                  child: _isCharacterSliderMinimized
+                      ? MinimizedCharacterSlider(
+                          onTap: () {
+                            setState(() {
+                              _isCharacterSliderMinimized = false;
+                            });
+                          },
+                        )
+                      : AiCharacterSlider(
+                          onMinimize: () {
+                            setState(() {
+                              _isCharacterSliderMinimized = true;
+                            });
+                          },
+                        ),
                 ),
                 if (lastReadBook != null)
                   SliverToBoxAdapter(

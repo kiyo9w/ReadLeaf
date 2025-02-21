@@ -11,10 +11,12 @@ import 'package:read_leaf/constants/responsive_constants.dart';
 class AiCharacterSlider extends StatefulWidget {
   static final globalKey = GlobalKey<_AiCharacterSliderState>();
   final VoidCallback? onCharacterSelected;
+  final VoidCallback? onMinimize;
 
   const AiCharacterSlider({
     super.key,
     this.onCharacterSelected,
+    this.onMinimize,
   });
 
   @override
@@ -283,6 +285,49 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
                       const SizedBox(width: 4),
                       Text(
                         'Switch',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            left: 0,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: widget.onMinimize,
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: theme.cardColor,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.keyboard_arrow_up,
+                        size: 20,
+                        color: theme.primaryColor,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Hide',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w500,

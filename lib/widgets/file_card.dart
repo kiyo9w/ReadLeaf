@@ -143,6 +143,7 @@ class _FileCardState extends State<FileCard> {
         padding: const EdgeInsets.all(5),
         decoration: BoxDecoration(
           color: customTheme?.fileCardBackground ?? theme.cardColor,
+          borderRadius: BorderRadius.circular(4),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
