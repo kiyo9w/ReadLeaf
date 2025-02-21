@@ -7,6 +7,7 @@ import 'package:read_leaf/models/chat_message.dart';
 import 'package:read_leaf/models/ai_character.dart';
 import 'package:read_leaf/services/sync/sync_types.dart';
 import 'package:logging/logging.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AiGenerationConfig {
   final int maxLength;
@@ -55,6 +56,33 @@ class GeminiService {
   final Map<String, _CachedContext> _contextCache = {};
   static const _cacheDuration = Duration(minutes: 5);
 
+  static const _encouragementPromptKey = 'custom_encouragement_prompt';
+  String? _customEncouragementPrompt;
+
+  static const String _baseEncouragementPrompt = """
+CHARACTER CONTEXT:
+Name: {CHARACTER_NAME}
+Personality: {PERSONALITY}
+Scenario: {SCENARIO}
+
+BOOK CONTEXT:
+Title: {BOOK_TITLE}
+Current Page: {CURRENT_PAGE}/{TOTAL_PAGES}
+Reading Progress: {PROGRESS}%
+
+ROLEPLAY RULES:
+- Stay in character at all times
+- Use character's unique speech patterns and mannerisms
+- Keep the message brief and encouraging
+- Include subtle body language and emotional cues
+- Express genuine interest in the reader's progress
+- Never write actions or responses for the user
+- Maintain consistent personality traits
+- Reference the book's title and reading progress naturally
+- Encourage the reader to continue from where they left off
+
+{CHARACTER_NAME}'s Response:""";
+
   GeminiService(this._characterService, this._chatService);
 
   Future<void> initialize() async {
@@ -65,6 +93,10 @@ class GeminiService {
       if (apiKey == null || apiKey.isEmpty) {
         throw Exception('GEMINI_API_KEY not set in .env file');
       }
+
+      // Load saved custom encouragement prompt if any
+      final prefs = await SharedPreferences.getInstance();
+      _customEncouragementPrompt = prefs.getString(_encouragementPromptKey);
 
       const config = AiGenerationConfig();
       _model = GenerativeModel(
@@ -115,6 +147,43 @@ class GeminiService {
     }
   }
 
+  Future<void> setCustomEncouragementPrompt(String customPrompt) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_encouragementPromptKey, customPrompt);
+      _customEncouragementPrompt = customPrompt;
+      _log.info('Custom encouragement prompt saved successfully');
+    } catch (e, stackTrace) {
+      _log.severe('Error saving custom encouragement prompt', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  String _getEncouragementPrompt(AiCharacter character, {
+    required String bookTitle,
+    required int currentPage,
+    required int totalPages,
+  }) {
+    final progress = ((currentPage / totalPages) * 100).toStringAsFixed(1);
+    
+    String prompt = "Strictly, always follow order:\n\n";
+    if (_customEncouragementPrompt != null && _customEncouragementPrompt!.isNotEmpty) {
+      prompt += "$_customEncouragementPrompt\n\n";
+    }
+
+    prompt += _baseEncouragementPrompt
+        .replaceAll('{CHARACTER_NAME}', character.name)
+        .replaceAll('{PERSONALITY}', character.personality)
+        .replaceAll('{SCENARIO}', character.scenario)
+        .replaceAll('{BOOK_TITLE}', bookTitle)
+        .replaceAll('{CURRENT_PAGE}', currentPage.toString())
+        .replaceAll('{TOTAL_PAGES}', totalPages.toString())
+        .replaceAll('{PROGRESS}', progress);
+
+    _log.info('Generated encouragement prompt:\n$prompt');
+    return prompt;
+  }
+
   Future<String> askAboutText(
     String selectedText, {
     String? customPrompt,
@@ -143,16 +212,25 @@ class GeminiService {
         );
       }
 
-      // Build and process prompt
-      final prompt = await _buildAndProcessPrompt(
-        task: task,
-        customPrompt: customPrompt,
-        selectedText: selectedText,
-        bookTitle: bookTitle,
-        currentPage: currentPage,
-        totalPages: totalPages,
-        character: character,
-      );
+      // Use custom encouragement prompt for encouragement task
+      final prompt = task == 'encouragement' 
+          ? _getEncouragementPrompt(
+              character,
+              bookTitle: bookTitle,
+              currentPage: currentPage,
+              totalPages: totalPages,
+            )
+          : await _buildAndProcessPrompt(
+              task: task,
+              customPrompt: customPrompt,
+              selectedText: selectedText,
+              bookTitle: bookTitle,
+              currentPage: currentPage,
+              totalPages: totalPages,
+              character: character,
+            );
+
+      _log.info('Sending prompt to AI:\n$prompt');
 
       // Generate response
       final response = await _generateResponse(prompt);

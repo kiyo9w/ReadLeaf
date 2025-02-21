@@ -594,6 +594,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const Divider(height: 32),
 
+              // Reading Section
+              const Text(
+                'Reading',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.notifications),
+                title: const Text('Reading Reminders'),
+                subtitle: const Text('Get encouraged to continue reading'),
+                trailing: Switch(
+                  value: themeProvider.showReadingReminders,
+                  onChanged: (value) => themeProvider.setShowReadingReminders(value),
+                ),
+              ),
+
+              const Divider(height: 32),
+
               // About Section
               const Text(
                 'About',

@@ -21,6 +21,8 @@ import 'package:read_leaf/blocs/SearchBloc/search_bloc.dart';
 import 'package:read_leaf/utils/utils.dart';
 import 'package:read_leaf/widgets/animations/refresh_animation.dart';
 import 'package:read_leaf/widgets/minimized_character_slider.dart';
+import 'package:provider/provider.dart';
+import 'package:read_leaf/providers/theme_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -50,8 +52,10 @@ class HomeScreenState extends State<HomeScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // This will be called when returning from other screens
-    generateNewAIMessage();
+    // Only generate new message if we don't already have one
+    if (_aiMessage == null) {
+      generateNewAIMessage();
+    }
   }
 
   Future<void> _initializeScreen() async {
@@ -59,7 +63,6 @@ class HomeScreenState extends State<HomeScreen> {
     // Wait for next frame to ensure FileBloc state is ready
     await Future.microtask(() async {
       if (mounted) {
-        await _generateAIMessage();
         _scrollController.addListener(_scrollListener);
       }
     });
@@ -194,6 +197,26 @@ class HomeScreenState extends State<HomeScreen> {
         }
       });
     }
+  }
+
+  Widget _buildAIMessage(ThemeData theme) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    if (!themeProvider.showReadingReminders) return const SizedBox.shrink();
+    
+    return AIMessageCard(
+      message: _aiMessage ?? '',
+      onContinue: () {
+        // ... existing continue logic ...
+      },
+      onRemove: () {
+        themeProvider.setShowReadingReminders(false);
+      },
+      onUpdatePrompt: (newPrompt) async {
+        // Store the custom prompt and regenerate the message
+        await _geminiService.setCustomEncouragementPrompt(newPrompt);
+        generateNewAIMessage();
+      },
+    );
   }
 
   @override
@@ -350,15 +373,7 @@ class HomeScreenState extends State<HomeScreen> {
                                   hasBeenCompleted:
                                       lastReadBook.hasBeenCompleted,
                                 ),
-                                if (_aiMessage != null)
-                                  AIMessageCard(
-                                    message: _aiMessage!,
-                                    onContinue: () {
-                                      context.read<FileBloc>().add(
-                                          ViewFile(lastReadBook!.filePath));
-                                    },
-                                    skipAnimation: true,
-                                  ),
+                                _buildAIMessage(Theme.of(context)),
                               ],
                             ),
                           ),
