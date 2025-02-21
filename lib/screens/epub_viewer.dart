@@ -701,12 +701,12 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   EpubLayoutMode _layoutMode = EpubLayoutMode.vertical;
   bool _isRightToLeftReadingOrder = false;
   Timer? _sliderDwellTimer;
-  int? _lastSliderValue;
+  num? _lastSliderValue;
   bool _isSliderInteracting = false;
   Map<int, String> _chapterContentCache = {};
   Map<int, List<PageContent>> _chapterPagesCache = {};
   int _totalPages = 0;
-  int _currentPage = 0;
+  int _currentPage = 1;
   late EpubPageCalculator _pageCalculator;
   double _fontSize = EpubPageCalculator.DEFAULT_FONT_SIZE;
   int _totalWordsInBook = 0;
@@ -715,8 +715,9 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   int _nextAbsolutePage = 1;
 
   // Add these getters for slider values
-  double get _sliderValue => _currentPage.toDouble();
-  double get _sliderMax => (_totalPages > 0) ? _totalPages.toDouble() : 1.0;
+  double get _sliderValue =>
+      _currentPage.clamp(1, math.max(1, _totalPages)).toDouble();
+  double get _sliderMax => math.max(1.0, _totalPages.toDouble());
 
   // Highlight management
   final Map<int, List<EpubHighlight>> _highlights = {};
@@ -743,6 +744,21 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   // Add these member variables near the top of _EPUBViewerScreenState
   late PageController _verticalPageController;
   late PageController _horizontalPageController;
+
+  OverlayEntry? _floatingMenuEntry;
+  Timer? _floatingMenuTimer;
+  Offset? _lastPointerDownPosition;
+  bool _showAskAiButton = false;
+
+  void _safeSetState(VoidCallback fn) {
+    if (mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(fn);
+        }
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -801,13 +817,19 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
   @override
   void dispose() {
+    if (_metadata != null && !_isDisposed) {
+      _updateMetadata(_currentPage); // Final metadata save
+    }
     _cleanupCache();
     _isDisposed = true;
     _positionsListener.itemPositions.removeListener(_onScroll);
     _pulseController.dispose();
     _pulseTimer?.cancel();
+    _sliderDwellTimer?.cancel();
+    _floatingMenuTimer?.cancel();
     _verticalPageController.dispose();
     _horizontalPageController.dispose();
+    _removeFloatingMenu();
     super.dispose();
   }
 
@@ -835,7 +857,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       // Update current page directly from the scroll position
       final newPage = bestPosition.index + 1;
       if (newPage != _currentPage) {
-        setState(() {
+        _safeSetState(() {
           _currentPage = newPage;
         });
         _updateMetadata(newPage);
@@ -844,7 +866,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       // Handle horizontal/vertical paged mode chapter tracking
       final firstIndex = positions.first.index;
       if (firstIndex != _currentChapterIndex) {
-        setState(() {
+        _safeSetState(() {
           _currentChapterIndex = firstIndex;
           _loadSurroundingChapters(firstIndex);
         });
@@ -853,7 +875,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       // Update progress when scrolling within the same chapter
       final page = _calculateCurrentPage();
       if (page != _currentPage && !_isSliderInteracting) {
-        setState(() {
+        _safeSetState(() {
           _currentPage = page;
         });
         _updateMetadata(page);
@@ -905,7 +927,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
     await _metadataRepository.saveMetadata(updatedMetadata);
     if (!_isDisposed) {
-      setState(() {
+      _safeSetState(() {
         _metadata = updatedMetadata;
       });
     }
@@ -919,7 +941,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
         return;
       }
 
-      setState(() {
+      _safeSetState(() {
         _isLoading = true;
         _currentPage = 1;
         _totalPages = 0;
@@ -933,32 +955,66 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       if (_epubBook != null) {
         _flatChapters = _flattenChapters(_epubBook!.Chapters ?? []);
 
-        // Initialize metadata
+        // Initialize metadata with proper error handling
         final metadata = await _metadataRepository.getMetadata(filePath);
-        setState(() {
-          _metadata = metadata;
-          if (metadata?.lastOpenedPage != null &&
-              metadata!.lastOpenedPage > 0) {
-            _currentPage = metadata.lastOpenedPage;
-          }
-        });
+        if (metadata == null) {
+          // Create new metadata if none exists
+          final newMetadata = BookMetadata(
+            filePath: filePath,
+            title: _epubBook?.Title ?? path.basename(filePath),
+            author: _epubBook?.Author,
+            lastOpenedPage: 1,
+            totalPages: _totalPages,
+            highlights: [],
+            aiConversations: [],
+            isStarred: false,
+            lastReadTime: DateTime.now(),
+            readingProgress: 0.0,
+            fileType: 'epub',
+          );
+          await _metadataRepository.saveMetadata(newMetadata);
+          _safeSetState(() {
+            _metadata = newMetadata;
+            _currentPage = newMetadata.lastOpenedPage;
+          });
+        } else {
+          _safeSetState(() {
+            _metadata = metadata;
+            if (metadata.lastOpenedPage > 0) {
+              _currentPage = metadata.lastOpenedPage;
+            }
+          });
+        }
 
-        // In vertical mode, preload all chapters
+        // Load chapters based on layout mode
         if (_layoutMode == EpubLayoutMode.vertical) {
           for (int i = 0; i < _flatChapters.length; i++) {
             await _preloadChapter(i);
             await _splitChapterIntoPages(i);
           }
         } else {
-          // In horizontal mode, load surrounding chapters
           await _splitChapterIntoPages(_currentChapterIndex);
           await _loadSurroundingChapters(_currentChapterIndex);
         }
 
         _calculateTotalPages();
-        setState(() {
-          _isLoading = false;
-        });
+        
+        // Update metadata with correct total pages after pagination
+        if (_metadata != null) {
+          final updatedMetadata = _metadata!.copyWith(
+            totalPages: _totalPages,
+            readingProgress: _totalPages > 0 ? (_currentPage / _totalPages).clamp(0.0, 1.0) : 0.0,
+          );
+          await _metadataRepository.saveMetadata(updatedMetadata);
+          _safeSetState(() {
+            _metadata = updatedMetadata;
+            _isLoading = false;
+          });
+        } else {
+          _safeSetState(() {
+            _isLoading = false;
+          });
+        }
       }
     } catch (e) {
       print('Error loading EPUB: $e');
@@ -970,7 +1026,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
   void _calculateTotalPages() {
     if (_layoutMode == EpubLayoutMode.vertical) {
-      setState(() {
+      _safeSetState(() {
         _totalPages = _flattenedPages.length;
       });
     } else {
@@ -978,7 +1034,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       for (var i = 0; i < _flatChapters.length; i++) {
         total += _chapterPagesCache[i]?.length ?? 0;
       }
-      setState(() {
+      _safeSetState(() {
         _totalPages = total > 0 ? total : 1;
       });
     }
@@ -1030,9 +1086,8 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
   Future<bool> _handleBackPress() async {
     try {
-      // Save current progress before popping
       if (_metadata != null) {
-        await _updateMetadata(_currentChapterIndex + 1);
+        await _updateMetadata(_currentPage);
       }
       if (mounted) {
         context.read<ReaderBloc>().add(CloseReader());
@@ -1087,7 +1142,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   }
 
   void _handleLayoutChange(EpubLayoutMode mode) async {
-    setState(() {
+    _safeSetState(() {
       _isLoading = true;
       _layoutMode = mode;
     });
@@ -1106,7 +1161,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       _horizontalPageController = PageController(initialPage: _currentPage - 1);
 
       if (mounted) {
-        setState(() {
+        _safeSetState(() {
           _isLoading = false;
         });
       }
@@ -1116,7 +1171,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     } catch (e) {
       print('Error changing layout: $e');
       if (mounted) {
-        setState(() {
+        _safeSetState(() {
           _isLoading = false;
         });
       }
@@ -1138,7 +1193,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       );
 
       if (!_isDisposed) {
-        setState(() {
+        _safeSetState(() {
           _chapterPagesCache[chapterIndex] = pages;
         });
         _calculateTotalPages();
@@ -1147,7 +1202,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       print('Error splitting chapter $chapterIndex into pages: $e');
       // Add a single page with error message
       if (!_isDisposed) {
-        setState(() {
+        _safeSetState(() {
           _chapterPagesCache[chapterIndex] = [
             PageContent(
               content: '<p>Error loading chapter content</p>',
@@ -1300,7 +1355,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                                 size: ResponsiveConstants.getIconSize(context),
                               ),
                               onPressed: () {
-                                setState(() {
+                                _safeSetState(() {
                                   _showChapters = !_showChapters;
                                 });
                               },
@@ -1835,7 +1890,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                           onHorizontalDragUpdate: (details) {
                             if (details.delta.dx < 0) {
                               // Only handle left swipes
-                              setState(() {
+                              _safeSetState(() {
                                 _showChapters = false;
                               });
                             }
@@ -1899,7 +1954,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                                                     context),
                                           ),
                                           onPressed: () {
-                                            setState(() {
+                                            _safeSetState(() {
                                               _showChapters = false;
                                             });
                                           },
@@ -1936,7 +1991,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                                               duration: const Duration(
                                                   milliseconds: 300),
                                             );
-                                            setState(() {
+                                            _safeSetState(() {
                                               _showChapters = false;
                                             });
                                           },
@@ -2094,7 +2149,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
         controller: _horizontalPageController,
         onPageChanged: (index) {
           if (!_isDisposed && mounted) {
-            setState(() {
+            _safeSetState(() {
               _currentPage = index + 1;
             });
             _updateMetadata(_currentPage);
@@ -2147,7 +2202,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
         controller: _verticalPageController,
         onPageChanged: (index) {
           if (!_isDisposed && mounted) {
-            setState(() {
+            _safeSetState(() {
               _currentPage = index + 1;
             });
             _updateMetadata(_currentPage);
@@ -2192,7 +2247,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   void _handleTap() {
     // Close any open side widgets first
     if (_showChapters) {
-      setState(() {
+      _safeSetState(() {
         _showChapters = false;
       });
       return;
@@ -2204,63 +2259,39 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
   Widget _buildPage(PageContent page) {
     return SelectionArea(
-      selectionControls: MaterialTextSelectionControls(),
       onSelectionChanged: (selection) {
-        setState(() {
-          _selectedText = selection?.plainText;
-        });
+        final selectedText = selection?.plainText ?? '';
+        _handleTextSelectionChange(
+            selectedText.isNotEmpty ? selectedText : null);
       },
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 16.0),
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          border: Border(
-            bottom: BorderSide(
-              color: Theme.of(context).dividerColor.withOpacity(0.2),
-              width: 1.0,
-            ),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Theme.of(context).shadowColor.withOpacity(0.1),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
+      child: Listener(
+        onPointerDown: (event) {
+          _lastPointerDownPosition = event.position;
+        },
+        onPointerUp: (event) {
+          final anchor = _lastPointerDownPosition ?? event.position;
+          if (mounted && _selectedText?.isNotEmpty == true) {
+            Future.delayed(const Duration(milliseconds: 200), () {
+              if (mounted && _selectedText?.isNotEmpty == true) {
+                _showFloatingMenuAt(anchor);
+              }
+            });
+          }
+        },
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (page.pageNumberInChapter == 1) ...[
-                Text(
-                  page.chapterTitle,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? const Color(0xFFF2F2F7)
-                            : const Color(0xFF1C1C1E),
-                      ),
-                ),
-                const SizedBox(height: 24),
-              ],
-              HtmlWidget(
-                page.content,
-                textStyle: TextStyle(
-                  fontSize: _fontSize,
-                  height: EpubPageCalculator.LINE_HEIGHT_MULTIPLIER,
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? const Color(0xFFF2F2F7)
-                      : const Color(0xFF1C1C1E),
-                ),
-                customStylesBuilder: (element) {
-                  if (element.localName == 'p') {
-                    return {'margin': '0.5em 0'};
-                  }
-                  return null;
-                },
-              ),
-            ],
+          padding: EdgeInsets.symmetric(
+            horizontal:
+                ResponsiveConstants.getContentPadding(context).horizontal,
+          ),
+          child: HtmlWidget(
+            page.content,
+            textStyle: TextStyle(
+              fontSize: _fontSize,
+              height: 1.5,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFFF2F2F7)
+                  : const Color(0xFF1C1C1E),
+            ),
           ),
         ),
       ),
@@ -2281,7 +2312,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       );
 
       if (!_isDisposed) {
-        setState(() {
+        _safeSetState(() {
           _chapterPagesCache[index] = pages;
         });
         // Update total pages whenever a new chapter is loaded
@@ -2293,7 +2324,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   }
 
   void _startPulsingHighlight(EpubHighlight highlight) {
-    setState(() {
+    _safeSetState(() {
       _highlightedMarker = highlight;
     });
 
@@ -2303,7 +2334,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     // Pulse for 3 cycles
     _pulseTimer = Timer(const Duration(seconds: 2), () {
       if (mounted) {
-        setState(() {
+        _safeSetState(() {
           _highlightedMarker = null;
         });
         _pulseController.stop();
@@ -2330,7 +2361,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
           _flatChapters[chapterIndex].Title ?? 'Chapter ${chapterIndex + 1}',
     );
 
-    setState(() {
+    _safeSetState(() {
       if (!_highlights.containsKey(chapterIndex)) {
         _highlights[chapterIndex] = [];
       }
@@ -2344,7 +2375,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
           ..add(highlight),
       );
       _metadataRepository.saveMetadata(updatedMetadata);
-      setState(() {
+      _safeSetState(() {
         _metadata = updatedMetadata;
       });
     }
@@ -2357,7 +2388,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     for (final entry in _highlights.entries) {
       final index = entry.value.indexOf(highlight);
       if (index != -1) {
-        setState(() {
+        _safeSetState(() {
           entry.value.removeAt(index);
           if (entry.value.isEmpty) {
             _highlights.remove(entry.key);
@@ -2376,7 +2407,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
             highlights: updatedHighlights,
           );
           _metadataRepository.saveMetadata(updatedMetadata);
-          setState(() {
+          _safeSetState(() {
             _metadata = updatedMetadata;
           });
         }
@@ -2409,7 +2440,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
               'Chapter ${chapterIndex + 1}',
         );
 
-        setState(() {
+        _safeSetState(() {
           if (!_highlights.containsKey(chapterIndex)) {
             _highlights[chapterIndex] = [];
           }
@@ -2419,111 +2450,129 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     }
   }
 
-  void _handleTextSelection(
-      String? selectedText, int chapterIndex, String content) {
-    if (selectedText == null || selectedText.isEmpty) return;
-
-    showDialog(
-      context: context,
-      barrierColor: Colors.transparent,
-      builder: (context) => FloatingSelectionMenu(
-        selectedText: selectedText,
-        onMenuSelected: (menuType, text) {
-          if (menuType == SelectionMenuType.highlight) {
-            final startOffset = content.indexOf(text);
-            if (startOffset != -1) {
-              _addHighlight(
-                text,
-                chapterIndex,
-                startOffset,
-                startOffset + text.length,
-                Colors.yellow,
-              );
-            }
-            Navigator.pop(context);
-          } else if (menuType == SelectionMenuType.askAi) {
-            Navigator.pop(context);
-            _handleAskAi(text);
-          } else if (menuType == SelectionMenuType.audio) {
-            // TODO: Implement audio playback
-            Navigator.pop(context);
-          } else {
-            // Handle translate, dictionary, wikipedia, and generateImage
-            Navigator.pop(context);
-            showDialog(
-              context: context,
-              barrierColor: Colors.transparent,
-              builder: (context) => FullSelectionMenu(
-                selectedText: text,
-                menuType: menuType,
-                onDismiss: () => Navigator.pop(context),
-              ),
-            );
-          }
-        },
-        onDismiss: () {
-          Navigator.pop(context);
-        },
-        onExpand: () {
-          Navigator.pop(context);
-          showDialog(
-            context: context,
-            barrierColor: Colors.transparent,
-            builder: (context) => FullSelectionMenu(
-              selectedText: selectedText,
-              menuType: SelectionMenuType.askAi,
-              onDismiss: () => Navigator.pop(context),
-            ),
-          );
-        },
-      ),
-    );
+  void _handleTextSelectionChange(String? selectedText) {
+    if (selectedText?.isNotEmpty == true) {
+      _safeSetState(() {
+        _selectedText = selectedText;
+        _showAskAiButton = true;
+      });
+    } else {
+      _safeSetState(() {
+        _selectedText = null;
+        _showAskAiButton = false;
+      });
+      _removeFloatingMenu();
+    }
   }
 
-  Future<void> _jumpToHighlight(EpubHighlight highlight) async {
-    final chapterIndex = highlight.highlight.pageNumber - 1;
-    if (chapterIndex < 0 || chapterIndex >= _flatChapters.length) return;
+  void _showFloatingMenuAt(Offset anchor) {
+    if (!mounted) return;
 
-    await _loadChapter(chapterIndex);
+    final screenSize = MediaQuery.of(context).size;
+    final bool isInUpperHalf = anchor.dy < (screenSize.height / 2);
+    _removeFloatingMenu();
 
-    // Calculate which page contains the highlight
-    final pages = _chapterPagesCache[chapterIndex];
-    if (pages == null) return;
-
-    int targetPage = 0;
-    int accumulatedLength = 0;
-
-    for (int i = 0; i < pages.length; i++) {
-      final pageContent = pages[i].content;
-      if (accumulatedLength + pageContent.length > highlight.startOffset) {
-        targetPage = i;
-        break;
-      }
-      accumulatedLength += pageContent.length;
+    if (context.read<ReaderBloc>().state is ReaderLoaded) {
+      context.read<ReaderBloc>().add(ToggleUIVisibility());
     }
 
-    // Calculate the vertical offset to center the highlight
-    final textBeforeHighlight = pages[targetPage]
-        .content
-        .substring(0, highlight.startOffset - accumulatedLength);
-    final textPainter = TextPainter(
-      text: TextSpan(text: textBeforeHighlight),
-      textDirection: TextDirection.ltr,
-    )..layout(maxWidth: MediaQuery.of(context).size.width - 48);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
 
-    final verticalOffset = textPainter.height;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final targetAlignment =
-        (verticalOffset - (screenHeight * 0.3)) / screenHeight;
+      double menuTop = isInUpperHalf ? screenSize.height * 0.57 : -20;
 
-    if (_scrollController.isAttached && mounted) {
-      await _scrollController.scrollTo(
-        index: chapterIndex,
-        duration: const Duration(milliseconds: 300),
-        alignment: targetAlignment.clamp(0.0, 1.0),
+      _floatingMenuEntry = OverlayEntry(
+        builder: (context) => Positioned(
+          left: 16,
+          right: 16,
+          top: menuTop,
+          child: Material(
+            color: Colors.transparent,
+            child: FloatingSelectionMenu(
+              selectedText: _selectedText ?? '',
+              displayAtTop: !isInUpperHalf,
+              onMenuSelected: (menuType, text) {
+                _removeFloatingMenu();
+                switch (menuType) {
+                  case SelectionMenuType.highlight:
+                    _addHighlight(
+                      text,
+                      _currentChapterIndex,
+                      text.length,
+                      text.length + text.length,
+                      Colors.yellow,
+                    );
+                    break;
+                  case SelectionMenuType.askAi:
+                    _handleAskAi(text);
+                    break;
+                  case SelectionMenuType.audio:
+                    break;
+                  case SelectionMenuType.translate:
+                  case SelectionMenuType.dictionary:
+                  case SelectionMenuType.wikipedia:
+                  case SelectionMenuType.generateImage:
+                    showDialog(
+                      context: context,
+                      barrierColor: Colors.transparent,
+                      barrierDismissible: false,
+                      builder: (context) => Stack(
+                        children: [
+                          Positioned.fill(
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.translucent,
+                              onTapDown: (_) {},
+                            ),
+                          ),
+                          FullSelectionMenu(
+                            selectedText: text,
+                            menuType: menuType,
+                            onDismiss: () => Navigator.pop(context),
+                          ),
+                        ],
+                      ),
+                    );
+                    break;
+                }
+              },
+              onDismiss: _removeFloatingMenu,
+              onExpand: () {
+                _removeFloatingMenu();
+                showDialog(
+                  context: context,
+                  barrierColor: Colors.transparent,
+                  barrierDismissible: false,
+                  builder: (context) => Stack(
+                    children: [
+                      Positioned.fill(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onTapDown: (_) {},
+                        ),
+                      ),
+                      FullSelectionMenu(
+                        selectedText: _selectedText ?? '',
+                        menuType: SelectionMenuType.askAi,
+                        onDismiss: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
       );
-      _startPulsingHighlight(highlight);
-    }
+
+      Overlay.of(context)?.insert(_floatingMenuEntry!);
+    });
+  }
+
+  void _removeFloatingMenu() {
+    _floatingMenuEntry?.remove();
+    _floatingMenuEntry = null;
+    _floatingMenuTimer?.cancel();
+    _floatingMenuTimer = null;
   }
 
   void _handleAskAi(String selectedText) {
@@ -2558,7 +2607,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       }
     }
 
-    setState(() {
+    _safeSetState(() {
       _totalPages = _nextAbsolutePage - 1;
     });
   }
@@ -2591,37 +2640,33 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     return absolutePage.clamp(1, _totalPages);
   }
 
-  Future<void> _jumpToPage(int targetPage) async {
-    if (targetPage < 1 || targetPage > _totalPages) return;
+  Future<void> _jumpToPage(num targetPage) async {
+    final safePage = targetPage.clamp(1, math.max(1, _totalPages));
 
-    setState(() {
-      _currentPage = targetPage;
-    });
-
-    try {
-      if (_layoutMode == EpubLayoutMode.vertical) {
-        await _verticalPageController.animateToPage(
-          targetPage - 1,
+    if (_layoutMode == EpubLayoutMode.vertical) {
+      await _verticalPageController.animateToPage(
+        (safePage - 1).toInt(),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    } else if (_layoutMode == EpubLayoutMode.horizontal) {
+      await _horizontalPageController.animateToPage(
+        (safePage - 1).toInt(),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    } else if (_layoutMode == EpubLayoutMode.longStrip) {
+      if (_scrollController.isAttached && mounted) {
+        await _scrollController.scrollTo(
+          index: (safePage - 1).toInt(),
           duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
         );
-      } else if (_layoutMode == EpubLayoutMode.horizontal) {
-        await _horizontalPageController.animateToPage(
-          targetPage - 1,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-      } else if (_layoutMode == EpubLayoutMode.longStrip) {
-        if (_scrollController.isAttached && mounted) {
-          await _scrollController.scrollTo(
-            index: targetPage - 1,
-            duration: const Duration(milliseconds: 300),
-          );
-        }
       }
-    } catch (e) {
-      print('Error jumping to page: $e');
     }
+
+    _safeSetState(() {
+      _currentPage = safePage.toInt();
+    });
   }
 
   // Add this method to check if a tap position is on a UI element
@@ -2663,7 +2708,6 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                   });
                 },
                 onChangeEnd: (value) async {
-                  // Show loading indicator
                   if (mounted) {
                     setState(() {
                       _isLoading = true;
@@ -2671,41 +2715,33 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                   }
 
                   try {
-                    // Capture current progress
-                    double oldProgress =
-                        _totalPages > 0 ? _currentPage / _totalPages : 0.0;
+                    double oldProgress = _totalPages > 0 ? _currentPage / _totalPages : 0.0;
 
-                    // Create new calculator
                     final newCalculator = EpubPageCalculator(
                       viewportWidth: MediaQuery.of(context).size.width,
                       viewportHeight: MediaQuery.of(context).size.height,
                       fontSize: value,
                     );
 
-                    // Clear all caches
                     _chapterPagesCache.clear();
                     _absolutePageMapping.clear();
                     _nextAbsolutePage = 1;
 
-                    // Update state
                     setState(() {
                       _fontSize = value;
                       _pageCalculator = newCalculator;
                     });
 
-                    // Re-paginate all chapters
                     for (int i = 0; i < _flatChapters.length; i++) {
                       await _splitChapterIntoPages(i);
                     }
                     _calculateTotalPages();
-                    int newCurrentPage = _totalPages > 0
-                        ? (oldProgress * _totalPages).round()
-                        : 1;
+
+                    int newCurrentPage = _totalPages > 0 ? (oldProgress * _totalPages).round() : 1;
                     newCurrentPage = newCurrentPage.clamp(1, _totalPages);
-                    _verticalPageController =
-                        PageController(initialPage: newCurrentPage - 1);
-                    _horizontalPageController =
-                        PageController(initialPage: newCurrentPage - 1);
+
+                    _verticalPageController = PageController(initialPage: newCurrentPage - 1);
+                    _horizontalPageController = PageController(initialPage: newCurrentPage - 1);
 
                     if (mounted) {
                       setState(() {
@@ -2715,6 +2751,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                     }
 
                     await _jumpToPage(newCurrentPage);
+                    await _updateMetadata(newCurrentPage); // Update metadata after pagination changes
                   } catch (e) {
                     print('Error updating font size: $e');
                     if (mounted) {
@@ -2749,6 +2786,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       ),
     );
   }
+
   void _handleSliderTap(TapDownDetails details, double width) {
     if (_totalPages <= 1) return;
 
@@ -2757,7 +2795,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     int newPage = ((tappedRatio * (_totalPages - 1)) + 1).round();
     newPage = newPage.clamp(1, _totalPages);
 
-    setState(() {
+    _safeSetState(() {
       _currentPage = newPage;
       _isSliderInteracting = true;
     });
@@ -2766,7 +2804,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
     Future.delayed(const Duration(milliseconds: 200), () {
       if (mounted) {
-        setState(() {
+        _safeSetState(() {
           _isSliderInteracting = false;
         });
       }
@@ -2776,35 +2814,33 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   void _handleSliderChangeStart(double value) {
     _sliderDwellTimer?.cancel();
     _lastSliderValue = value.toInt();
-    setState(() {
+    _safeSetState(() {
       _isSliderInteracting = true;
     });
   }
 
   void _handleSliderChanged(double value) {
-    final intValue = value.toInt();
+    final intValue = value.toInt().clamp(1, math.max(1, _totalPages));
     if (_lastSliderValue != intValue) {
       _sliderDwellTimer?.cancel();
       _lastSliderValue = intValue;
 
-      setState(() {
-        _currentPage = intValue;
+      _safeSetState(() {
+        _currentPage = intValue.toInt();
       });
     }
   }
 
   void _handleSliderChangeEnd(double value) {
     _sliderDwellTimer?.cancel();
-    final intValue = value.toInt();
+    final intValue = value.toInt().clamp(1, math.max(1, _totalPages));
     _jumpToPage(intValue);
 
     Future.delayed(const Duration(milliseconds: 200), () {
-      if (mounted) {
-        setState(() {
-          _isSliderInteracting = false;
-          _lastSliderValue = null;
-        });
-      }
+      _safeSetState(() {
+        _isSliderInteracting = false;
+        _lastSliderValue = null;
+      });
     });
   }
 }
