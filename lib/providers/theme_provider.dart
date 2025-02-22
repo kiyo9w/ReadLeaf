@@ -4,6 +4,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:read_leaf/themes/custom_theme_extension.dart';
 import 'package:read_leaf/services/user_preferences_service.dart';
 import 'package:read_leaf/models/user_preferences.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 enum AppThemeMode {
   readLeafLight, // Light
@@ -28,6 +29,9 @@ class ThemeProvider extends ChangeNotifier {
   // Add system theme support
   bool _useSystemTheme = false;
   bool get useSystemTheme => _useSystemTheme;
+
+  bool _showReadingReminders = true;
+  bool get showReadingReminders => _showReadingReminders;
 
   ThemeProvider(this._preferencesService)
       : _currentThemeMode = AppThemeMode.classicLight {
@@ -1749,5 +1753,19 @@ class ThemeProvider extends ChangeNotifier {
       // Currently light, switch to last dark theme or default to Dark theme
       setThemeMode(_lastDarkTheme ?? AppThemeMode.mysteriousDark);
     }
+  }
+
+  Future<void> setShowReadingReminders(bool value) async {
+    _showReadingReminders = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('show_reading_reminders', value);
+    notifyListeners();
+  }
+
+  Future<void> loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    _showReadingReminders = prefs.getBool('show_reading_reminders') ?? true;
+    // ... load other settings ...
+    notifyListeners();
   }
 }

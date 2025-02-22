@@ -159,15 +159,17 @@ ROLEPLAY RULES:
     }
   }
 
-  String _getEncouragementPrompt(AiCharacter character, {
+  String _getEncouragementPrompt(
+    AiCharacter character, {
     required String bookTitle,
     required int currentPage,
     required int totalPages,
   }) {
     final progress = ((currentPage / totalPages) * 100).toStringAsFixed(1);
-    
+
     String prompt = "Strictly, always follow order:\n\n";
-    if (_customEncouragementPrompt != null && _customEncouragementPrompt!.isNotEmpty) {
+    if (_customEncouragementPrompt != null &&
+        _customEncouragementPrompt!.isNotEmpty) {
       prompt += "$_customEncouragementPrompt\n\n";
     }
 
@@ -213,7 +215,7 @@ ROLEPLAY RULES:
       }
 
       // Use custom encouragement prompt for encouragement task
-      final prompt = task == 'encouragement' 
+      final prompt = task == 'encouragement'
           ? _getEncouragementPrompt(
               character,
               bookTitle: bookTitle,

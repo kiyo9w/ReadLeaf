@@ -4,9 +4,11 @@ import 'package:read_leaf/injection.dart';
 
 class MinimizedCharacterSlider extends StatelessWidget {
   final VoidCallback onTap;
-  
+  final bool inAppBar;
+
   const MinimizedCharacterSlider({
     required this.onTap,
+    this.inAppBar = false,
     super.key,
   });
 
@@ -14,11 +16,14 @@ class MinimizedCharacterSlider extends StatelessWidget {
   Widget build(BuildContext context) {
     final character = getIt<AiCharacterService>().getSelectedCharacter();
     final theme = Theme.of(context);
-    
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: EdgeInsets.symmetric(
+          vertical: inAppBar ? 0 : 8,
+          horizontal: inAppBar ? 8 : 0,
+        ),
         child: Center(
           child: Stack(
             children: [
@@ -41,31 +46,33 @@ class MinimizedCharacterSlider extends StatelessWidget {
                 ),
                 child: ClipOval(
                   child: Image.asset(
-                    character?.avatarImagePath ?? 'assets/images/ai_characters/amelia.png',
+                    character?.avatarImagePath ??
+                        'assets/images/ai_characters/amelia.png',
                     fit: BoxFit.cover,
                   ),
                 ),
               ),
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: theme.primaryColor,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.expand_more,
-                    size: 16,
-                    color: theme.colorScheme.onPrimary,
+              if (!inAppBar)
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: theme.primaryColor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.expand_more,
+                      size: 16,
+                      color: theme.colorScheme.onPrimary,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
       ),
     );
   }
-} 
+}

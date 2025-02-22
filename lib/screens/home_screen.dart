@@ -52,7 +52,6 @@ class HomeScreenState extends State<HomeScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Only generate new message if we don't already have one
     if (_aiMessage == null) {
       generateNewAIMessage();
     }
@@ -202,21 +201,31 @@ class HomeScreenState extends State<HomeScreen> {
   Widget _buildAIMessage(ThemeData theme) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     if (!themeProvider.showReadingReminders) return const SizedBox.shrink();
-    
+
     return AIMessageCard(
       message: _aiMessage ?? '',
-      onContinue: () {
-        // ... existing continue logic ...
-      },
+      onContinue: () {},
       onRemove: () {
         themeProvider.setShowReadingReminders(false);
       },
       onUpdatePrompt: (newPrompt) async {
-        // Store the custom prompt and regenerate the message
         await _geminiService.setCustomEncouragementPrompt(newPrompt);
         generateNewAIMessage();
       },
     );
+  }
+
+  Widget _buildCharacterSlider() {
+    if (!_isCharacterSliderMinimized) {
+      return AiCharacterSlider(
+        onMinimize: () {
+          setState(() {
+            _isCharacterSliderMinimized = true;
+          });
+        },
+      );
+    }
+    return const SizedBox.shrink();
   }
 
   @override
@@ -276,6 +285,15 @@ class HomeScreenState extends State<HomeScreen> {
                       duration: const Duration(milliseconds: 200),
                       child: Row(
                         children: [
+                          if (_isCharacterSliderMinimized)
+                            MinimizedCharacterSlider(
+                              inAppBar: true,
+                              onTap: () {
+                                setState(() {
+                                  _isCharacterSliderMinimized = false;
+                                });
+                              },
+                            ),
                           Stack(
                             children: [
                               IconButton(
@@ -314,21 +332,7 @@ class HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 SliverToBoxAdapter(
-                  child: _isCharacterSliderMinimized
-                      ? MinimizedCharacterSlider(
-                          onTap: () {
-                            setState(() {
-                              _isCharacterSliderMinimized = false;
-                            });
-                          },
-                        )
-                      : AiCharacterSlider(
-                          onMinimize: () {
-                            setState(() {
-                              _isCharacterSliderMinimized = true;
-                            });
-                          },
-                        ),
+                  child: _buildCharacterSlider(),
                 ),
                 if (lastReadBook != null)
                   SliverToBoxAdapter(

@@ -609,7 +609,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 subtitle: const Text('Get encouraged to continue reading'),
                 trailing: Switch(
                   value: themeProvider.showReadingReminders,
-                  onChanged: (value) => themeProvider.setShowReadingReminders(value),
+                  onChanged: (value) =>
+                      themeProvider.setShowReadingReminders(value),
                 ),
               ),
 
