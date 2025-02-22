@@ -12,4 +12,22 @@ class Utils {
       ),
     );
   }
+
+  static void showUndoSnackBar(
+      BuildContext context, String message, VoidCallback onUndo) {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: onUndo,
+        ),
+      ),
+    );
+  }
 }

@@ -14,6 +14,8 @@ class FileBloc extends Bloc<FileEvent, FileState> {
   final FileRepository fileRepository;
   final StorageScannerService storageScannerService;
   final RagService _ragService = getIt<RagService>();
+  FileInfo? _lastRemovedFile;
+  List<FileInfo>? _lastFileState;
 
   FileBloc({
     required this.fileRepository,
@@ -28,6 +30,7 @@ class FileBloc extends Bloc<FileEvent, FileState> {
     on<ToggleStarred>(_onToggleStarred);
     on<ToggleRead>(_onToggleRead);
     on<ScanStorage>(_onScanStorage);
+    on<UndoRemoveFile>(_onUndoRemoveFile);
   }
 
   Future<void> _onInitFiles(InitFiles event, Emitter<FileState> emit) async {
@@ -154,6 +157,15 @@ class FileBloc extends Bloc<FileEvent, FileState> {
   Future<void> _onRemoveFile(RemoveFile event, Emitter<FileState> emit) async {
     if (state is FileLoaded) {
       final currentFiles = (state as FileLoaded).files;
+      final fileToRemove = currentFiles.firstWhere(
+        (file) => file.filePath == event.filePath,
+        orElse: () => currentFiles.first,
+      );
+
+      // Store the current state and removed file for potential undo
+      _lastFileState = List.from(currentFiles);
+      _lastRemovedFile = fileToRemove;
+
       final updatedFiles = currentFiles
           .where((file) => file.filePath != event.filePath)
           .toList();
@@ -165,6 +177,16 @@ class FileBloc extends Bloc<FileEvent, FileState> {
         emit(FileLoaded(updatedFiles));
         await fileRepository.saveFiles(updatedFiles);
       }
+    }
+  }
+
+  Future<void> _onUndoRemoveFile(
+      UndoRemoveFile event, Emitter<FileState> emit) async {
+    if (_lastRemovedFile != null && _lastFileState != null) {
+      emit(FileLoaded(_lastFileState!));
+      await fileRepository.saveFiles(_lastFileState!);
+      _lastRemovedFile = null;
+      _lastFileState = null;
     }
   }
 

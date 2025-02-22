@@ -132,7 +132,7 @@ class ChatScreenState extends State<ChatScreen> {
         image: DecorationImage(
           image: AssetImage(
             isDark
-                ? 'assets/images/chat/chat_bg_pattern_dark.png'
+                ? 'assets/images/chat/chat_bg_pattern_dark.jpg'
                 : 'assets/images/chat/chat_bg_pattern.png',
           ),
           fit: BoxFit.cover,

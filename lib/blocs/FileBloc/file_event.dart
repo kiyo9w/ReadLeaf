@@ -71,3 +71,7 @@ class ScanStorage extends FileEvent {
   @override
   List<Object> get props => [];
 }
+
+class UndoRemoveFile extends FileEvent {
+  const UndoRemoveFile();
+}
