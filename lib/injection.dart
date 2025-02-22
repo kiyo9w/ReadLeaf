@@ -63,73 +63,71 @@ Future<void> configureDependencies() async {
   getIt.registerLazySingleton<SupabaseService>(
     () => SupabaseService(Supabase.instance.client),
   );
-
-  // Register DeepLinkService early as it's a core service
   getIt.registerLazySingleton<DeepLinkService>(() => DeepLinkService());
+  getIt.registerSingleton<String>(
+    dotenv.env['BACKEND_URL'] ?? 'http://localhost:8000',
+    instanceName: 'backendUrl',
+  );
 
-  // Register backend URL
-  final backendUrl = dotenv.env['BACKEND_URL'] ?? 'http://localhost:8000';
-  getIt.registerSingleton<String>(backendUrl, instanceName: 'backendUrl');
-
-  // Create and register sync manager first
+  // Create and register sync manager first as it's needed by other services
   final syncManager = SyncManager(Supabase.instance.client);
   getIt.registerSingleton<SyncManager>(syncManager);
-  await syncManager.initialize();
 
-  // Create and register user preferences service
+  // Initialize user preferences early as it affects the UI
   final userPreferencesService = UserPreferencesService(syncManager);
   getIt.registerSingleton<UserPreferencesService>(userPreferencesService);
-  await userPreferencesService.init();
 
-  // Create instances of core services
+  // Initialize critical services in parallel
+  await Future.wait([
+    syncManager.initialize(),
+    userPreferencesService.init(),
+  ]);
+
+  // Create core service instances
   final fileRepository = FileRepository();
   final bookMetadataRepository = BookMetadataRepository();
-  final aiCharacterService = AiCharacterService();
-  final storageService = StorageService();
-  final storageScannerService = StorageScannerService();
-  final socialAuthService = SocialAuthService();
   final themeProvider = ThemeProvider(getIt<UserPreferencesService>());
-  final ragService = RagService();
-  final imageService = ImageService();
-  final chatService = ChatService(syncManager);
-  final geminiService = GeminiService(aiCharacterService, chatService);
-  final thumbnailService = ThumbnailService();
-  final characterTemplateService = CharacterTemplateService();
 
-  // Initialize services that require async initialization
+  // Initialize core services in parallel
   await Future.wait([
     fileRepository.init(),
     bookMetadataRepository.init(),
-    chatService.init(),
-    geminiService.initialize(),
-    aiCharacterService.init(),
   ]);
 
-  // Register all services
-  // Storage and file services
+  // Register core services
   getIt.registerSingleton<FileRepository>(fileRepository);
-  getIt.registerSingleton<StorageScannerService>(storageScannerService);
-  getIt.registerSingleton<StorageService>(storageService);
-  getIt.registerSingleton<ThumbnailService>(thumbnailService);
-  getIt.registerSingleton<CharacterTemplateService>(characterTemplateService);
+  getIt.registerSingleton<BookMetadataRepository>(bookMetadataRepository);
+  getIt.registerSingleton<ThemeProvider>(themeProvider);
 
-  // Authentication services
-  getIt.registerSingleton<SocialAuthService>(socialAuthService);
+  // Register non-critical services lazily
+  getIt.registerLazySingleton<StorageScannerService>(
+      () => StorageScannerService());
+  getIt.registerLazySingleton<StorageService>(() => StorageService());
+  getIt.registerLazySingleton<ThumbnailService>(() => ThumbnailService());
+  getIt.registerLazySingleton<CharacterTemplateService>(
+      () => CharacterTemplateService());
+  getIt.registerLazySingleton<SocialAuthService>(() => SocialAuthService());
+  getIt.registerLazySingleton<ImageService>(() => ImageService());
+  getIt.registerLazySingleton<AnnasArchieve>(
+      () => AnnasArchieve(dio: getIt<Dio>()));
 
-  // AI and metadata services
+  // Initialize AI services in parallel
+  final aiCharacterService = AiCharacterService();
+  final chatService = ChatService(syncManager);
+  final geminiService = GeminiService(aiCharacterService, chatService);
+  final ragService = RagService();
+
+  await Future.wait([
+    aiCharacterService.init(),
+    chatService.init(),
+    geminiService.initialize(),
+  ]);
+
+  // Register AI services
   getIt.registerSingleton<AiCharacterService>(aiCharacterService);
   getIt.registerSingleton<ChatService>(chatService);
   getIt.registerSingleton<GeminiService>(geminiService);
   getIt.registerSingleton<RagService>(ragService);
-  getIt.registerSingleton<BookMetadataRepository>(bookMetadataRepository);
-
-  // UI services
-  getIt.registerSingleton<ThemeProvider>(themeProvider);
-  getIt.registerSingleton<ImageService>(imageService);
-
-  // API services
-  getIt.registerLazySingleton<AnnasArchieve>(
-      () => AnnasArchieve(dio: getIt<Dio>()));
 
   // Register blocs
   getIt.registerLazySingleton<ReaderBloc>(() => ReaderBloc());

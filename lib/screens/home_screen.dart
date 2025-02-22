@@ -52,17 +52,18 @@ class HomeScreenState extends State<HomeScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_aiMessage == null) {
-      generateNewAIMessage();
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_aiMessage == null && mounted) {
+        generateNewAIMessage();
+      }
+    });
   }
 
   Future<void> _initializeScreen() async {
-    await _loadBookOfTheDay();
-    // Wait for next frame to ensure FileBloc state is ready
-    await Future.microtask(() async {
+    _scrollController.addListener(_scrollListener);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (mounted) {
-        _scrollController.addListener(_scrollListener);
+        await _loadBookOfTheDay();
       }
     });
   }

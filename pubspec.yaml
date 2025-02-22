@@ -112,6 +112,7 @@ flutter:
     - assets/images/leafy_icon.png
     - assets/icons/
     - assets/images/app_logo/logo_nobg.png
+    - assets/images/app_logo/logo.gif
 
     # default ai characters
     - assets/images/ai_characters/

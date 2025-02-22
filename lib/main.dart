@@ -12,28 +12,58 @@ import 'package:provider/provider.dart';
 import 'package:read_leaf/providers/theme_provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:read_leaf/screens/splash_screen.dart';
 import 'injection.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load environment variables first
-  await dotenv.load(fileName: '.env');
-
-  // Initialize Supabase with env variables
-  await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL'] ?? '',
-    anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
+  runApp(
+    const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: SplashScreen(),
+    ),
   );
 
-  // Initialize all dependencies (including Hive and its adapters)
-  await configureDependencies();
+  try {
+    await dotenv.load(fileName: '.env');
+    await _initializeSupabase();
+    await configureDependencies();
+    runApp(
+      ChangeNotifierProvider(
+        create: (_) => getIt<ThemeProvider>(),
+        child: const MyApp(),
+      ),
+    );
+  } catch (e) {
+    print('Initialization error: $e');
+    runApp(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          body: Center(
+            child: Text(
+              'Failed to initialize app: $e',
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
-  runApp(
-    ChangeNotifierProvider(
-      create: (_) => getIt<ThemeProvider>(),
-      child: const MyApp(),
-    ),
+Future<void> _initializeSupabase() async {
+  final url = dotenv.env['SUPABASE_URL'];
+  final anonKey = dotenv.env['SUPABASE_ANON_KEY'];
+
+  if (url == null || anonKey == null) {
+    throw Exception('Missing Supabase configuration');
+  }
+
+  await Supabase.initialize(
+    url: url,
+    anonKey: anonKey,
   );
 }
 
