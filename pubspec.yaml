@@ -15,6 +15,7 @@ dependencies:
   supabase_flutter: ^2.3.4
   supabase_auth_ui: ^0.5.4
   injectable: ^2.3.2
+  uni_links: ^0.5.1
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -87,8 +88,6 @@ dependencies:
   logging: ^1.2.0
   cached_network_image: ^3.4.1
   path_drawing: ^1.0.1
-  app_links: ^6.4.0
-  uni_links: ^0.5.1
 
 dev_dependencies:
   flutter_test:
@@ -108,11 +107,11 @@ flutter:
   uses-material-design: true
   assets:
     # chat bg, app icon, etc.
-    - assets/images/app_logo/
+    - assets/images/app_logo/logo.jpeg
     - assets/images/chat/chat_bg_pattern.png
-    - assets/images/chat/chat_bg_pattern_dark.jpg
-    - assets/images/app_logo/logo_nobg.png
+    - assets/images/leafy_icon.png
     - assets/icons/
+    - assets/images/app_logo/logo_nobg.png
 
     # default ai characters
     - assets/images/ai_characters/
