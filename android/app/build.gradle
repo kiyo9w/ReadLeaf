@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.migrated"
+    namespace = "com.example.readleaf"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
