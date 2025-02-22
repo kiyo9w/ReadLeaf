@@ -998,12 +998,14 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
         }
 
         _calculateTotalPages();
-        
+
         // Update metadata with correct total pages after pagination
         if (_metadata != null) {
           final updatedMetadata = _metadata!.copyWith(
             totalPages: _totalPages,
-            readingProgress: _totalPages > 0 ? (_currentPage / _totalPages).clamp(0.0, 1.0) : 0.0,
+            readingProgress: _totalPages > 0
+                ? (_currentPage / _totalPages).clamp(0.0, 1.0)
+                : 0.0,
           );
           await _metadataRepository.saveMetadata(updatedMetadata);
           _safeSetState(() {
@@ -1088,10 +1090,11 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     try {
       if (_metadata != null) {
         await _updateMetadata(_currentPage);
-      }
-      if (mounted) {
-        context.read<ReaderBloc>().add(CloseReader());
-        context.read<FileBloc>().add(CloseViewer());
+
+        if (mounted) {
+          context.read<ReaderBloc>().add(CloseReader());
+          context.read<FileBloc>().add(CloseViewer());
+        }
       }
       return true;
     } catch (e) {
@@ -2715,7 +2718,8 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                   }
 
                   try {
-                    double oldProgress = _totalPages > 0 ? _currentPage / _totalPages : 0.0;
+                    double oldProgress =
+                        _totalPages > 0 ? _currentPage / _totalPages : 0.0;
 
                     final newCalculator = EpubPageCalculator(
                       viewportWidth: MediaQuery.of(context).size.width,
@@ -2737,11 +2741,15 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                     }
                     _calculateTotalPages();
 
-                    int newCurrentPage = _totalPages > 0 ? (oldProgress * _totalPages).round() : 1;
+                    int newCurrentPage = _totalPages > 0
+                        ? (oldProgress * _totalPages).round()
+                        : 1;
                     newCurrentPage = newCurrentPage.clamp(1, _totalPages);
 
-                    _verticalPageController = PageController(initialPage: newCurrentPage - 1);
-                    _horizontalPageController = PageController(initialPage: newCurrentPage - 1);
+                    _verticalPageController =
+                        PageController(initialPage: newCurrentPage - 1);
+                    _horizontalPageController =
+                        PageController(initialPage: newCurrentPage - 1);
 
                     if (mounted) {
                       setState(() {
@@ -2751,7 +2759,8 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                     }
 
                     await _jumpToPage(newCurrentPage);
-                    await _updateMetadata(newCurrentPage); // Update metadata after pagination changes
+                    await _updateMetadata(
+                        newCurrentPage); // Update metadata after pagination changes
                   } catch (e) {
                     print('Error updating font size: $e');
                     if (mounted) {

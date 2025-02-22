@@ -7,6 +7,7 @@ import 'package:read_leaf/widgets/file_card.dart';
 import 'package:read_leaf/screens/nav_screen.dart';
 import 'package:read_leaf/models/file_info.dart';
 import 'package:read_leaf/blocs/ReaderBloc/reader_bloc.dart';
+import 'package:read_leaf/utils/utils.dart';
 
 class MyLibraryScreen extends StatefulWidget {
   const MyLibraryScreen({super.key});
@@ -59,6 +60,20 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
     return BlocBuilder<FileBloc, FileState>(
       builder: (context, state) {
         if (state is FileLoaded) {
+          if (state.lastRemovedFile != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                Utils.showUndoSnackBar(
+                  context,
+                  'File deleted',
+                  () {
+                    context.read<FileBloc>().add(const UndoRemoveFile());
+                  },
+                );
+              }
+            });
+          }
+
           final starredBooks =
               state.files.where((file) => file.isStarred).toList();
           final completedBooks =

@@ -11,11 +11,13 @@ class FileInitial extends FileState {}
 
 class FileLoaded extends FileState {
   final List<FileInfo> files;
+  final FileInfo? lastRemovedFile;
 
-  const FileLoaded(this.files);
+  const FileLoaded(this.files, {this.lastRemovedFile});
 
   @override
-  List<Object> get props => [files];
+  List<Object> get props =>
+      [files, if (lastRemovedFile != null) lastRemovedFile!];
 }
 
 class FileViewing extends FileLoaded {

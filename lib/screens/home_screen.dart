@@ -233,11 +233,27 @@ class HomeScreenState extends State<HomeScreen> {
     return BlocBuilder<FileBloc, FileState>(
       builder: (context, state) {
         FileInfo? lastReadBook;
-        if (state is FileLoaded && state.files.isNotEmpty) {
-          lastReadBook = state.files.firstWhere(
-            (file) => file.wasRead,
-            orElse: () => state.files.first,
-          );
+        if (state is FileLoaded) {
+          if (state.lastRemovedFile != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                Utils.showUndoSnackBar(
+                  context,
+                  'File deleted',
+                  () {
+                    context.read<FileBloc>().add(const UndoRemoveFile());
+                  },
+                );
+              }
+            });
+          }
+
+          if (state.files.isNotEmpty) {
+            lastReadBook = state.files.firstWhere(
+              (file) => file.wasRead,
+              orElse: () => state.files.first,
+            );
+          }
         }
 
         return Scaffold(

@@ -1718,12 +1718,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                         }
                                       } catch (e) {
                                         if (mounted) {
-                                          ScaffoldMessenger.of(context)
-                                              .showSnackBar(
-                                            SnackBar(
-                                                content: Text(
-                                                    'Error deleting file: $e')),
-                                          );
+                                          Utils.showErrorSnackBar(context,
+                                              'Error deleting file: $e');
                                         }
                                       }
                                     }

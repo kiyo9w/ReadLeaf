@@ -7,6 +7,7 @@ import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:read_leaf/services/book_metadata_repository.dart';
 import 'package:get_it/get_it.dart';
 import 'package:read_leaf/themes/custom_theme_extension.dart';
+import 'package:read_leaf/utils/utils.dart';
 
 class MinimalFileCard extends StatefulWidget {
   final String filePath;
@@ -126,6 +127,27 @@ class _MinimalFileCardState extends State<MinimalFileCard> {
                   icon: const Icon(Icons.close, size: 18),
                   color: customTheme?.minimalFileCardText?.withOpacity(0.7),
                   onPressed: () {
+                    ScaffoldMessenger.of(context).clearSnackBars();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text('File deleted'),
+                        behavior: SnackBarBehavior.floating,
+                        duration: const Duration(seconds: 3),
+                        margin: const EdgeInsets.all(16),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        action: SnackBarAction(
+                          label: 'Undo',
+                          onPressed: () {
+                            context
+                                .read<FileBloc>()
+                                .add(const UndoRemoveFile());
+                          },
+                        ),
+                      ),
+                    );
+
+                    // Then handle state update
                     context.read<FileBloc>().add(RemoveFile(widget.filePath));
                   },
                 ),

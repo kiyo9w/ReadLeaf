@@ -14,8 +14,9 @@ class FileBloc extends Bloc<FileEvent, FileState> {
   final FileRepository fileRepository;
   final StorageScannerService storageScannerService;
   final RagService _ragService = getIt<RagService>();
+
+  List<FileInfo> _lastFileState = [];
   FileInfo? _lastRemovedFile;
-  List<FileInfo>? _lastFileState;
 
   FileBloc({
     required this.fileRepository,
@@ -162,7 +163,6 @@ class FileBloc extends Bloc<FileEvent, FileState> {
         orElse: () => currentFiles.first,
       );
 
-      // Store the current state and removed file for potential undo
       _lastFileState = List.from(currentFiles);
       _lastRemovedFile = fileToRemove;
 
@@ -174,19 +174,9 @@ class FileBloc extends Bloc<FileEvent, FileState> {
         emit(FileInitial());
         await fileRepository.saveFiles([]);
       } else {
-        emit(FileLoaded(updatedFiles));
+        emit(FileLoaded(updatedFiles, lastRemovedFile: _lastRemovedFile));
         await fileRepository.saveFiles(updatedFiles);
       }
-    }
-  }
-
-  Future<void> _onUndoRemoveFile(
-      UndoRemoveFile event, Emitter<FileState> emit) async {
-    if (_lastRemovedFile != null && _lastFileState != null) {
-      emit(FileLoaded(_lastFileState!));
-      await fileRepository.saveFiles(_lastFileState!);
-      _lastRemovedFile = null;
-      _lastFileState = null;
     }
   }
 
@@ -251,6 +241,19 @@ class FileBloc extends Bloc<FileEvent, FileState> {
       await fileRepository.saveFiles(newFiles);
     } catch (e) {
       emit(FileError(message: 'Storage scanning failed: ${e.toString()}'));
+    }
+  }
+
+  Future<void> _onUndoRemoveFile(
+      UndoRemoveFile event, Emitter<FileState> emit) async {
+    if (_lastFileState.isNotEmpty && _lastRemovedFile != null) {
+      // Restore the file list to its previous state
+      emit(FileLoaded(_lastFileState));
+      await fileRepository.saveFiles(_lastFileState);
+
+      // Clear the stored state
+      _lastFileState = [];
+      _lastRemovedFile = null;
     }
   }
 }

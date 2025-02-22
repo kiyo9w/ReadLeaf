@@ -17,6 +17,7 @@ import 'package:read_leaf/services/thumbnail_service.dart';
 import 'package:get_it/get_it.dart';
 import 'package:read_leaf/themes/custom_theme_extension.dart';
 import 'package:read_leaf/blocs/FileBloc/file_bloc.dart';
+import 'package:read_leaf/utils/utils.dart';
 
 class FileCard extends StatefulWidget {
   final String filePath;
@@ -177,8 +178,12 @@ class _FileCardState extends State<FileCard> {
         direction: DismissDirection.horizontal,
         onDismissed: (direction) {
           widget.onRemove();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${widget.title} removed')),
+          Utils.showUndoSnackBar(
+            context,
+            'File deleted',
+            () {
+              context.read<FileBloc>().add(const UndoRemoveFile());
+            },
           );
         },
         child: content,
