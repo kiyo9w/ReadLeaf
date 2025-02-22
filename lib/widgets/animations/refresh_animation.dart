@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:path_drawing/path_drawing.dart';
 import 'package:flutter/services.dart';
 import 'dart:ui';
+import 'package:flutter/scheduler.dart';
 
 class PullToRefreshAnimation extends StatefulWidget {
   final Widget child;
@@ -25,9 +26,8 @@ class _PullToRefreshAnimationState extends State<PullToRefreshAnimation>
     with TickerProviderStateMixin {
   double _dragOffset = 0.0;
   bool _isRefreshing = false;
-
-  /// Tracks if we've already triggered the pop effect when crossing the threshold.
   bool _hasTriggeredPop = false;
+  bool _dragStartedAtTop = false; // NEW FLAG
 
   late AnimationController _refreshController;
   late AnimationController _pullCompleteController;
@@ -35,12 +35,10 @@ class _PullToRefreshAnimationState extends State<PullToRefreshAnimation>
   @override
   void initState() {
     super.initState();
-    // Animates the "wave" effect while refreshing.
     _refreshController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2000),
     );
-    // Base scale from 1.0 to 1.3, with a quick pop up to 1.5 on threshold.
     _pullCompleteController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -60,13 +58,8 @@ class _PullToRefreshAnimationState extends State<PullToRefreshAnimation>
     setState(() {
       _isRefreshing = true;
     });
-    // Animate back-and-forth wave while refreshing.
     _refreshController.repeat(reverse: true);
-
-    // Perform the refresh logic.
     await widget.onRefresh();
-
-    // Reset once done.
     _refreshController.reset();
     setState(() {
       _isRefreshing = false;
@@ -75,43 +68,46 @@ class _PullToRefreshAnimationState extends State<PullToRefreshAnimation>
     });
   }
 
-  void _updateDragOffset(double offset) {
-    if (_isRefreshing) return;
+void _updateDragOffset(double offset) {
+  if (_isRefreshing) return;
 
-    final threshold = _currentThreshold(context);
-    final newOffset = offset < 0 ? -offset : 0;
+  final threshold = _currentThreshold(context);
+  final newOffset = offset < 0 ? -offset : 0;
 
-    setState(() {
-      _dragOffset = newOffset.toDouble();
-    });
-
-    // Notify parent about drag offset
-    widget.onPull?.call(_dragOffset);
-
-    // Trigger the pop effect once if crossing the threshold.
-    if (!_hasTriggeredPop && _dragOffset >= threshold) {
-      _hasTriggeredPop = true;
-      // Briefly scale from 1.3 to 1.5, then back.
-      _pullCompleteController
-          .animateTo(
-        1.5,
-        duration: const Duration(milliseconds: 120),
-      )
-          .then((_) {
-        _pullCompleteController.animateTo(
-          1.3,
-          duration: const Duration(milliseconds: 120),
-        );
+  void updateOffset() {
+    if (mounted) {
+      setState(() {
+        _dragOffset = newOffset.toDouble();
       });
-      HapticFeedback.lightImpact();
     }
   }
 
-  void _onScrollEnd() {
-    // If user has pulled enough, start refresh; else reset.
-    if (!_isRefreshing && _dragOffset >= _currentThreshold(context)) {
-      _startRefresh();
-    } else {
+  if (WidgetsBinding.instance.schedulerPhase == SchedulerPhase.idle) {
+    updateOffset();
+  } else {
+    WidgetsBinding.instance.addPostFrameCallback((_) => updateOffset());
+  }
+
+  widget.onPull?.call(_dragOffset);
+
+  if (!_hasTriggeredPop && _dragOffset >= threshold) {
+    _hasTriggeredPop = true;
+    _pullCompleteController.animateTo(
+      1.5,
+      duration: const Duration(milliseconds: 120),
+    ).then((_) {
+      _pullCompleteController.animateTo(
+        1.3,
+        duration: const Duration(milliseconds: 120),
+      );
+    });
+    HapticFeedback.lightImpact();
+  }
+}
+
+void _onScrollEnd() {
+  void reset() {
+    if (mounted) {
       setState(() {
         _dragOffset = 0.0;
         _hasTriggeredPop = false;
@@ -119,26 +115,37 @@ class _PullToRefreshAnimationState extends State<PullToRefreshAnimation>
     }
   }
 
-  // User must pull down 1/6 of screen height to trigger refresh.
+  if (!_isRefreshing && _dragOffset >= _currentThreshold(context)) {
+    _startRefresh();
+  } else {
+    if (WidgetsBinding.instance.schedulerPhase == SchedulerPhase.idle) {
+      reset();
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) => reset());
+    }
+  }
+}
+
   double _currentThreshold(BuildContext context) =>
       MediaQuery.of(context).size.height / 6;
 
   @override
   Widget build(BuildContext context) {
     final threshold = _currentThreshold(context);
-    // progress = how far we are (0..1) toward threshold
     final progress = (_dragOffset / threshold).clamp(0.0, 1.5);
-
-    // Content moves down up to ~40 px.
     final offsetY = 40 * (progress <= 1 ? progress : 1 + (progress - 1) * 0.1);
-
-    // Icon grows from 1.0 → 1.3 as user drags, times the pullCompleteController.
     final scale =
         (1 + min(progress, 1.0) * 0.3) * _pullCompleteController.value;
 
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
+        if (notification is ScrollStartNotification) {
+          // Record if the drag started at the top
+          _dragStartedAtTop = notification.metrics.pixels <= 0;
+        }
         if (notification is ScrollUpdateNotification && !_isRefreshing) {
+          // Only process overscroll if drag started at the very top.
+          if (!_dragStartedAtTop) return false;
           final pixels = notification.metrics.pixels;
           if (pixels < 0) {
             _updateDragOffset(pixels);
@@ -148,12 +155,12 @@ class _PullToRefreshAnimationState extends State<PullToRefreshAnimation>
         }
         if (notification is ScrollEndNotification) {
           _onScrollEnd();
+          _dragStartedAtTop = false; // Reset the flag
         }
         return false;
       },
       child: Stack(
         children: [
-          // The main content, moved down while dragging.
           Transform.translate(
             offset: Offset(0, offsetY),
             child: ScrollConfiguration(
@@ -165,7 +172,6 @@ class _PullToRefreshAnimationState extends State<PullToRefreshAnimation>
               child: widget.child,
             ),
           ),
-          // Our custom pull-to-refresh icon.
           if (_dragOffset > 0 || _isRefreshing)
             Positioned(
               top: 24 + offsetY,
