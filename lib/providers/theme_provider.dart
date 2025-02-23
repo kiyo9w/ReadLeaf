@@ -59,12 +59,27 @@ class ThemeProvider extends ChangeNotifier {
     }
   }
 
-  void _loadPreferences() {
-    final preferences = _preferencesService.getPreferences();
-    // For now, maintain backwards compatibility with the old dark mode setting
-    _currentThemeMode = preferences.darkMode
-        ? AppThemeMode.classicDark
-        : AppThemeMode.classicLight;
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedTheme = prefs.getString('current_theme_mode');
+    if (savedTheme != null) {
+      _currentThemeMode = AppThemeMode.values.firstWhere(
+        (e) => e.toString() == savedTheme,
+        orElse: () => AppThemeMode.readLeafLight,
+      );
+    } else {
+      // First run: use device setting to decide default theme
+      final brightness = WidgetsBinding.instance.window.platformBrightness;
+      _currentThemeMode = brightness == Brightness.dark
+          ? AppThemeMode.mysteriousDark
+          : AppThemeMode.readLeafLight;
+      if (brightness == Brightness.dark) {
+        _lastDarkTheme = _currentThemeMode;
+      } else {
+        _lastLightTheme = _currentThemeMode;
+      }
+      await prefs.setString('current_theme_mode', _currentThemeMode.toString());
+    }
     _updateTheme();
   }
 
@@ -95,7 +110,8 @@ class ThemeProvider extends ChangeNotifier {
     // Store the last used theme for each mode
     if (mode == AppThemeMode.mysteriousDark ||
         mode == AppThemeMode.classicDark ||
-        mode == AppThemeMode.darkForest) {
+        mode == AppThemeMode.darkForest ||
+        mode == AppThemeMode.midNight) {
       _lastDarkTheme = mode;
     } else {
       _lastLightTheme = mode;
@@ -137,15 +153,18 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   Future<void> _savePreferences() async {
-    final currentPrefs = _preferencesService.getPreferences();
-    // For now, maintain backwards compatibility by mapping to dark mode
-    final isDark = _currentThemeMode == AppThemeMode.mysteriousDark ||
-        _currentThemeMode == AppThemeMode.classicDark;
-    final updatedPrefs = currentPrefs.copyWith(darkMode: isDark);
-    await _preferencesService.savePreferences(updatedPrefs);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('current_theme_mode', _currentThemeMode.toString());
+    if (_currentThemeMode == AppThemeMode.mysteriousDark ||
+        _currentThemeMode == AppThemeMode.classicDark ||
+        _currentThemeMode == AppThemeMode.darkForest ||
+        _currentThemeMode == AppThemeMode.midNight) {
+      await prefs.setString('last_dark_theme', _currentThemeMode.toString());
+    } else {
+      await prefs.setString('last_light_theme', _currentThemeMode.toString());
+    }
   }
 
-  // Add getters for last used themes
   AppThemeMode? get lastLightTheme => _lastLightTheme;
   AppThemeMode? get lastDarkTheme => _lastDarkTheme;
 
