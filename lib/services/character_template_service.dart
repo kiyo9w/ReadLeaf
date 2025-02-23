@@ -104,14 +104,14 @@ class CharacterTemplateService {
             _getStringValue(rawCharacterJson, ['scenario']);
         final scenarioPreview = characterJson['scenario']?.toString() ?? '';
         _log.info(
-            'Processed scenario: ${scenarioPreview.length > 50 ? scenarioPreview.substring(0, 50) + "..." : scenarioPreview}');
+            'Processed scenario: ${scenarioPreview.length > 50 ? "${scenarioPreview.substring(0, 50)}..." : scenarioPreview}');
 
         characterJson['greeting_message'] = _getStringValue(
             rawCharacterJson, ['first_mes', 'alternate_greetings']);
         final greetingPreview =
             characterJson['greeting_message']?.toString() ?? '';
         _log.info(
-            'Processed greeting: ${greetingPreview.length > 50 ? greetingPreview.substring(0, 50) + "..." : greetingPreview}');
+            'Processed greeting: ${greetingPreview.length > 50 ? "${greetingPreview.substring(0, 50)}..." : greetingPreview}');
 
         characterJson['example_messages'] =
             _processExampleMessages(rawCharacterJson);

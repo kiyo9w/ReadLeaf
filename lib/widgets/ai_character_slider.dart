@@ -658,8 +658,8 @@ class ExpandableDescription extends StatefulWidget {
     required this.style,
     required this.maxWidth,
     this.maxLines = 3,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   State<ExpandableDescription> createState() => _ExpandableDescriptionState();

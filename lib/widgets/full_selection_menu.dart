@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:read_leaf/constants/responsive_constants.dart';
 import 'package:read_leaf/widgets/floating_selection_menu.dart';
 
 class FullSelectionMenu extends StatefulWidget {
@@ -8,11 +7,11 @@ class FullSelectionMenu extends StatefulWidget {
   final VoidCallback? onDismiss;
 
   const FullSelectionMenu({
-    Key? key,
+    super.key,
     required this.selectedText,
     required this.menuType,
     this.onDismiss,
-  }) : super(key: key);
+  });
 
   @override
   State<FullSelectionMenu> createState() => _FullSelectionMenuState();

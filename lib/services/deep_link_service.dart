@@ -67,14 +67,9 @@ class DeepLinkService {
       if (uri.host == 'login-callback') {
         // Handle OAuth callback
         final response = await supabase.auth.getSessionFromUrl(uri);
-        if (response != null) {
-          debugPrint('Successfully handled OAuth callback: ${uri.toString()}');
-          return true;
-        } else {
-          _lastError = 'Failed to get session from URL';
-          return false;
-        }
-      }
+        debugPrint('Successfully handled OAuth callback: ${uri.toString()}');
+        return true;
+            }
       _lastError = 'Unhandled deep link host: ${uri.host}';
       return false;
     } on AuthException catch (e) {

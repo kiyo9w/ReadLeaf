@@ -1,11 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:read_leaf/models/ai_character.dart';
 import 'package:get_it/get_it.dart';
 import 'package:read_leaf/services/sync/sync_manager.dart';
 import 'package:read_leaf/services/character_template_service.dart';
 import 'package:read_leaf/services/default_character_loader.dart';
 import 'package:logging/logging.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:async';

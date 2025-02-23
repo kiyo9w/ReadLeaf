@@ -1,9 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfrx/pdfrx.dart';
@@ -179,9 +177,6 @@ class ThumbnailService {
     try {
       // First load and render the PDF
       final document = await PdfDocument.openFile(filePath);
-      if (document == null) {
-        throw Exception('Failed to load PDF');
-      }
 
       // Wait a bit to ensure PDF is loaded
       await Future.delayed(const Duration(milliseconds: 500));

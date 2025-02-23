@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:read_leaf/models/ai_character.dart';
@@ -184,13 +183,13 @@ class _ImportCharacterScreenState extends State<ImportCharacterScreen> {
                           ? CachedNetworkImage(
                               imageUrl: _importedCharacter!.avatarImagePath,
                               placeholder: (context, url) => Container(
-                                color: theme.colorScheme.surfaceVariant,
+                                color: theme.colorScheme.surfaceContainerHighest,
                                 child: const Center(
                                   child: CircularProgressIndicator(),
                                 ),
                               ),
                               errorWidget: (context, url, error) => Container(
-                                color: theme.colorScheme.surfaceVariant,
+                                color: theme.colorScheme.surfaceContainerHighest,
                                 child: Icon(
                                   Icons.error_outline,
                                   color: theme.colorScheme.error,

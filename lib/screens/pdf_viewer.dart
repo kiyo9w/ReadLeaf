@@ -3,8 +3,6 @@ import 'dart:math';
 import 'dart:developer' as dev;
 import 'package:path/path.dart' as path;
 import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:read_leaf/blocs/FileBloc/file_bloc.dart';
@@ -15,22 +13,14 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:read_leaf/services/gemini_service.dart';
 import 'package:get_it/get_it.dart';
 import 'package:read_leaf/widgets/CompanionChat/floating_chat_widget.dart';
-import 'package:read_leaf/models/chat_message.dart';
 import 'package:read_leaf/services/ai_character_service.dart';
 import 'package:read_leaf/models/ai_character.dart';
-import 'package:read_leaf/screens/character_screen.dart';
 import 'package:read_leaf/utils/utils.dart';
 import 'package:read_leaf/widgets/pdf_viewer/markers_view.dart';
 import 'package:read_leaf/widgets/pdf_viewer/outline_view.dart';
 import 'package:read_leaf/widgets/pdf_viewer/thumbnails_view.dart';
-import 'package:provider/provider.dart';
-import 'package:read_leaf/providers/theme_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:read_leaf/models/book_metadata.dart';
 import 'package:read_leaf/constants/responsive_constants.dart';
-import 'package:read_leaf/blocs/AuthBloc/auth_bloc.dart';
-import 'package:read_leaf/services/auth_dialog_service.dart';
-import 'package:read_leaf/blocs/AuthBloc/auth_state.dart';
 import 'package:read_leaf/widgets/floating_selection_menu.dart';
 import 'package:read_leaf/widgets/full_selection_menu.dart';
 import 'dart:async';
@@ -38,7 +28,7 @@ import 'dart:async';
 enum PdfLayoutMode { vertical, horizontal, facing }
 
 class PDFViewerScreen extends StatefulWidget {
-  const PDFViewerScreen({Key? key}) : super(key: key);
+  const PDFViewerScreen({super.key});
 
   @override
   State<PDFViewerScreen> createState() => _PDFViewerScreenState();
@@ -58,10 +48,10 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   bool _showSearchPanel = false;
   bool _isZoomedIn = false;
   bool _showAskAiButton = false;
-  bool _isLoadingAiResponse = false;
+  final bool _isLoadingAiResponse = false;
   String? _selectedText;
-  double _scaleFactor = 1.0;
-  double _baseScaleFactor = 1.0;
+  final double _scaleFactor = 1.0;
+  final double _baseScaleFactor = 1.0;
   final _markers = <int, List<Marker>>{};
   List<PdfTextRanges>? _textSelections;
   final outline = ValueNotifier<List<PdfOutlineNode>?>(null);
@@ -71,8 +61,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   int? _lastSliderValue;
   bool _isSliderInteracting = false;
   PdfLayoutMode _layoutMode = PdfLayoutMode.vertical;
-  bool _isRightToLeftReadingOrder = false;
-  bool _needCoverPage = true;
+  final bool _isRightToLeftReadingOrder = false;
+  final bool _needCoverPage = true;
 
   String get _currentTitle {
     switch (_tabController.index) {
@@ -831,8 +821,9 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                           const SizedBox(width: 12),
                                           ElevatedButton(
                                             onPressed: () async {
-                                              if (selectedTextCopy.isEmpty)
+                                              if (selectedTextCopy.isEmpty) {
                                                 return;
+                                              }
 
                                               setDialogState(
                                                   () => isLoading = true);
@@ -1099,7 +1090,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
       ),
     );
 
-    Overlay.of(context)?.insert(_floatingMenuEntry!);
+    Overlay.of(context).insert(_floatingMenuEntry!);
   }
 
   void _removeFloatingMenu() {
@@ -1806,6 +1797,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                 ),
                                 PopupMenuItem(
                                   value: 'reading_mode',
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 8),
                                   child: Row(
                                     children: [
                                       Icon(
@@ -1837,8 +1830,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                       ),
                                     ],
                                   ),
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 8),
                                 ),
                                 PopupMenuItem(
                                   value: 'move_trash',
@@ -2283,7 +2274,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
         }
 
         return Scaffold(
-          body: Center(child: Text('${state.toString()}')),
+          body: Center(child: Text(state.toString())),
         );
       },
     );

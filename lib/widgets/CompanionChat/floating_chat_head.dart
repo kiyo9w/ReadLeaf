@@ -5,10 +5,10 @@ class FloatingChatHead extends StatefulWidget {
   final String avatarImagePath;
 
   const FloatingChatHead({
-    Key? key,
+    super.key,
     required this.onTap,
     required this.avatarImagePath,
-  }) : super(key: key);
+  });
 
   @override
   State<FloatingChatHead> createState() => _FloatingChatHeadState();

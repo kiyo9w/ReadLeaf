@@ -10,8 +10,8 @@ class PdfThumbnailWidget extends StatelessWidget {
     required this.filePath,
     required this.width,
     required this.height,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {

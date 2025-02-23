@@ -197,7 +197,7 @@ class AiCharacter {
       return systemPrompt!;
     }
 
-    return '''You are ${name}, ${personality}
+    return '''You are $name, $personality
 
 SCENARIO:
 $scenario

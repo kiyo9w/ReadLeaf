@@ -12,13 +12,13 @@ class AIMessageCard extends StatelessWidget {
   final Function(String)? onUpdatePrompt;
 
   const AIMessageCard({
-    Key? key,
+    super.key,
     required this.message,
     required this.onContinue,
     this.skipAnimation = false,
     this.onRemove,
     this.onUpdatePrompt,
-  }) : super(key: key);
+  });
 
   void _showPromptDialog(BuildContext context, String characterName) {
     final controller = TextEditingController(

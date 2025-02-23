@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart' hide Image;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:read_leaf/blocs/FileBloc/file_bloc.dart';
@@ -9,7 +8,6 @@ import 'package:read_leaf/services/gemini_service.dart';
 import 'package:get_it/get_it.dart';
 import 'package:read_leaf/widgets/CompanionChat/floating_chat_widget.dart';
 import 'package:read_leaf/services/ai_character_service.dart';
-import 'package:read_leaf/models/ai_character.dart';
 import 'package:read_leaf/utils/utils.dart';
 import 'package:path/path.dart' as path;
 import 'package:epubx/epubx.dart';
@@ -19,15 +17,10 @@ import 'package:read_leaf/services/book_metadata_repository.dart';
 import 'package:read_leaf/models/book_metadata.dart';
 import 'package:read_leaf/services/thumbnail_service.dart';
 import 'package:read_leaf/constants/responsive_constants.dart';
-import 'package:provider/provider.dart';
-import 'package:read_leaf/providers/theme_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:async';
-import 'dart:developer' as dev;
 import 'package:read_leaf/widgets/floating_selection_menu.dart';
 import 'package:read_leaf/widgets/full_selection_menu.dart';
-import 'package:flutter/gestures.dart';
-import 'package:flutter/services.dart';
 import 'dart:math' as math;
 import 'dart:core';
 
@@ -85,10 +78,10 @@ class EpubPageCalculator {
   final Map<String, TextStyle> _styleCache = {};
 
   // Make these non-late final fields regular fields since we'll update them
-  double _viewportWidth;
-  double _viewportHeight;
+  final double _viewportWidth;
+  final double _viewportHeight;
   double _fontSize;
-  double _effectiveViewportHeight;
+  final double _effectiveViewportHeight;
   int _wordsPerLine = 0;
   int _linesPerPage = 0;
   int _wordsPerPage = 0;
@@ -206,9 +199,9 @@ class EpubPageCalculator {
     for (var p in paragraphs) {
       if (p.trim().isEmpty) continue;
       String tag = 'p';
-      if (p.startsWith('<h1>'))
+      if (p.startsWith('<h1>')) {
         tag = 'h1';
-      else if (p.startsWith('<h2>')) tag = 'h2';
+      } else if (p.startsWith('<h2>')) tag = 'h2';
 
       // Count words in this block
       final plainText = p.replaceAll(RegExp(r'<[^>]*>'), '').trim();
@@ -699,18 +692,18 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   BookMetadata? _metadata;
   bool _isDisposed = false;
   EpubLayoutMode _layoutMode = EpubLayoutMode.vertical;
-  bool _isRightToLeftReadingOrder = false;
+  final bool _isRightToLeftReadingOrder = false;
   Timer? _sliderDwellTimer;
   num? _lastSliderValue;
   bool _isSliderInteracting = false;
-  Map<int, String> _chapterContentCache = {};
-  Map<int, List<PageContent>> _chapterPagesCache = {};
+  final Map<int, String> _chapterContentCache = {};
+  final Map<int, List<PageContent>> _chapterPagesCache = {};
   int _totalPages = 0;
   int _currentPage = 1;
   late EpubPageCalculator _pageCalculator;
   double _fontSize = EpubPageCalculator.DEFAULT_FONT_SIZE;
-  int _totalWordsInBook = 0;
-  Map<int, int> _wordsPerChapter = {};
+  final int _totalWordsInBook = 0;
+  final Map<int, int> _wordsPerChapter = {};
   final Map<int, int> _absolutePageMapping = {};
   int _nextAbsolutePage = 1;
 
@@ -956,7 +949,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
         _flatChapters = _flattenChapters(_epubBook!.Chapters ?? []);
 
         // Initialize metadata with proper error handling
-        final metadata = await _metadataRepository.getMetadata(filePath);
+        final metadata = _metadataRepository.getMetadata(filePath);
         if (metadata == null) {
           // Create new metadata if none exists
           final newMetadata = BookMetadata(
@@ -2567,7 +2560,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
         ),
       );
 
-      Overlay.of(context)?.insert(_floatingMenuEntry!);
+      Overlay.of(context).insert(_floatingMenuEntry!);
     });
   }
 

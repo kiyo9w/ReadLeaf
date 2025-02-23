@@ -23,7 +23,7 @@ class FileLoaded extends FileState {
 class FileViewing extends FileLoaded {
   final String filePath;
 
-  const FileViewing(List<FileInfo> files, this.filePath) : super(files);
+  const FileViewing(super.files, this.filePath);
 
   @override
   List<Object> get props => [...super.props, filePath];

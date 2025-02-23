@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:read_leaf/screens/search_screen.dart';
 import 'package:read_leaf/services/annas_archieve.dart';
 import 'package:read_leaf/services/webview.dart';
 import 'package:read_leaf/injection.dart';
@@ -8,23 +7,21 @@ import 'package:read_leaf/blocs/FileBloc/file_bloc.dart';
 import 'package:read_leaf/blocs/SearchBloc/search_bloc.dart';
 import 'package:read_leaf/widgets/file_card.dart';
 import 'package:read_leaf/widgets/page_title_widget.dart';
-import 'package:read_leaf/widgets/book_info_widget.dart';
 import 'package:read_leaf/screens/nav_screen.dart';
-import 'package:read_leaf/services/thumbnail_service.dart';
 import 'package:read_leaf/utils/file_utils.dart';
 import 'package:read_leaf/utils/utils.dart';
 
 class ResultPage extends StatefulWidget {
   final String searchQuery;
 
-  const ResultPage({Key? key, required this.searchQuery}) : super(key: key);
+  const ResultPage({super.key, required this.searchQuery});
 
   @override
   State<ResultPage> createState() => _ResultPageState();
 }
 
 class _ResultPageState extends State<ResultPage> {
-  bool _isShowingDownloadDialog = false;
+  final bool _isShowingDownloadDialog = false;
   late final SearchBloc _searchBloc;
   late final FileBloc _fileBloc;
   late final AnnasArchieve annasArchieve;
@@ -217,8 +214,7 @@ class _ResultPageState extends State<ResultPage> {
 class DownloadProgressDialog extends StatelessWidget {
   final double progress;
 
-  const DownloadProgressDialog({Key? key, required this.progress})
-      : super(key: key);
+  const DownloadProgressDialog({super.key, required this.progress});
 
   @override
   Widget build(BuildContext context) {
@@ -230,7 +226,7 @@ class DownloadProgressDialog extends StatelessWidget {
         children: [
           LinearProgressIndicator(
             value: progress,
-            backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
             valueColor: AlwaysStoppedAnimation<Color>(
                 Theme.of(context).colorScheme.primary),
           ),

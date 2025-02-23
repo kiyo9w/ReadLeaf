@@ -7,7 +7,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/AuthBloc/auth_bloc.dart';
 import '../blocs/AuthBloc/auth_event.dart';
 import '../blocs/AuthBloc/auth_state.dart';
-import '../widgets/auth/auth_dialog.dart';
 import 'profile_screen.dart';
 import '../services/auth_dialog_service.dart';
 import 'package:read_leaf/screens/nav_screen.dart';
@@ -239,7 +238,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
                 color:
-                    Theme.of(context).colorScheme.background.withOpacity(0.5),
+                    Theme.of(context).colorScheme.surface.withOpacity(0.5),
               ),
               child: Row(
                 children: colors.map((color) {

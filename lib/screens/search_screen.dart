@@ -11,7 +11,7 @@ import '../services/annas_archieve.dart';
 import 'package:read_leaf/services/thumbnail_service.dart';
 
 class SearchScreen extends StatefulWidget {
-  const SearchScreen({Key? key}) : super(key: key);
+  const SearchScreen({super.key});
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
@@ -385,7 +385,7 @@ class _SearchScreenState extends State<SearchScreen>
                 );
               },
             );
-          }).toList(),
+          }),
         ],
       ],
     );

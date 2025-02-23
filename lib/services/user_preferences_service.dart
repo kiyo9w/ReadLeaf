@@ -45,7 +45,7 @@ class UserPreferencesService {
   UserPreferences getPreferences() {
     final data = _box.get('preferences');
     if (data != null) {
-      return UserPreferences.fromJson(Map<String, dynamic>.from(data as Map));
+      return UserPreferences.fromJson(Map<String, dynamic>.from(data));
     }
     return const UserPreferences();
   }

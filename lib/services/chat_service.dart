@@ -33,7 +33,7 @@ class ChatService {
   String _getBoxName(String characterName) {
     final bytes = utf8.encode(characterName);
     final hash = sha256.convert(bytes);
-    final boxName = '${_boxPrefix}${hash.toString().substring(0, 20)}';
+    final boxName = '$_boxPrefix${hash.toString().substring(0, 20)}';
     print('Generated box name for character "$characterName": $boxName');
     return boxName;
   }
@@ -476,7 +476,7 @@ class ChatService {
     try {
       _log.info('Clearing all chat data');
 
-      final chatBoxNames = await Hive.lazyBox<ChatMessage>('chat_boxes')
+      final chatBoxNames = Hive.lazyBox<ChatMessage>('chat_boxes')
           .keys
           .where((name) => name.toString().startsWith('chat_'))
           .toList();

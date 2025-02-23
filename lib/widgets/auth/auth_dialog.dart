@@ -5,8 +5,6 @@ import '../../blocs/AuthBloc/auth_bloc.dart';
 import '../../blocs/AuthBloc/auth_event.dart';
 import '../../blocs/AuthBloc/auth_state.dart';
 import '../../services/social_auth_service.dart';
-import 'auth_text_field.dart';
-import 'auth_button.dart';
 import '../../injection.dart';
 
 class AuthDialog extends StatefulWidget {
@@ -497,7 +495,7 @@ class _CustomTextField extends StatelessWidget {
             ),
             suffixIcon: suffixIcon,
             filled: true,
-            fillColor: colorScheme.surfaceVariant.withOpacity(0.3),
+            fillColor: colorScheme.surfaceContainerHighest.withOpacity(0.3),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
               vertical: 16,

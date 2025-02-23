@@ -7,8 +7,6 @@ import 'package:read_leaf/screens/search_screen.dart';
 import 'package:read_leaf/screens/my_library_screen.dart';
 import 'package:read_leaf/screens/settings_screen.dart';
 import 'package:read_leaf/screens/character_screen.dart';
-import 'package:read_leaf/utils/file_utils.dart';
-import 'package:read_leaf/injection.dart';
 import 'package:read_leaf/blocs/FileBloc/file_bloc.dart';
 import 'package:read_leaf/blocs/ReaderBloc/reader_bloc.dart';
 

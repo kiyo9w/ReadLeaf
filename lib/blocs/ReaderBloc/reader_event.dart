@@ -10,7 +10,7 @@ abstract class ReaderEvent extends Equatable {
 class ParseFile extends ReaderEvent {
   final File file;
   final String fileType;
-  ParseFile({required this.file, required this.fileType});
+  const ParseFile({required this.file, required this.fileType});
 }
 
 class OpenReader extends ReaderEvent {
@@ -18,7 +18,7 @@ class OpenReader extends ReaderEvent {
   final String contentParsed;
   final String filePath;
 
-  OpenReader(this.contentParsed, {required this.file, required this.filePath});
+  const OpenReader(this.contentParsed, {required this.file, required this.filePath});
 
   @override
   List<Object> get props => [file, filePath, contentParsed];

@@ -1,18 +1,9 @@
-import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:fluttericon/elusive_icons.dart';
-import 'package:fluttericon/font_awesome5_icons.dart';
-import 'package:fluttericon/octicons_icons.dart';
-import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
-import 'package:read_leaf/screens/search_screen.dart';
 import 'package:path/path.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:pdfrx/pdfrx.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:read_leaf/services/book_metadata_repository.dart';
-import 'package:read_leaf/services/ai_character_service.dart';
-import 'package:read_leaf/services/thumbnail_service.dart';
 import 'package:read_leaf/services/thumbnail_service.dart';
 import 'package:get_it/get_it.dart';
 import 'package:read_leaf/themes/custom_theme_extension.dart';
@@ -54,8 +45,8 @@ class FileCard extends StatefulWidget {
     this.wasRead = false,
     this.hasBeenCompleted = false,
     this.canDismiss = true,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   static String extractFileName(String filePath) {
     return basename(filePath).replaceAll(RegExp(r'\.[^/.]+$'), '');
@@ -240,7 +231,7 @@ class _FileCardState extends State<FileCard> {
           style: theme.textTheme.bodyMedium?.copyWith(
             color: widget.isSelected
                 ? theme.disabledColor
-                : customTheme?.fileCardText?.withOpacity(0.7),
+                : customTheme?.fileCardText.withOpacity(0.7),
           ),
         ),
         const SizedBox(height: 62),
@@ -263,7 +254,7 @@ class _FileCardState extends State<FileCard> {
                 widget.hasBeenCompleted ? Icons.check : Icons.check_outlined,
                 color: widget.hasBeenCompleted
                     ? const Color(0xFFFFD700) // Bright yellow gold color
-                    : customTheme?.fileCardText?.withOpacity(0.6),
+                    : customTheme?.fileCardText.withOpacity(0.6),
                 size: 24.0,
                 semanticLabel: 'Mark as completed',
               ),
@@ -365,7 +356,7 @@ class _FileCardState extends State<FileCard> {
 
   String formatFileSize(int bytes) {
     if (bytes < 1024) {
-      return '${bytes} B';
+      return '$bytes B';
     } else if (bytes < 1000000) {
       return '${(bytes / 1000).toStringAsFixed(2)} KB';
     } else if (bytes < 1000000000) {

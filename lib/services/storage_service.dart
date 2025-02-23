@@ -42,8 +42,7 @@ class StorageService {
       // Get the public URL with cache busting
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final imageUrl =
-          _supabase.storage.from(_bucketName).getPublicUrl(filePath) +
-              '?v=$timestamp';
+          '${_supabase.storage.from(_bucketName).getPublicUrl(filePath)}?v=$timestamp';
 
       return imageUrl;
     } on StorageException catch (e) {

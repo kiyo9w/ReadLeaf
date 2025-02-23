@@ -20,13 +20,13 @@ class FloatingSelectionMenu extends StatefulWidget {
   final bool displayAtTop;
 
   const FloatingSelectionMenu({
-    Key? key,
+    super.key,
     required this.selectedText,
     required this.onMenuSelected,
     this.onDismiss,
     this.onExpand,
     this.displayAtTop = false,
-  }) : super(key: key);
+  });
 
   @override
   State<FloatingSelectionMenu> createState() => _FloatingSelectionMenuState();
@@ -171,7 +171,7 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
             final extract = pageData['extract']?.toString() ?? '';
             if (extract.isNotEmpty) {
               final snippet = extract.length > 500
-                  ? extract.substring(0, 500) + '...'
+                  ? '${extract.substring(0, 500)}...'
                   : extract;
               _wikiExtract = snippet;
             } else {

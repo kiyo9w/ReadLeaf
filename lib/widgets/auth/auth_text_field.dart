@@ -57,7 +57,7 @@ class AuthTextField extends StatelessWidget {
         suffixIcon: suffixIcon,
         prefixIcon: prefixIcon,
         filled: true,
-        fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.1),
+        fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.1),
       ),
       validator: validator,
       obscureText: obscureText,

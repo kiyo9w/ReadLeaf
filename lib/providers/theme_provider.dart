@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:read_leaf/themes/custom_theme_extension.dart';
 import 'package:read_leaf/services/user_preferences_service.dart';
-import 'package:read_leaf/models/user_preferences.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 enum AppThemeMode {
@@ -169,12 +167,10 @@ class ThemeProvider extends ChangeNotifier {
       secondary: Color(0xFFB5A89E), // Warm neutral
       tertiary: Color(0xFFE9CFA3), // Light, warm golden
       surface: Color(0xFFFFFFFF),
-      background: Color(0xFFF5F2ED),
       error: Color(0xFFBA1A1A),
       onPrimary: Color(0xFFFFFFFF),
       onSecondary: Color(0xFF1B1B1B),
       onSurface: Color(0xFF1B1B1B),
-      onBackground: Color(0xFF1B1B1B),
       onError: Color(0xFFFFFFFF),
       surfaceTint: Color(0xFF6B8F71), // Tint surfaces with sage
       primaryContainer: Color(0xFFC4D9C7), // Lighter sage for containers
@@ -219,7 +215,7 @@ class ThemeProvider extends ChangeNotifier {
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: const Color(0xFFF5F2ED),
       indicatorColor: const Color(0xFF6B8F71).withOpacity(0.2),
-      labelTextStyle: MaterialStateProperty.all(
+      labelTextStyle: WidgetStateProperty.all(
         const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
       ),
     ),
@@ -279,8 +275,8 @@ class ThemeProvider extends ChangeNotifier {
     // Checkbox theme
     checkboxTheme: CheckboxThemeData(
       fillColor:
-          MaterialStateProperty.resolveWith<Color>((Set<MaterialState> states) {
-        if (states.contains(MaterialState.selected)) {
+          WidgetStateProperty.resolveWith<Color>((Set<WidgetState> states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF6B8F71); // Sage/Olive when selected
         }
         return Color(0xFFE0E0E0); // Light grey when unselected
@@ -290,8 +286,8 @@ class ThemeProvider extends ChangeNotifier {
     // Radio theme
     radioTheme: RadioThemeData(
       fillColor:
-          MaterialStateProperty.resolveWith<Color>((Set<MaterialState> states) {
-        if (states.contains(MaterialState.selected)) {
+          WidgetStateProperty.resolveWith<Color>((Set<WidgetState> states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF6B8F71); // Sage/Olive when selected
         }
         return Color(0xFFE0E0E0); // Light grey when unselected
@@ -301,15 +297,15 @@ class ThemeProvider extends ChangeNotifier {
     // Switch theme
     switchTheme: SwitchThemeData(
       thumbColor:
-          MaterialStateProperty.resolveWith<Color>((Set<MaterialState> states) {
-        if (states.contains(MaterialState.selected)) {
+          WidgetStateProperty.resolveWith<Color>((Set<WidgetState> states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF6B8F71); // Sage/Olive
         }
         return Colors.grey;
       }),
       trackColor:
-          MaterialStateProperty.resolveWith<Color>((Set<MaterialState> states) {
-        if (states.contains(MaterialState.selected)) {
+          WidgetStateProperty.resolveWith<Color>((Set<WidgetState> states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF6B8F71).withOpacity(0.5);
         }
         return Colors.grey.withOpacity(0.3);
@@ -360,12 +356,10 @@ class ThemeProvider extends ChangeNotifier {
       secondary: Color(0xFFB5A89E), // Warm neutral from light theme
       tertiary: Color(0xFFE9CFA3), // Subtle golden from light theme
       surface: Color(0xFF242424),
-      background: Color(0xFF1B1B1B),
       error: Color(0xFFCF6679),
       onPrimary: Color(0xFFFFFFFF),
       onSecondary: Color(0xFFFFFFFF),
       onSurface: Color(0xFFDADADA),
-      onBackground: Color(0xFFDADADA),
       onError: Color(0xFFFFFFFF),
       surfaceTint: Color(0xFF6B8F71),
       primaryContainer: Color(0xFF3A4B3C), // Darker sage
@@ -444,7 +438,7 @@ class ThemeProvider extends ChangeNotifier {
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: const Color(0xFF1B1B1B), // Same as scaffold
       indicatorColor: const Color(0xFF6B8F71).withOpacity(0.2),
-      labelTextStyle: MaterialStateProperty.all(
+      labelTextStyle: WidgetStateProperty.all(
         const TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w500,
@@ -510,8 +504,8 @@ class ThemeProvider extends ChangeNotifier {
 
     // Checkbox theme
     checkboxTheme: CheckboxThemeData(
-      fillColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      fillColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF6B8F71);
         }
         return const Color(0xFF303030);
@@ -520,8 +514,8 @@ class ThemeProvider extends ChangeNotifier {
 
     // Radio theme
     radioTheme: RadioThemeData(
-      fillColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      fillColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF6B8F71);
         }
         return const Color(0xFF303030);
@@ -530,14 +524,14 @@ class ThemeProvider extends ChangeNotifier {
 
     // Switch theme
     switchTheme: SwitchThemeData(
-      thumbColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      thumbColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF6B8F71);
         }
         return const Color(0xFF757575);
       }),
-      trackColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      trackColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF6B8F71).withOpacity(0.5);
         }
         return const Color(0xFF757575).withOpacity(0.3);
@@ -592,13 +586,11 @@ class ThemeProvider extends ChangeNotifier {
       primary: Color(0xFF433E8A), // Deep indigo
       secondary: Color(0xFF6F6BAE), // Lighter indigo accent
       tertiary: Color(0xFFA29FDC), // Subtle lavender-ish for variety
-      surface: Color(0xFF0A0A0A), // Off-black for cards, etc.
-      background: Color(0xFF000000), // Pure black
+      surface: Color(0xFF0A0A0A), // Pure black
       error: Color(0xFFCF6679),
       onPrimary: Color(0xFFFFFFFF), // White text on indigo
       onSecondary: Color(0xFFFFFFFF),
-      onSurface: Color(0xFFE6E6E6), // Light grey text on black surfaces
-      onBackground: Color(0xFFE6E6E6),
+      onSurface: Color(0xFFE6E6E6),
       onError: Color(0xFFFFFFFF),
       surfaceTint: Color(0xFF433E8A), // Tints for M3 surfaces
       // Containers in deeper or lighter indigo variants:
@@ -678,7 +670,7 @@ class ThemeProvider extends ChangeNotifier {
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: Colors.black,
       indicatorColor: const Color(0xFF433E8A).withOpacity(0.2),
-      labelTextStyle: MaterialStateProperty.all(
+      labelTextStyle: WidgetStateProperty.all(
         const TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w500,
@@ -744,8 +736,8 @@ class ThemeProvider extends ChangeNotifier {
 
     // Checkbox theme
     checkboxTheme: CheckboxThemeData(
-      fillColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      fillColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF433E8A);
         }
         return const Color(0xFF1F1F1F);
@@ -754,8 +746,8 @@ class ThemeProvider extends ChangeNotifier {
 
     // Radio theme
     radioTheme: RadioThemeData(
-      fillColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      fillColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF433E8A);
         }
         return const Color(0xFF1F1F1F);
@@ -764,14 +756,14 @@ class ThemeProvider extends ChangeNotifier {
 
     // Switch theme
     switchTheme: SwitchThemeData(
-      thumbColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      thumbColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF433E8A);
         }
         return const Color(0xFF444444);
       }),
-      trackColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      trackColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF433E8A).withOpacity(0.5);
         }
         return const Color(0xFF444444).withOpacity(0.3);
@@ -821,14 +813,12 @@ class ThemeProvider extends ChangeNotifier {
     colorScheme: const ColorScheme.light(
       primary: Color(0xFF1A1A1A), // Slightly darker black for better contrast
       secondary: Color(0xFFFE2C55), // TikTok accent color
-      tertiary: Color(0xFFFF8787), // Additional pinkish accent
-      background: Colors.white,
+      tertiary: Color(0xFFFF8787),
       surface: Colors.white,
       error: Color(0xFFB00020),
       onPrimary: Colors.white,
       onSecondary: Colors.white,
       onSurface: Colors.black,
-      onBackground: Colors.black,
       onError: Colors.white,
       surfaceTint: Colors.black,
       primaryContainer: Color(0xFFE0E0E0), // More visible gray tone
@@ -870,7 +860,7 @@ class ThemeProvider extends ChangeNotifier {
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: Colors.white,
       indicatorColor: const Color(0xFFFE2C55).withOpacity(0.2),
-      labelTextStyle: MaterialStateProperty.all(
+      labelTextStyle: WidgetStateProperty.all(
         const TextStyle(
             fontSize: 12, fontWeight: FontWeight.w500, color: Colors.black),
       ),
@@ -916,8 +906,8 @@ class ThemeProvider extends ChangeNotifier {
     ),
 
     checkboxTheme: CheckboxThemeData(
-      fillColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      fillColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFFFE2C55);
         }
         return Colors.grey;
@@ -925,8 +915,8 @@ class ThemeProvider extends ChangeNotifier {
     ),
 
     radioTheme: RadioThemeData(
-      fillColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      fillColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFFFE2C55);
         }
         return Colors.grey;
@@ -934,14 +924,14 @@ class ThemeProvider extends ChangeNotifier {
     ),
 
     switchTheme: SwitchThemeData(
-      thumbColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      thumbColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFFFE2C55);
         }
         return Colors.grey;
       }),
-      trackColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      trackColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFFFE2C55).withOpacity(0.5);
         }
         return Colors.grey.withOpacity(0.3);
@@ -985,14 +975,12 @@ class ThemeProvider extends ChangeNotifier {
     colorScheme: const ColorScheme.light(
       primary: Color(0xFF0288D1),
       secondary: Color(0xFF81D4FA), // Soft sky-blue accent
-      tertiary: Color(0xFF4DD0E1), // Teal accent
-      background: Color(0xFFF0F8FA),
+      tertiary: Color(0xFF4DD0E1),
       surface: Colors.white,
       error: Color(0xFFB00020),
       onPrimary: Colors.white,
       onSecondary: Colors.black,
       onSurface: Colors.black,
-      onBackground: Colors.black,
       onError: Colors.white,
       surfaceTint: Color(0xFF0288D1),
       primaryContainer: Color(0xFFB3E5FC),
@@ -1034,7 +1022,7 @@ class ThemeProvider extends ChangeNotifier {
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: const Color(0xFFF0F8FA),
       indicatorColor: const Color(0xFF0288D1).withOpacity(0.2),
-      labelTextStyle: MaterialStateProperty.all(
+      labelTextStyle: WidgetStateProperty.all(
         const TextStyle(
             fontSize: 12, fontWeight: FontWeight.w500, color: Colors.black),
       ),
@@ -1080,8 +1068,8 @@ class ThemeProvider extends ChangeNotifier {
     ),
 
     checkboxTheme: CheckboxThemeData(
-      fillColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      fillColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF0288D1);
         }
         return Colors.grey;
@@ -1089,8 +1077,8 @@ class ThemeProvider extends ChangeNotifier {
     ),
 
     radioTheme: RadioThemeData(
-      fillColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      fillColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF0288D1);
         }
         return Colors.grey;
@@ -1098,14 +1086,14 @@ class ThemeProvider extends ChangeNotifier {
     ),
 
     switchTheme: SwitchThemeData(
-      thumbColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      thumbColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF0288D1);
         }
         return Colors.grey;
       }),
-      trackColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      trackColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF0288D1).withOpacity(0.5);
         }
         return Colors.grey.withOpacity(0.3);
@@ -1152,12 +1140,10 @@ class ThemeProvider extends ChangeNotifier {
       secondary: Color(0xFF614D3B), // Warm brown accent
       tertiary: Color(0xFF8C6E54), // Lighter wood tone
       surface: Color(0xFF16281F),
-      background: Color(0xFF0B1F16),
       error: Color(0xFFCF6679),
       onPrimary: Color(0xFFFFFFFF),
       onSecondary: Color(0xFFFFFFFF),
       onSurface: Color(0xFFD0D0D0),
-      onBackground: Color(0xFFD0D0D0),
       onError: Color(0xFFFFFFFF),
       surfaceTint: Color(0xFF2E4E3F),
       primaryContainer: Color(0xFF264033),
@@ -1199,7 +1185,7 @@ class ThemeProvider extends ChangeNotifier {
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: const Color(0xFF0B1F16),
       indicatorColor: const Color(0xFF2E4E3F).withOpacity(0.2),
-      labelTextStyle: MaterialStateProperty.all(
+      labelTextStyle: WidgetStateProperty.all(
         const TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w500,
@@ -1247,8 +1233,8 @@ class ThemeProvider extends ChangeNotifier {
     ),
 
     checkboxTheme: CheckboxThemeData(
-      fillColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      fillColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF2E4E3F);
         }
         return const Color(0xFF1F3329);
@@ -1256,8 +1242,8 @@ class ThemeProvider extends ChangeNotifier {
     ),
 
     radioTheme: RadioThemeData(
-      fillColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      fillColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF2E4E3F);
         }
         return const Color(0xFF1F3329);
@@ -1265,14 +1251,14 @@ class ThemeProvider extends ChangeNotifier {
     ),
 
     switchTheme: SwitchThemeData(
-      thumbColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      thumbColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF2E4E3F);
         }
         return const Color(0xFF444444);
       }),
-      trackColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      trackColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF2E4E3F).withOpacity(0.5);
         }
         return const Color(0xFF444444).withOpacity(0.3);
@@ -1317,13 +1303,11 @@ class ThemeProvider extends ChangeNotifier {
       primary: Color(0xFFFF8FAB),
       secondary: Color(0xFFFFD3DD),
       tertiary: Color(0xFFFFE4EC),
-      background: Color(0xFFFFE4EC),
       surface: Colors.white,
       error: Color(0xFFB00020),
       onPrimary: Color(0xFFFFFFFF), // White text on pink
       onSecondary: Color(0xFF1B1B1B), // Dark text on lighter pink
       onSurface: Color(0xFF1B1B1B),
-      onBackground: Color(0xFF1B1B1B),
       onError: Color(0xFFFFFFFF),
       surfaceTint: Color(0xFFFF8FAB),
       primaryContainer: Color(0xFFFFC2D1),
@@ -1365,7 +1349,7 @@ class ThemeProvider extends ChangeNotifier {
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: const Color(0xFFFFE4EC),
       indicatorColor: const Color(0xFFFF8FAB).withOpacity(0.2),
-      labelTextStyle: MaterialStateProperty.all(
+      labelTextStyle: WidgetStateProperty.all(
         const TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w500,
@@ -1413,8 +1397,8 @@ class ThemeProvider extends ChangeNotifier {
     ),
 
     checkboxTheme: CheckboxThemeData(
-      fillColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      fillColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFFFF8FAB);
         }
         return Colors.grey;
@@ -1422,8 +1406,8 @@ class ThemeProvider extends ChangeNotifier {
     ),
 
     radioTheme: RadioThemeData(
-      fillColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      fillColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFFFF8FAB);
         }
         return Colors.grey;
@@ -1431,14 +1415,14 @@ class ThemeProvider extends ChangeNotifier {
     ),
 
     switchTheme: SwitchThemeData(
-      thumbColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      thumbColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFFFF8FAB);
         }
         return Colors.grey;
       }),
-      trackColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      trackColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFFFF8FAB).withOpacity(0.5);
         }
         return Colors.grey.withOpacity(0.3);
@@ -1490,15 +1474,13 @@ class ThemeProvider extends ChangeNotifier {
     colorScheme: const ColorScheme.dark(
       primary: Color(0xFF9F6CD2), // Lighter purple accent
       secondary: Color(0xFFC7A7E3), // A complementary lighter purple
-      tertiary: Color(0xFFE1C6F7), // Subtle pastel purple
-      background: Color(0xFF15032C), // Sapphire background
+      tertiary: Color(0xFFE1C6F7), // Sapphire background
       surface: Color(0xFF15032C), // Same for surfaces to unify the "night" feel
       error: Color(0xFFCF6679),
       onPrimary:
           Colors.black, // Text on the lighter purple is black for contrast
       onSecondary: Colors.black,
       onSurface: Color(0xFFE6E6E6),
-      onBackground: Color(0xFFE6E6E6),
       onError: Color(0xFFFFFFFF),
       surfaceTint: Color(0xFF9F6CD2),
       // Container variants
@@ -1586,7 +1568,7 @@ class ThemeProvider extends ChangeNotifier {
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: const Color(0xFF15032C),
       indicatorColor: const Color(0xFF9F6CD2).withOpacity(0.2),
-      labelTextStyle: MaterialStateProperty.all(
+      labelTextStyle: WidgetStateProperty.all(
         const TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w500,
@@ -1664,8 +1646,8 @@ class ThemeProvider extends ChangeNotifier {
     // Checkbox theme
     //
     checkboxTheme: CheckboxThemeData(
-      fillColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      fillColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF9F6CD2);
         }
         return const Color(0xFF321246);
@@ -1676,8 +1658,8 @@ class ThemeProvider extends ChangeNotifier {
     // Radio theme
     //
     radioTheme: RadioThemeData(
-      fillColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      fillColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF9F6CD2);
         }
         return const Color(0xFF321246);
@@ -1688,14 +1670,14 @@ class ThemeProvider extends ChangeNotifier {
     // Switch theme
     //
     switchTheme: SwitchThemeData(
-      thumbColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      thumbColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF9F6CD2);
         }
         return const Color(0xFF444444);
       }),
-      trackColor: MaterialStateProperty.resolveWith<Color>((states) {
-        if (states.contains(MaterialState.selected)) {
+      trackColor: WidgetStateProperty.resolveWith<Color>((states) {
+        if (states.contains(WidgetState.selected)) {
           return const Color(0xFF9F6CD2).withOpacity(0.5);
         }
         return const Color(0xFF444444).withOpacity(0.3);

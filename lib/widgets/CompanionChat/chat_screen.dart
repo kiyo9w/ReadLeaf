@@ -4,7 +4,6 @@ import 'package:read_leaf/models/ai_character.dart';
 import 'package:read_leaf/services/chat_service.dart';
 import 'package:get_it/get_it.dart';
 import 'package:read_leaf/constants/responsive_constants.dart';
-import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -16,14 +15,14 @@ class ChatScreen extends StatefulWidget {
   final String? selectedText;
 
   const ChatScreen({
-    Key? key,
+    super.key,
     required this.character,
     required this.onClose,
     required this.onSendMessage,
     required this.bookId,
     required this.bookTitle,
     this.selectedText,
-  }) : super(key: key);
+  });
 
   @override
   State<ChatScreen> createState() => ChatScreenState();

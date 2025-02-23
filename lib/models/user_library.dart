@@ -1,6 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:flutter/foundation.dart';
-import 'book_metadata.dart';
 
 part 'user_library.freezed.dart';
 part 'user_library.g.dart';

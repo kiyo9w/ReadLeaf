@@ -1,11 +1,9 @@
-import 'dart:developer';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:read_leaf/services/ai_character_service.dart';
 import 'package:read_leaf/services/chat_service.dart';
 import 'package:read_leaf/models/chat_message.dart';
 import 'package:read_leaf/models/ai_character.dart';
-import 'package:read_leaf/services/sync/sync_types.dart';
 import 'package:logging/logging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

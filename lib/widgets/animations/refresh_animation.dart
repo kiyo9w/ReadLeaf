@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:path_drawing/path_drawing.dart';
 import 'package:flutter/services.dart';
@@ -12,11 +11,11 @@ class PullToRefreshAnimation extends StatefulWidget {
   final Function(double)? onPull;
 
   const PullToRefreshAnimation({
-    Key? key,
+    super.key,
     required this.child,
     required this.onRefresh,
     this.onPull,
-  }) : super(key: key);
+  });
 
   @override
   _PullToRefreshAnimationState createState() => _PullToRefreshAnimationState();
@@ -223,7 +222,7 @@ class _AppIconPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     // Get primary color from theme
-    final Color _traceColor = Theme.of(context).primaryColor;
+    final Color traceColor = Theme.of(context).primaryColor;
 
     // 1) Combine all paths, applying the <g> transform from your SVG.
     final Matrix4 groupTransform = Matrix4.identity()
@@ -286,7 +285,7 @@ class _AppIconPainter extends CustomPainter {
 
     // 5) Draw the partial trace in white on top of the grey silhouette.
     final Paint tracePaint = Paint()
-      ..color = _traceColor
+      ..color = traceColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round;
@@ -305,7 +304,7 @@ class _AppIconPainter extends CustomPainter {
       }
 
       final Paint wavePaint = Paint()
-        ..color = _traceColor.withOpacity(0.5)
+        ..color = traceColor.withOpacity(0.5)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5
         ..strokeCap = StrokeCap.round;

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import 'package:read_leaf/widgets/CompanionChat/chat_screen.dart';
-import 'package:read_leaf/models/chat_message.dart';
 import 'package:read_leaf/models/ai_character.dart';
 import 'package:read_leaf/constants/responsive_constants.dart';
 
@@ -14,14 +13,14 @@ class FloatingChatWidget extends StatefulWidget {
   final bool isKeyboardVisible;
 
   const FloatingChatWidget({
-    Key? key,
+    super.key,
     required this.character,
     required this.onSendMessage,
     required this.bookId,
     required this.bookTitle,
     required this.keyboardHeight,
     required this.isKeyboardVisible,
-  }) : super(key: key);
+  });
 
   @override
   State<FloatingChatWidget> createState() => FloatingChatWidgetState();

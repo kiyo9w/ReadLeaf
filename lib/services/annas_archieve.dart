@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 // Package imports:
 import 'package:dio/dio.dart';
 import 'package:html/parser.dart' show parse;
-import 'package:read_leaf/blocs/FileBloc/file_bloc.dart';
 
 class BookData {
   final String title;
@@ -80,7 +79,7 @@ class AnnasArchieve {
                 ?.text ??
             '',
         'description': element
-                ?.querySelector('div[class="mb-1"]')
+                .querySelector('div[class="mb-1"]')
                 ?.text
                 .replaceFirst("description", '') ??
             " ",

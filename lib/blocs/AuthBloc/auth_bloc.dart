@@ -5,8 +5,6 @@ import '../../services/supabase_service.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
 import 'package:flutter/material.dart';
-import '../../widgets/auth/email_verification_screen.dart';
-import 'package:get_it/get_it.dart';
 import '../../services/chat_service.dart';
 import '../../services/book_metadata_repository.dart';
 import '../../services/user_preferences_service.dart';

@@ -2,12 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:read_leaf/blocs/FileBloc/file_bloc.dart';
 import 'package:read_leaf/services/thumbnail_service.dart';
-import 'dart:io';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:read_leaf/services/book_metadata_repository.dart';
 import 'package:get_it/get_it.dart';
 import 'package:read_leaf/themes/custom_theme_extension.dart';
-import 'package:read_leaf/utils/utils.dart';
 
 class MinimalFileCard extends StatefulWidget {
   final String filePath;
@@ -18,14 +16,14 @@ class MinimalFileCard extends StatefulWidget {
   final bool isInternetBook;
 
   const MinimalFileCard({
-    Key? key,
+    super.key,
     required this.filePath,
     required this.title,
     this.author,
     this.thumbnailUrl,
     required this.onTap,
     this.isInternetBook = false,
-  }) : super(key: key);
+  });
 
   @override
   State<MinimalFileCard> createState() => _MinimalFileCardState();
@@ -112,7 +110,7 @@ class _MinimalFileCardState extends State<MinimalFileCard> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: customTheme?.minimalFileCardText?.withOpacity(0.7),
+                      color: customTheme?.minimalFileCardText.withOpacity(0.7),
                     ),
                   ),
                 ],
@@ -125,7 +123,7 @@ class _MinimalFileCardState extends State<MinimalFileCard> {
                 color: Colors.transparent,
                 child: IconButton(
                   icon: const Icon(Icons.close, size: 18),
-                  color: customTheme?.minimalFileCardText?.withOpacity(0.7),
+                  color: customTheme?.minimalFileCardText.withOpacity(0.7),
                   onPressed: () {
                     ScaffoldMessenger.of(context).clearSnackBars();
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -198,11 +196,11 @@ class _MinimalFileCardState extends State<MinimalFileCard> {
             child: Icon(
               widget.isInternetBook ? Icons.book : Icons.picture_as_pdf,
               size: 40,
-              color: customTheme?.minimalFileCardText?.withOpacity(0.3),
+              color: customTheme?.minimalFileCardText.withOpacity(0.3),
             ),
           );
         }
-        return Container(
+        return SizedBox(
           width: double.infinity,
           height: double.infinity,
           child: Image(
@@ -214,7 +212,7 @@ class _MinimalFileCardState extends State<MinimalFileCard> {
               child: Icon(
                 widget.isInternetBook ? Icons.book : Icons.picture_as_pdf,
                 size: 40,
-                color: customTheme?.minimalFileCardText?.withOpacity(0.3),
+                color: customTheme?.minimalFileCardText.withOpacity(0.3),
               ),
             ),
           ),

@@ -11,7 +11,7 @@ class TypingText extends StatefulWidget {
   final bool skipAnimation;
 
   const TypingText({
-    Key? key,
+    super.key,
     required this.text,
     this.style,
     this.maxLines,
@@ -19,7 +19,7 @@ class TypingText extends StatefulWidget {
     this.typingSpeed = const Duration(milliseconds: 15),
     this.onTypingComplete,
     this.skipAnimation = false,
-  }) : super(key: key);
+  });
 
   @override
   State<TypingText> createState() => _TypingTextState();

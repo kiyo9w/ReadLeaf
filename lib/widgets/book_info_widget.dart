@@ -1,8 +1,4 @@
 import 'package:flutter/material.dart';
-import '../blocs/FileBloc/file_bloc.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:read_leaf/models/file_info.dart';
-import 'package:read_leaf/services/webview.dart';
 
 class BookInfoWidget extends StatelessWidget {
   final String link;
@@ -32,8 +28,8 @@ class BookInfoWidget extends StatelessWidget {
     this.author,
     this.thumbnailUrl,
     this.fileType,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {

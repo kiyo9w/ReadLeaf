@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -8,7 +7,6 @@ import 'package:read_leaf/widgets/minimal_file_card_widget.dart';
 import 'package:read_leaf/widgets/ai_message_card.dart';
 import 'package:read_leaf/widgets/ai_character_slider.dart';
 import 'package:read_leaf/utils/file_utils.dart';
-import 'package:read_leaf/blocs/ReaderBloc/reader_bloc.dart';
 import 'package:read_leaf/services/gemini_service.dart';
 import 'package:read_leaf/services/annas_archieve.dart';
 import 'package:read_leaf/injection.dart';
@@ -25,7 +23,7 @@ import 'package:provider/provider.dart';
 import 'package:read_leaf/providers/theme_provider.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => HomeScreenState();
