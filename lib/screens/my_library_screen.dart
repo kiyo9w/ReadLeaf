@@ -6,6 +6,7 @@ import 'package:read_leaf/widgets/file_card.dart';
 import 'package:read_leaf/screens/nav_screen.dart';
 import 'package:read_leaf/models/file_info.dart';
 import 'package:read_leaf/utils/utils.dart';
+import 'package:read_leaf/constants/responsive_constants.dart';
 
 class MyLibraryScreen extends StatefulWidget {
   const MyLibraryScreen({super.key});
@@ -54,6 +55,7 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isTablet = ResponsiveConstants.isTablet(context);
 
     return BlocBuilder<FileBloc, FileState>(
       builder: (context, state) {
@@ -84,13 +86,15 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
               centerTitle: false,
               title: Text(
                 'My Library',
-                style: theme.textTheme.displayLarge,
+                style: theme.textTheme.displayLarge?.copyWith(
+                  fontSize: isTablet ? 28 : 24,
+                ),
               ),
             ),
             body: SingleChildScrollView(
               controller: _scrollController,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10.0),
+                padding: EdgeInsets.symmetric(horizontal: isTablet ? 16 : 10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -106,7 +110,7 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
                     ),
                     if (_favouriteExpanded && starredBooks.isNotEmpty)
                       ..._buildBookCards(starredBooks),
-                    const SizedBox(height: 20),
+                    SizedBox(height: isTablet ? 24 : 20),
                     _buildCategoryHeader(
                       title: "Have Read",
                       count: completedBooks.length,
@@ -119,7 +123,7 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
                     ),
                     if (_haveReadExpanded && completedBooks.isNotEmpty)
                       ..._buildBookCards(completedBooks),
-                    const SizedBox(height: 20),
+                    SizedBox(height: isTablet ? 24 : 20),
                     _buildCategoryHeader(
                       title: "Local Storage",
                       count: localFiles.length,
@@ -132,7 +136,7 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
                     ),
                     if (_localStorageExpanded && localFiles.isNotEmpty)
                       ..._buildBookCards(localFiles),
-                    const SizedBox(height: 40),
+                    SizedBox(height: isTablet ? 48 : 40),
                   ],
                 ),
               ),
@@ -143,6 +147,7 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
           body: Center(
             child: CircularProgressIndicator(
               color: theme.primaryColor,
+              strokeWidth: isTablet ? 3 : 2,
             ),
           ),
         );
@@ -157,28 +162,34 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
     required VoidCallback onTap,
   }) {
     final theme = Theme.of(context);
+    final isTablet = ResponsiveConstants.isTablet(context);
 
     return GestureDetector(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        padding: EdgeInsets.symmetric(vertical: isTablet ? 12 : 8),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
               title,
-              style: theme.textTheme.titleLarge,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontSize: isTablet ? 24 : 20,
+              ),
             ),
             Row(
               children: [
                 Text(
                   count.toString(),
-                  style: theme.textTheme.bodyMedium,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontSize: isTablet ? 16 : 14,
+                  ),
                 ),
-                const SizedBox(width: 4),
+                SizedBox(width: isTablet ? 6 : 4),
                 Icon(
                   isExpanded ? Icons.expand_less : Icons.expand_more,
                   color: theme.iconTheme.color,
+                  size: isTablet ? 28 : 24,
                 ),
               ],
             ),
@@ -189,9 +200,10 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
   }
 
   List<Widget> _buildBookCards(List<FileInfo> books) {
+    final isTablet = ResponsiveConstants.isTablet(context);
     return books.map((book) {
       return Padding(
-        padding: const EdgeInsets.only(bottom: 10),
+        padding: EdgeInsets.only(bottom: isTablet ? 12 : 10),
         child: FileCard(
           filePath: book.filePath,
           fileSize: book.fileSize,
