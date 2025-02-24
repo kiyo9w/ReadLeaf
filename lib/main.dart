@@ -14,6 +14,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:read_leaf/screens/splash_screen.dart';
 import 'injection.dart';
+import 'package:read_leaf/screens/home_screen.dart';
+import 'package:read_leaf/services/character_suggestion_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +31,7 @@ void main() async {
     await dotenv.load(fileName: '.env');
     await _initializeSupabase();
     await configureDependencies();
+    await CharacterSuggestionService.initialize();
     runApp(
       ChangeNotifierProvider(
         create: (_) => getIt<ThemeProvider>(),

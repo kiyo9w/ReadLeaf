@@ -138,19 +138,21 @@ class _MultiCategorySuggestionChipsState
   List<Widget> _buildChipsForCategory(String category, List<String> traits) {
     List<Widget> chipWidgets = [];
 
-    // First add selected traits that belong to this category
-    for (var trait in traits) {
-      if (widget.selectedTraits.contains(trait)) {
+    // 1. Add selected traits in the order they were selected
+    for (var trait in widget.selectedTraits) {
+      // Ensure trait is in this category
+      if (traits.contains(trait)) {
         chipWidgets.add(SelectedChip(
+          key: ValueKey('selected_$trait'),
           trait: trait,
           onDeselected: widget.onChipSelected,
         ));
-
-        // Also show related traits if any
+        // Also show related if any
         if (widget.relatedTraits.containsKey(trait)) {
           for (var related in widget.relatedTraits[trait]!) {
             if (!widget.selectedTraits.contains(related)) {
               chipWidgets.add(RelatedChip(
+                key: ValueKey('related_${trait}_$related'),
                 trait: related,
                 onSelected: widget.onChipSelected,
               ));
@@ -160,10 +162,11 @@ class _MultiCategorySuggestionChipsState
       }
     }
 
-    // Now add unselected traits
+    // 2. Then add unselected traits
     for (var trait in traits) {
       if (!widget.selectedTraits.contains(trait)) {
         chipWidgets.add(PrimaryChip(
+          key: ValueKey('primary_$trait'),
           trait: trait,
           onSelected: widget.onChipSelected,
         ));
@@ -196,29 +199,30 @@ class _PrimaryChipState extends State<PrimaryChip> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return GestureDetector(
       onTapDown: (_) => setState(() => _isPressed = true),
       onTapUp: (_) => setState(() => _isPressed = false),
       onTapCancel: () => setState(() => _isPressed = false),
       onTap: () => widget.onSelected(widget.trait),
       child: AnimatedContainer(
-        key: ValueKey('${widget.trait}_primary'),
-        duration: const Duration(milliseconds: 300),
+        duration: const Duration(milliseconds: 200),
         transform: Matrix4.identity()..scale(_isPressed ? 0.95 : 1.0),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              theme.primaryColor.withOpacity(0.1),
-              theme.primaryColor.withOpacity(0.05),
-            ],
-          ),
+          color: theme.primaryColor.withOpacity(0.4),
           borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color:
+                isDark ? Colors.white70 : theme.primaryColor.withOpacity(0.3),
+            width: 1.5,
+          ),
           boxShadow: [
             BoxShadow(
-              color: theme.shadowColor.withOpacity(_isPressed ? 0.05 : 0.1),
+              color: isDark
+                  ? Colors.white.withOpacity(0.05)
+                  : theme.shadowColor.withOpacity(_isPressed ? 0.05 : 0.1),
               blurRadius: _isPressed ? 2 : 4,
               offset: Offset(1, _isPressed ? 1 : 2),
             ),
@@ -227,7 +231,7 @@ class _PrimaryChipState extends State<PrimaryChip> {
         child: Text(
           widget.trait,
           style: TextStyle(
-            color: theme.primaryColor,
+            color: isDark ? Colors.white : Colors.white.withOpacity(0.8),
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -252,58 +256,54 @@ class _SelectedChipState extends State<SelectedChip> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return GestureDetector(
       onTapDown: (_) => setState(() => _isPressed = true),
       onTapUp: (_) => setState(() => _isPressed = false),
       onTapCancel: () => setState(() => _isPressed = false),
       onTap: () => widget.onDeselected(widget.trait),
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        transitionBuilder: (child, animation) => ScaleTransition(
-          scale: animation,
-          child: FadeTransition(opacity: animation, child: child),
-        ),
-        child: AnimatedContainer(
-          key: ValueKey('${widget.trait}_selected'),
-          duration: const Duration(milliseconds: 300),
-          transform: Matrix4.identity()..scale(_isPressed ? 0.95 : 1.0),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                theme.primaryColor,
-                theme.primaryColor.withOpacity(0.8),
-              ],
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        transform: Matrix4.identity()..scale(_isPressed ? 0.95 : 1.0),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              theme.primaryColor,
+              theme.primaryColor.withOpacity(0.6),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: isDark
+                  ? Colors.deepPurpleAccent.withOpacity(0.3)
+                  : theme.primaryColor.withOpacity(_isPressed ? 0.1 : 0.2),
+              blurRadius: _isPressed ? 4 : 8,
+              offset: Offset(2, _isPressed ? 2 : 4),
             ),
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: theme.primaryColor.withOpacity(_isPressed ? 0.1 : 0.2),
-                blurRadius: _isPressed ? 4 : 8,
-                offset: Offset(2, _isPressed ? 2 : 4),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              widget.trait,
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
               ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                widget.trait,
-                style: TextStyle(
-                  color: theme.colorScheme.onPrimary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Icon(
-                Icons.check_circle_outline,
-                size: 18,
-                color: theme.colorScheme.onPrimary,
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 6),
+            Icon(
+              Icons.check_circle_outline,
+              size: 18,
+              color: Colors.white,
+            ),
+          ],
         ),
       ),
     );
@@ -325,62 +325,60 @@ class _RelatedChipState extends State<RelatedChip> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return GestureDetector(
       onTapDown: (_) => setState(() => _isPressed = true),
       onTapUp: (_) => setState(() => _isPressed = false),
       onTapCancel: () => setState(() => _isPressed = false),
       onTap: () => widget.onSelected(widget.trait),
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        transitionBuilder: (child, animation) => ScaleTransition(
-          scale: animation,
-          child: FadeTransition(opacity: animation, child: child),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        transform: Matrix4.identity()..scale(_isPressed ? 0.95 : 1.0),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              theme.primaryColor.withOpacity(0.65),
+              theme.primaryColor.withOpacity(0.1),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color:
+                isDark ? Colors.white70 : theme.primaryColor.withOpacity(0.3),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isDark
+                  ? Colors.white.withOpacity(0.05)
+                  : theme.shadowColor.withOpacity(_isPressed ? 0.05 : 0.1),
+              blurRadius: _isPressed ? 2 : 4,
+              offset: Offset(1, _isPressed ? 1 : 2),
+            ),
+          ],
         ),
-        child: AnimatedContainer(
-          key: ValueKey('${widget.trait}_related'),
-          duration: const Duration(milliseconds: 300),
-          transform: Matrix4.identity()..scale(_isPressed ? 0.95 : 1.0),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                theme.primaryColor.withOpacity(0.15),
-                theme.primaryColor.withOpacity(0.1),
-              ],
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              widget.trait,
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: theme.primaryColor.withOpacity(0.3),
-              width: 1.5,
+            const SizedBox(width: 4),
+            Icon(
+              Icons.add_circle_outline,
+              size: 16,
+              color:
+                  isDark ? Colors.white70 : theme.primaryColor.withOpacity(0.7),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: theme.shadowColor.withOpacity(_isPressed ? 0.05 : 0.1),
-                blurRadius: _isPressed ? 2 : 4,
-                offset: Offset(1, _isPressed ? 1 : 2),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                widget.trait,
-                style: TextStyle(
-                  color: theme.primaryColor,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Icon(
-                Icons.add_circle_outline,
-                size: 16,
-                color: theme.primaryColor.withOpacity(0.7),
-              ),
-            ],
-          ),
+          ],
         ),
       ),
     );
