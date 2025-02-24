@@ -1,13 +1,17 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:read_leaf/models/ai_character.dart';
-import 'package:read_leaf/services/ai_character_service.dart';
-import 'package:read_leaf/injection.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart' as path_provider;
 import 'package:path/path.dart' as path;
+import 'package:read_leaf/models/ai_character.dart';
+import 'package:read_leaf/services/ai_character_service.dart';
+import 'package:read_leaf/injection.dart';
 import 'package:read_leaf/screens/home_screen.dart';
 import 'package:read_leaf/utils/utils.dart';
+import 'package:read_leaf/constants/responsive_constants.dart';
+import 'package:read_leaf/services/character_suggestion_service.dart';
+import 'package:read_leaf/widgets/character_suggestion_chips.dart';
 
 class CreateCharacterScreen extends StatefulWidget {
   const CreateCharacterScreen({super.key});
@@ -18,396 +22,550 @@ class CreateCharacterScreen extends StatefulWidget {
 
 class _CreateCharacterScreenState extends State<CreateCharacterScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _pageController = PageController();
+
   final _nameController = TextEditingController();
   final _taglineController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _greetingController = TextEditingController();
   final _scenarioController = TextEditingController();
+
   String? _selectedImagePath;
   String? _localImagePath;
+  final List<String> _selectedTags = [];
   String? _selectedVoice;
   bool _isPublic = true;
   int _currentStep = 0;
+  final List<String> _selectedTraits = [];
+  final Map<String, String> _tagToText = {}; // maps trait to text
 
+  // Focus nodes for form fields
+  final _descriptionFocusNode = FocusNode();
+  final _greetingFocusNode = FocusNode();
+  final _scenarioFocusNode = FocusNode();
+  final _taglineFocusNode = FocusNode();
+  final _tagsFocusNode = FocusNode();
+
+  // For contextual suggestions (if needed)
+  String? _selectedContext;
+  bool _showTagSuggestions = false;
+  bool _showScenarioSuggestions = false;
+  bool _showGreetingSuggestions = false;
+  bool _showTaglineSuggestions = false;
+  List<String> _currentSuggestions = [];
+
+  // Step titles and descriptions
   final _stepTitles = [
     'Basic Information',
-    'Personality',
+    'Traits',
     'Voice & Settings',
   ];
-
   final _stepDescriptions = [
     'Enter your character\'s name and choose their appearance',
-    'Define your character\'s personality and greeting message',
+    'Select traits from multiple categories',
     'Choose how your character speaks and set visibility',
   ];
 
-  final List<String> _voiceOptions = [
-    'Friendly',
-    'Professional',
-    'Casual',
-    'Formal'
-  ];
+  // Voice options
+  final _voiceOptions = ['Friendly', 'Professional', 'Casual', 'Formal'];
 
   final ImagePicker _picker = ImagePicker();
 
-  // Custom colors
-  static const Color primaryColor = Color(0xFF6750A4);
-  static const Color secondaryColor = Color(0xFF9C27B0);
-  static const Color backgroundColor = Color(0xFFF8F9FA);
-  static const Color surfaceColor = Colors.white;
-  static const Color textColor = Color(0xFF1A1A1A);
+  // For multi-category chips, we load categories from JSON
+  Map<String, List<String>> _categoryTraits = {};
+  Map<String, List<String>> _relatedTraits = {};
 
-  void _nextStep() {
-    bool canProceed = true;
+  @override
+  void initState() {
+    super.initState();
+    _setupFocusListeners();
+    _loadTraitData();
+  }
 
-    switch (_currentStep) {
-      case 0:
-        canProceed = _nameController.text.isNotEmpty;
-        break;
-      case 1:
-        canProceed = _selectedImagePath != null;
-        break;
-      case 2:
-        canProceed = true;
-        break;
-      case 3:
-        canProceed = _descriptionController.text.isNotEmpty;
-        break;
-      case 4:
-        canProceed = true;
-        break;
-      case 5:
-        canProceed = _selectedVoice != null;
-        break;
-    }
+  // Load trait data from JSON and extract category information
+  Future<void> _loadTraitData() async {
+    try {
+      final jsonString = await DefaultAssetBundle.of(context)
+          .loadString('lib/data/personality_traits.json');
+      final data = json.decode(jsonString);
 
-    if (canProceed) {
+      // Using the "trait_categories" field
+      final Map<String, dynamic> traitCats = data['trait_categories'];
+      Map<String, List<String>> catMap = {};
+      traitCats.forEach((category, list) {
+        // Remove duplicate traits if needed.
+        catMap[category] = List<String>.from(list.toSet());
+      });
+
+      // For related traits, we use the existing field
+      final Map<String, dynamic> relMap = data['trait_relationships'];
+      Map<String, List<String>> related = {};
+      relMap.forEach((key, value) {
+        // Convert the Map<String, double> to List<String> by taking the keys
+        final Map<String, dynamic> relations = value as Map<String, dynamic>;
+        related[key] = relations.keys.toList();
+      });
+
       setState(() {
-        if (_currentStep < 6) {
-          _currentStep++;
+        _categoryTraits = catMap;
+        _relatedTraits = related;
+      });
+    } catch (e) {
+      print('Error loading trait data: $e');
+    }
+  }
+
+  void _setupFocusListeners() {
+    _tagsFocusNode.addListener(() {
+      setState(() {
+        _showTagSuggestions = _tagsFocusNode.hasFocus;
+        if (_showTagSuggestions) {
+          _currentSuggestions =
+              CharacterSuggestionService.getFilteredSuggestions(
+            'tags',
+            _selectedTraits,
+          );
         }
       });
-    } else {
-      Utils.showErrorSnackBar(context, 'Please fill in all required fields');
+    });
+    _taglineFocusNode.addListener(() {
+      setState(() {
+        _showTaglineSuggestions = _taglineFocusNode.hasFocus;
+        if (_showTaglineSuggestions) _updateTaglineSuggestions();
+      });
+    });
+    _greetingFocusNode.addListener(() {
+      setState(() {
+        _showGreetingSuggestions = _greetingFocusNode.hasFocus;
+        if (_showGreetingSuggestions) _updateGreetingSuggestions();
+      });
+    });
+    _scenarioFocusNode.addListener(() {
+      setState(() {
+        _showScenarioSuggestions = _scenarioFocusNode.hasFocus;
+        if (_showScenarioSuggestions) _updateScenarioSuggestions();
+      });
+    });
+    _descriptionController.addListener(() {
+      if (_descriptionFocusNode.hasFocus) _onDescriptionChanged();
+    });
+  }
+
+  void _onTagSelected(String tag) {
+    setState(() {
+      if (!_selectedTraits.contains(tag)) {
+        _selectedTraits.add(tag);
+        final currentText = _descriptionController.text;
+        final newText = currentText.isEmpty ? tag : '$currentText, $tag';
+        _descriptionController.text = newText;
+        _tagToText[tag] = tag;
+        _descriptionController.selection = TextSelection.fromPosition(
+          TextPosition(offset: _descriptionController.text.length),
+        );
+        _updateTaglineSuggestions();
+        _updateGreetingSuggestions();
+        _updateScenarioSuggestions();
+      }
+    });
+  }
+
+  void _onTagDeleted(String tag) {
+    setState(() {
+      _selectedTraits.remove(tag);
+      _currentSuggestions = CharacterSuggestionService.getFilteredSuggestions(
+        'tags',
+        _selectedTraits,
+      );
+    });
+  }
+
+  void _updateTaglineSuggestions() {
+    if (_selectedTraits.isEmpty) return;
+    final suggestions =
+        CharacterSuggestionService.getTaglineSuggestions(_selectedTraits);
+    setState(() {
+      _showTaglineSuggestions =
+          _taglineFocusNode.hasFocus && suggestions.isNotEmpty;
+      _currentSuggestions = suggestions;
+    });
+  }
+
+  void _updateGreetingSuggestions() {
+    if (_selectedTraits.isEmpty) return;
+    final suggestions = CharacterSuggestionService.getGreetingSuggestions(
+      _selectedTraits,
+      _selectedContext,
+    );
+    setState(() {
+      _showGreetingSuggestions =
+          _greetingFocusNode.hasFocus && suggestions.isNotEmpty;
+      _currentSuggestions = suggestions;
+    });
+  }
+
+  void _updateScenarioSuggestions() {
+    if (_selectedTraits.isEmpty) return;
+    final suggestions = CharacterSuggestionService.getScenarioSuggestions(
+      _selectedTraits,
+      _selectedContext,
+    );
+    setState(() {
+      _showScenarioSuggestions =
+          _scenarioFocusNode.hasFocus && suggestions.isNotEmpty;
+      _currentSuggestions = suggestions;
+    });
+  }
+
+  void _updateSuggestionsBasedOnContext() {
+    if (_selectedContext != null) {
+      final contextualGreetings =
+          CharacterSuggestionService.getContextualGreetings(
+        _selectedTraits,
+        _selectedContext!,
+      );
+      if (contextualGreetings.isNotEmpty) {
+        _greetingController.text = contextualGreetings.values.first;
+      }
+      final contextualScenarios =
+          CharacterSuggestionService.getContextualScenarios(
+        _selectedTraits,
+        _selectedContext!,
+      );
+      if (contextualScenarios.isNotEmpty) {
+        _scenarioController.text = contextualScenarios.values.first;
+      }
     }
   }
 
-  void _previousStep() {
-    if (_currentStep > 0) {
+  void _onDescriptionChanged() {
+    final currentText = _descriptionController.text;
+    for (final tag in _tagToText.keys.toList()) {
+      if (!currentText.contains(_tagToText[tag]!)) {
+        setState(() {
+          _selectedTraits.remove(tag);
+          _tagToText.remove(tag);
+        });
+      }
+    }
+    if (currentText.isEmpty) {
       setState(() {
-        _currentStep--;
+        _selectedTraits.clear();
+        _tagToText.clear();
+        _showTagSuggestions = true;
       });
     }
   }
 
-  Widget _buildStepContent() {
-    final theme = Theme.of(context);
-    final steps = [
-      _buildBasicInfoStep(),
-      _buildPersonalityStep(),
-      _buildVoiceStep(),
-    ];
+  // -------------------- UI Building --------------------
 
-    return Container(
-      color: theme.scaffoldBackgroundColor,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              _stepTitles[_currentStep],
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isTablet = ResponsiveConstants.isTablet(context);
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        appBar: AppBar(
+          title: Text('Create Character',
+              style: theme.textTheme.displayLarge?.copyWith(
+                fontSize: isTablet ? 28 : 24,
+              )),
+          centerTitle: false,
+        ),
+        body: SafeArea(
+          child: SizedBox.expand(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                children: [
+                  _buildStepIndicator(),
+                  Expanded(child: _buildStepContent(isTablet)),
+                  _buildNavigationButtons(isTablet),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              _stepDescriptions[_currentStep],
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
-              ),
-            ),
-            const SizedBox(height: 24),
-            steps[_currentStep],
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildBasicInfoStep() {
+  Widget _buildStepIndicator() {
     final theme = Theme.of(context);
+    final isTablet = ResponsiveConstants.isTablet(context);
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildImagePicker(),
-        const SizedBox(height: 32),
-        Container(
-          decoration: BoxDecoration(
-            color: theme.cardColor,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: theme.shadowColor.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
+        LinearProgressIndicator(
+          value: (_currentStep + 1) / 3,
+          backgroundColor: theme.dividerColor,
+          color: theme.primaryColor,
+          minHeight: isTablet ? 8 : 4,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          _stepTitles[_currentStep],
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: theme.primaryColor,
           ),
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextFormField(
-                controller: _nameController,
-                decoration: InputDecoration(
-                  labelText: 'Character Name',
-                  hintText: 'Enter a unique name',
-                  filled: true,
-                  fillColor: theme.scaffoldBackgroundColor,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: theme.dividerColor),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: theme.dividerColor),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: theme.primaryColor, width: 2),
-                  ),
-                  prefixIcon:
-                      Icon(Icons.person_outline, color: theme.primaryColor),
-                  labelStyle: TextStyle(color: theme.primaryColor),
-                ),
-                validator: (value) {
-                  if (value?.isEmpty ?? true) {
-                    return 'Please enter a name';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 20),
-              TextFormField(
-                controller: _taglineController,
-                decoration: InputDecoration(
-                  labelText: 'Tagline',
-                  hintText: 'A short description (e.g., "The Wise Mentor")',
-                  filled: true,
-                  fillColor: theme.scaffoldBackgroundColor,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: theme.dividerColor),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: theme.dividerColor),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: theme.primaryColor, width: 2),
-                  ),
-                  prefixIcon: Icon(Icons.short_text, color: theme.primaryColor),
-                  labelStyle: TextStyle(color: theme.primaryColor),
-                ),
-                validator: (value) {
-                  if (value?.isEmpty ?? true) {
-                    return 'Please enter a tagline';
-                  }
-                  return null;
-                },
-              ),
-            ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          _stepDescriptions[_currentStep],
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
           ),
+          textAlign: TextAlign.center,
         ),
       ],
     );
   }
 
-  Widget _buildImagePicker() {
+  Widget _buildStepContent(bool isTablet) {
+    return PageView(
+      controller: _pageController,
+      physics: const NeverScrollableScrollPhysics(),
+      children: [
+        _buildBasicInfoStep(isTablet),
+        _buildTraitSelectionStep(isTablet),
+        _buildVoiceStep(isTablet),
+      ],
+    );
+  }
+
+  Widget _buildBasicInfoStep(bool isTablet) {
     final theme = Theme.of(context);
-    return Center(
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(isTablet ? 24 : 16),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Stack(
-            children: [
-              GestureDetector(
-                onTap: _pickImage,
-                child: Container(
-                  width: 140,
-                  height: 140,
-                  decoration: BoxDecoration(
-                    color: theme.cardColor,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: theme.primaryColor.withOpacity(0.2),
-                      width: 3,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: theme.shadowColor.withOpacity(0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: _localImagePath != null
-                      ? ClipOval(
-                          child: Image.file(
-                            File(_localImagePath!),
-                            fit: BoxFit.cover,
-                          ),
-                        )
-                      : Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.add_a_photo_outlined,
-                              size: 40,
-                              color: theme.primaryColor,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Add Photo',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.primaryColor,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                ),
+          _buildImagePicker(isTablet),
+          const SizedBox(height: 24),
+          TextFormField(
+            controller: _nameController,
+            style: TextStyle(fontSize: isTablet ? 16 : 14),
+            decoration: InputDecoration(
+              labelText: 'Character Name',
+              hintText: 'Enter a unique name',
+              filled: true,
+              fillColor: theme.scaffoldBackgroundColor,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(isTablet ? 16 : 12),
               ),
-              if (_localImagePath != null)
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: theme.primaryColor,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: theme.scaffoldBackgroundColor,
-                        width: 2,
-                      ),
-                    ),
-                    child: Icon(
-                      Icons.edit,
-                      size: 20,
-                      color: theme.colorScheme.onPrimary,
-                    ),
-                  ),
-                ),
-            ],
+              prefixIcon: Icon(Icons.person_outline,
+                  color: theme.primaryColor, size: isTablet ? 24 : 20),
+            ),
+            validator: (value) =>
+                (value?.isEmpty ?? true) ? 'Please enter a name' : null,
+          ),
+          const SizedBox(height: 20),
+          TextFormField(
+            controller: _taglineController,
+            style: TextStyle(fontSize: isTablet ? 16 : 14),
+            decoration: InputDecoration(
+              labelText: 'Tagline',
+              hintText: 'A short description (e.g., "The Wise Mentor")',
+              filled: true,
+              fillColor: theme.scaffoldBackgroundColor,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(isTablet ? 16 : 12),
+              ),
+              prefixIcon: Icon(Icons.short_text,
+                  color: theme.primaryColor, size: isTablet ? 24 : 20),
+            ),
+            validator: (value) =>
+                (value?.isEmpty ?? true) ? 'Please enter a tagline' : null,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildPersonalityStep() {
+  Widget _buildImagePicker(bool isTablet) {
     final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: theme.shadowColor.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+    return Center(
+      child: Stack(
+        children: [
+          GestureDetector(
+            onTap: _pickImage,
+            child: Container(
+              width: isTablet ? 180 : 140,
+              height: isTablet ? 180 : 140,
+              decoration: BoxDecoration(
+                color: theme.cardColor,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: theme.primaryColor.withOpacity(0.2),
+                  width: isTablet ? 4 : 3,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.shadowColor.withOpacity(0.1),
+                    blurRadius: isTablet ? 12 : 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: _localImagePath != null
+                  ? ClipOval(
+                      child: Image.file(
+                        File(_localImagePath!),
+                        fit: BoxFit.cover,
+                      ),
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_a_photo_outlined,
+                            size: isTablet ? 48 : 40,
+                            color: theme.primaryColor),
+                        const SizedBox(height: 8),
+                        Text('Add Photo',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.primaryColor,
+                              fontWeight: FontWeight.w500,
+                            )),
+                      ],
+                    ),
+            ),
           ),
+          if (_localImagePath != null)
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: EdgeInsets.all(isTablet ? 6 : 4),
+                height: isTablet ? 48 : 40,
+                width: isTablet ? 48 : 40,
+                decoration: BoxDecoration(
+                  color: theme.primaryColor,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: theme.scaffoldBackgroundColor,
+                    width: isTablet ? 3 : 2,
+                  ),
+                ),
+                child: IconButton(
+                  onPressed: _pickImage,
+                  icon: Icon(Icons.edit,
+                      color: theme.colorScheme.onPrimary,
+                      size: isTablet ? 24 : 22),
+                  padding: EdgeInsets.zero,
+                ),
+              ),
+            ),
         ],
       ),
-      padding: const EdgeInsets.all(20),
+    );
+  }
+
+  // ------------------ New Trait Selection Step ------------------
+  Widget _buildTraitSelectionStep(bool isTablet) {
+    final theme = Theme.of(context);
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(isTablet ? 24 : 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(
+            'Character Traits',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.primaryColor,
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Use the new multi-category chip widget
+          MultiCategorySuggestionChips(
+            categoryTraits: _categoryTraits,
+            relatedTraits: _relatedTraits,
+            selectedTraits: _selectedTraits.toSet(),
+            onChipSelected: _onTagSelected,
+            enableSearch: true,
+          ),
+          const SizedBox(height: 24),
           TextFormField(
             controller: _descriptionController,
+            focusNode: _descriptionFocusNode,
             maxLines: 5,
+            onChanged: (text) => _onDescriptionChanged(),
+            style: TextStyle(fontSize: isTablet ? 16 : 14),
             decoration: InputDecoration(
               labelText: 'Personality Description',
               hintText:
-                  'Describe the character\'s personality, traits, and background...',
+                  'Select traits to build your character\'s personality...',
               filled: true,
               fillColor: theme.scaffoldBackgroundColor,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: theme.dividerColor),
+                borderRadius: BorderRadius.circular(isTablet ? 16 : 12),
               ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: theme.dividerColor),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: theme.primaryColor, width: 2),
-              ),
-              alignLabelWithHint: true,
-              labelStyle: TextStyle(color: theme.primaryColor),
             ),
-            validator: (value) {
-              if (value?.isEmpty ?? true) {
-                return 'Please enter a description';
-              }
-              return null;
-            },
+            validator: (value) =>
+                (value?.isEmpty ?? true) ? 'Please enter a description' : null,
+          ),
+          const SizedBox(height: 24),
+          TextFormField(
+            controller: _taglineController,
+            focusNode: _taglineFocusNode,
+            style: TextStyle(fontSize: isTablet ? 16 : 14),
+            decoration: InputDecoration(
+              labelText: 'Tagline',
+              hintText: 'A short description (e.g., "The Wise Mentor")',
+              filled: true,
+              fillColor: theme.scaffoldBackgroundColor,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(isTablet ? 16 : 12),
+              ),
+              prefixIcon: Icon(Icons.short_text,
+                  color: theme.primaryColor, size: isTablet ? 24 : 20),
+            ),
+          ),
+          // Optionally, add contextual suggestion chips here if needed
+          const SizedBox(height: 24),
+          TextFormField(
+            controller: _scenarioController,
+            focusNode: _scenarioFocusNode,
+            maxLines: 3,
+            style: TextStyle(fontSize: isTablet ? 16 : 14),
+            decoration: InputDecoration(
+              labelText: 'Scenario',
+              hintText:
+                  'Describe the setting and context for your character...',
+              filled: true,
+              fillColor: theme.scaffoldBackgroundColor,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(isTablet ? 16 : 12),
+              ),
+            ),
           ),
           const SizedBox(height: 24),
           TextFormField(
             controller: _greetingController,
+            focusNode: _greetingFocusNode,
             maxLines: 3,
+            style: TextStyle(fontSize: isTablet ? 16 : 14),
             decoration: InputDecoration(
               labelText: 'Greeting Message',
               hintText: 'How should your character introduce themselves?',
               filled: true,
               fillColor: theme.scaffoldBackgroundColor,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: theme.dividerColor),
+                borderRadius: BorderRadius.circular(isTablet ? 16 : 12),
               ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: theme.dividerColor),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: theme.primaryColor, width: 2),
-              ),
-              alignLabelWithHint: true,
-              labelStyle: TextStyle(color: theme.primaryColor),
             ),
-            validator: (value) {
-              if (value?.isEmpty ?? true) {
-                return 'Please enter a greeting';
-              }
-              return null;
-            },
           ),
         ],
       ),
     );
   }
+  // ------------------ End Trait Selection Step ------------------
 
-  Widget _buildVoiceStep() {
+  Widget _buildVoiceStep(bool isTablet) {
     final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: theme.shadowColor.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(20),
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(isTablet ? 24 : 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -416,24 +574,22 @@ class _CreateCharacterScreenState extends State<CreateCharacterScreen> {
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
               color: theme.primaryColor,
+              fontSize: isTablet ? 20 : 18,
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: isTablet ? 20 : 16),
           Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _buildVoiceOption('Friendly', Icons.sentiment_satisfied),
-              _buildVoiceOption('Professional', Icons.business),
-              _buildVoiceOption('Casual', Icons.coffee),
-              _buildVoiceOption('Formal', Icons.school),
-            ],
+            spacing: isTablet ? 16 : 12,
+            runSpacing: isTablet ? 16 : 12,
+            children: _voiceOptions
+                .map((option) => _buildVoiceOption(option, isTablet))
+                .toList(),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: isTablet ? 28 : 24),
           Container(
             decoration: BoxDecoration(
               color: theme.scaffoldBackgroundColor,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(isTablet ? 16 : 12),
               border: Border.all(color: theme.dividerColor),
             ),
             child: SwitchListTile(
@@ -441,20 +597,18 @@ class _CreateCharacterScreenState extends State<CreateCharacterScreen> {
                 'Public Character',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w500,
+                  fontSize: isTablet ? 18 : 16,
                 ),
               ),
               subtitle: Text(
                 'Allow others to use this character',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                  fontSize: isTablet ? 14 : 12,
                 ),
               ),
               value: _isPublic,
-              onChanged: (value) {
-                setState(() {
-                  _isPublic = value;
-                });
-              },
+              onChanged: (value) => setState(() => _isPublic = value),
               activeColor: theme.primaryColor,
             ),
           ),
@@ -463,40 +617,42 @@ class _CreateCharacterScreenState extends State<CreateCharacterScreen> {
     );
   }
 
-  Widget _buildVoiceOption(String title, IconData icon) {
+  Widget _buildVoiceOption(String title, bool isTablet) {
     final theme = Theme.of(context);
     final isSelected = _selectedVoice == title;
-
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () {
-          setState(() {
-            _selectedVoice = title;
-          });
-        },
-        borderRadius: BorderRadius.circular(12),
+        onTap: () => setState(() => _selectedVoice = title),
+        borderRadius: BorderRadius.circular(isTablet ? 16 : 12),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: EdgeInsets.symmetric(
+              horizontal: isTablet ? 20 : 16, vertical: isTablet ? 16 : 12),
           decoration: BoxDecoration(
             color: isSelected
                 ? theme.primaryColor.withOpacity(0.1)
                 : theme.scaffoldBackgroundColor,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(isTablet ? 16 : 12),
             border: Border.all(
               color: isSelected ? theme.primaryColor : theme.dividerColor,
-              width: isSelected ? 2 : 1,
+              width: isSelected ? (isTablet ? 2.5 : 2) : 1,
             ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                icon,
+                title == 'Friendly'
+                    ? Icons.sentiment_satisfied
+                    : title == 'Professional'
+                        ? Icons.business
+                        : title == 'Casual'
+                            ? Icons.coffee
+                            : Icons.school,
                 color: isSelected ? theme.primaryColor : theme.iconTheme.color,
-                size: 20,
+                size: isTablet ? 24 : 20,
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: isTablet ? 12 : 8),
               Text(
                 title,
                 style: theme.textTheme.bodyMedium?.copyWith(
@@ -504,6 +660,7 @@ class _CreateCharacterScreenState extends State<CreateCharacterScreen> {
                       ? theme.primaryColor
                       : theme.textTheme.bodyMedium?.color,
                   fontWeight: isSelected ? FontWeight.bold : null,
+                  fontSize: isTablet ? 16 : 14,
                 ),
               ),
             ],
@@ -593,7 +750,6 @@ ${_nameController.text}'s Response:""";
       final promptTemplate = _generatePromptTemplate();
       final now = DateTime.now();
 
-      // Create generation parameters based on character's personality
       final generationParams = AiGenerationParams(
         temperature: _selectedVoice == 'Casual' ? 0.75 : 0.69,
         maxLength: 2048,
@@ -611,12 +767,12 @@ ${_nameController.text}'s Response:""";
         personality: _descriptionController.text,
         scenario: _scenarioController.text,
         greetingMessage: _greetingController.text,
-        exampleMessages: [], // Can be populated from UI if needed
+        exampleMessages: [],
         avatarImagePath:
             _selectedImagePath ?? 'assets/images/ai_characters/default.png',
         characterVersion: '1.0.0',
         systemPrompt: promptTemplate,
-        tags: ['Custom'],
+        tags: [..._selectedTags, 'Custom'],
         creator: 'User',
         createdAt: now,
         updatedAt: now,
@@ -626,15 +782,10 @@ ${_nameController.text}'s Response:""";
       try {
         final aiCharacterService = getIt<AiCharacterService>();
         await aiCharacterService.addCustomCharacter(newCharacter);
-
-        // Set the new character as selected and trigger message generation
         await aiCharacterService.setSelectedCharacter(newCharacter);
-
-        // Find and refresh HomeScreen to show the greeting message
         if (mounted) {
           final homeScreen = context.findAncestorStateOfType<HomeScreenState>();
           if (homeScreen != null) {
-            // Use microtask to ensure state updates are complete
             Future.microtask(() {
               homeScreen.generateNewAIMessage();
             });
@@ -651,54 +802,45 @@ ${_nameController.text}'s Response:""";
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return GestureDetector(
-      onTap: () {
-        // Dismiss keyboard when tapping outside of text fields
-        FocusScope.of(context).unfocus();
-      },
-      child: Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor,
-        appBar: AppBar(
-          backgroundColor: theme.appBarTheme.backgroundColor,
-          centerTitle: false,
-          title: Text(
-            'Create Character',
-            style: theme.textTheme.displayLarge,
-          ),
-        ),
-        body: SafeArea(
-          child: Form(
-            key: _formKey,
-            child: Column(
-              children: [
-                _buildStepIndicator(),
-                Expanded(
-                  child: _buildStepContent(),
-                ),
-                _buildNavigationButtons(),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+  void _nextStep() {
+    if (_formKey.currentState?.validate() ?? false) {
+      if (_currentStep < 2) {
+        setState(() {
+          _currentStep++;
+          _pageController.nextPage(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut);
+        });
+      } else {
+        _createCharacter();
+      }
+    } else {
+      Utils.showErrorSnackBar(context, 'Please fill in all required fields');
+    }
   }
 
-  Widget _buildNavigationButtons() {
+  void _previousStep() {
+    if (_currentStep > 0) {
+      setState(() {
+        _currentStep--;
+        _pageController.previousPage(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut);
+      });
+    }
+  }
+
+  Widget _buildNavigationButtons(bool isTablet) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(16.0),
+      padding: EdgeInsets.all(isTablet ? 20 : 16),
       decoration: BoxDecoration(
         color: theme.scaffoldBackgroundColor,
         boxShadow: [
           BoxShadow(
-            color: theme.shadowColor.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, -4),
-          ),
+              color: theme.shadowColor.withOpacity(0.1),
+              blurRadius: isTablet ? 12 : 10,
+              offset: const Offset(0, -4))
         ],
       ),
       child: Row(
@@ -707,27 +849,16 @@ ${_nameController.text}'s Response:""";
           if (_currentStep > 0)
             TextButton(
               onPressed: _previousStep,
-              style: TextButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: theme.primaryColor.withOpacity(0.5)),
-                ),
-              ),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.arrow_back, color: theme.primaryColor, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Back',
-                    style: TextStyle(
-                      color: theme.primaryColor,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                  Icon(Icons.arrow_back,
+                      color: theme.primaryColor, size: isTablet ? 24 : 20),
+                  SizedBox(width: isTablet ? 12 : 8),
+                  Text('Back',
+                      style: TextStyle(
+                          color: theme.primaryColor,
+                          fontSize: isTablet ? 18 : 16,
+                          fontWeight: FontWeight.w500)),
                 ],
               ),
             )
@@ -735,144 +866,29 @@ ${_nameController.text}'s Response:""";
             const SizedBox.shrink(),
           const Spacer(),
           FilledButton(
-            onPressed: _currentStep < 2 ? _nextStep : _createCharacter,
+            onPressed: _nextStep,
             style: FilledButton.styleFrom(
               backgroundColor: theme.primaryColor,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 32,
-                vertical: 12,
-              ),
+              padding: EdgeInsets.symmetric(
+                  horizontal: isTablet ? 36 : 32, vertical: isTablet ? 16 : 12),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(isTablet ? 16 : 12),
               ),
               elevation: 0,
             ),
             child: Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  _currentStep < 2 ? 'Next' : 'Create',
-                  style: TextStyle(
-                    color: theme.colorScheme.onPrimary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Icon(
-                  _currentStep < 2 ? Icons.arrow_forward : Icons.check,
-                  size: 20,
-                  color: theme.colorScheme.onPrimary,
-                ),
+                Text(_currentStep < 2 ? 'Next' : 'Create',
+                    style: TextStyle(
+                        color: theme.colorScheme.onPrimary,
+                        fontSize: isTablet ? 18 : 16,
+                        fontWeight: FontWeight.bold)),
+                SizedBox(width: isTablet ? 12 : 8),
+                Icon(_currentStep < 2 ? Icons.arrow_forward : Icons.check,
+                    size: isTablet ? 24 : 20,
+                    color: theme.colorScheme.onPrimary),
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStepIndicator() {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      decoration: BoxDecoration(
-        color: theme.scaffoldBackgroundColor,
-        boxShadow: [
-          BoxShadow(
-            color: theme.shadowColor.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(3, (index) {
-              final isActive = index <= _currentStep;
-              final isLast = index == 2;
-              final isCurrent = index == _currentStep;
-              return Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isActive ? theme.primaryColor : theme.cardColor,
-                      border: Border.all(
-                        color:
-                            isActive ? theme.primaryColor : theme.dividerColor,
-                        width: isCurrent ? 3 : 2,
-                      ),
-                      boxShadow: isCurrent
-                          ? [
-                              BoxShadow(
-                                color: theme.primaryColor.withOpacity(0.2),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ]
-                          : null,
-                    ),
-                    child: Center(
-                      child: isActive && !isCurrent
-                          ? Icon(
-                              Icons.check,
-                              size: 20,
-                              color: theme.colorScheme.onPrimary,
-                            )
-                          : Text(
-                              '${index + 1}',
-                              style: TextStyle(
-                                color: isActive
-                                    ? theme.colorScheme.onPrimary
-                                    : theme.textTheme.bodyMedium?.color,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                    ),
-                  ),
-                  if (!isLast)
-                    Container(
-                      width: 48,
-                      height: 2,
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: isActive
-                              ? [
-                                  theme.primaryColor,
-                                  index + 1 <= _currentStep
-                                      ? theme.primaryColor
-                                      : theme.dividerColor,
-                                ]
-                              : [theme.dividerColor, theme.dividerColor],
-                        ),
-                      ),
-                    ),
-                ],
-              );
-            }),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            _stepTitles[_currentStep],
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.primaryColor,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            _stepDescriptions[_currentStep],
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
-            ),
-            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -886,6 +902,12 @@ ${_nameController.text}'s Response:""";
     _descriptionController.dispose();
     _greetingController.dispose();
     _scenarioController.dispose();
+    _descriptionFocusNode.dispose();
+    _greetingFocusNode.dispose();
+    _scenarioFocusNode.dispose();
+    _taglineFocusNode.dispose();
+    _tagsFocusNode.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 }
