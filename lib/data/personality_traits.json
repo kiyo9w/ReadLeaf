@@ -1,0 +1,70 @@
+{
+  "positive_traits": [
+    "Accessible", "Active", "Adaptable", "Admirable", "Adventurous", "Agreeable",
+    "Alert", "Allocentric", "Amiable", "Anticipative", "Appreciative", "Articulate",
+    "Aspiring", "Athletic", "Attractive", "Balanced", "Benevolent", "Brilliant",
+    "Calm", "Capable", "Captivating", "Caring", "Challenging", "Charismatic",
+    "Charming", "Cheerful", "Clean", "Clear-headed", "Clever", "Colorful",
+    "Companionly", "Compassionate", "Conciliatory", "Confident", "Conscientious",
+    "Considerate", "Constant", "Contemplative", "Cooperative", "Courageous",
+    "Courteous", "Creative", "Cultured", "Curious"
+  ],
+  "neutral_traits": [
+    "Absentminded", "Aggressive", "Ambitious", "Amusing", "Artful", "Ascetic",
+    "Authoritarian", "Big-thinking", "Boyish", "Breezy", "Businesslike", "Busy",
+    "Casual", "Cerebral", "Chummy", "Circumspect", "Competitive", "Complex",
+    "Confidential", "Conservative", "Contradictory", "Crisp", "Cute", "Deceptive",
+    "Determined", "Dominating", "Dreamy", "Driving", "Droll", "Dry", "Earthy"
+  ],
+  "negative_traits": [
+    "Abrasive", "Abrupt", "Agonizing", "Aimless", "Airy", "Aloof", "Amoral",
+    "Angry", "Anxious", "Apathetic", "Arbitrary", "Argumentative", "Arrogant",
+    "Artificial", "Asocial", "Assertive", "Astigmatic", "Barbaric", "Bewildered",
+    "Bizarre", "Bland", "Blunt", "Boisterous", "Brittle", "Brutal", "Calculating",
+    "Callous", "Cantankerous", "Careless", "Cautious", "Charmless", "Childish"
+  ],
+  "trait_relationships": {
+    "Confident": {
+      "Charismatic": 0.9,
+      "Assertive": 0.85,
+      "Courageous": 0.8
+    },
+    "Shy": {
+      "Timid": 0.9,
+      "Reserved": 0.85,
+      "Quiet": 0.8
+    },
+    "Creative": {
+      "Artistic": 0.9,
+      "Imaginative": 0.85,
+      "Innovative": 0.8
+    },
+    "Caring": {
+      "Compassionate": 0.9,
+      "Empathetic": 0.85,
+      "Nurturing": 0.8
+    },
+    "Intelligent": {
+      "Analytical": 0.9,
+      "Clever": 0.85,
+      "Perceptive": 0.8
+    },
+    "Cheerful": {
+      "Optimistic": 0.9,
+      "Enthusiastic": 0.85,
+      "Joyful": 0.8
+    },
+    "Determined": {
+      "Persistent": 0.9,
+      "Ambitious": 0.85,
+      "Focused": 0.8
+    }
+  },
+  "trait_categories": {
+    "Intellectual": ["Intelligent", "Analytical", "Clever", "Perceptive", "Curious", "Contemplative"],
+    "Social": ["Charismatic", "Friendly", "Outgoing", "Charming", "Sociable", "Amiable"],
+    "Emotional": ["Caring", "Empathetic", "Sensitive", "Compassionate", "Understanding", "Nurturing"],
+    "Attitude": ["Cheerful", "Optimistic", "Positive", "Enthusiastic", "Joyful", "Upbeat"],
+    "Work Ethic": ["Determined", "Ambitious", "Hardworking", "Focused", "Persistent", "Diligent"]
+  }
+} 
