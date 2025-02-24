@@ -9,6 +9,7 @@ import 'results_page.dart';
 import 'package:read_leaf/injection.dart';
 import '../services/annas_archieve.dart';
 import 'package:read_leaf/services/thumbnail_service.dart';
+import 'package:read_leaf/constants/responsive_constants.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -344,16 +345,152 @@ class _SearchScreenState extends State<SearchScreen>
     );
   }
 
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final isTablet = ResponsiveConstants.isTablet(context);
+
+    return BlocConsumer<SearchBloc, SearchState>(
+      bloc: _searchBloc,
+      listener: (context, state) {
+        if (state is SearchError) {
+          showSnackBar(context: context, message: state.message);
+        }
+      },
+      builder: (context, state) {
+        return Scaffold(
+          backgroundColor: theme.scaffoldBackgroundColor,
+          appBar: AppBar(
+            backgroundColor: theme.scaffoldBackgroundColor,
+            centerTitle: false,
+            title: Text(
+              'Search',
+              style: theme.textTheme.displayLarge?.copyWith(
+                fontSize: isTablet ? 28 : 24,
+              ),
+            ),
+          ),
+          body: GestureDetector(
+            onTap: () {
+              FocusScope.of(context).unfocus();
+            },
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: EdgeInsets.all(isTablet ? 20 : 15),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: theme.cardColor,
+                        borderRadius: BorderRadius.circular(isTablet ? 60 : 50),
+                      ),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            padding: EdgeInsets.only(right: isTablet ? 8 : 5),
+                            color: isDark ? Colors.white54 : Colors.grey,
+                            icon: Icon(Icons.search, size: isTablet ? 28 : 23),
+                            onPressed: () => onSubmit(context),
+                          ),
+                          Expanded(
+                            child: TextField(
+                              onTap: () => {
+                                NavScreen.globalKey.currentState
+                                    ?.hideNavBar(true)
+                              },
+                              onTapOutside: (value) {
+                                WidgetsBinding.instance
+                                    .addPostFrameCallback((_) {
+                                  if (mounted) {
+                                    NavScreen.globalKey.currentState
+                                        ?.hideNavBar(false);
+                                  }
+                                });
+                              },
+                              autocorrect: false,
+                              showCursor: true,
+                              cursorColor:
+                                  isDark ? Colors.white70 : Colors.grey,
+                              decoration: InputDecoration(
+                                contentPadding: EdgeInsets.symmetric(
+                                  vertical: isTablet ? 18 : 15,
+                                ),
+                                border: InputBorder.none,
+                                hintText: "Find some books...",
+                                hintStyle: TextStyle(
+                                  color: isDark ? Colors.white54 : Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: isTablet ? 16 : 14,
+                                ),
+                                fillColor: theme.cardColor,
+                              ),
+                              onSubmitted: (_) => onSubmit(context),
+                              style: TextStyle(
+                                color: isDark ? Colors.white : Colors.black,
+                                fontWeight: FontWeight.bold,
+                                fontSize: isTablet ? 16 : 14,
+                              ),
+                              onChanged: (value) =>
+                                  setState(() => searchQuery = value),
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.filter_list,
+                                size: isTablet ? 28 : 24),
+                            color: isDark ? Colors.white54 : Colors.grey,
+                            onPressed: () => {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                NavScreen.globalKey.currentState
+                                    ?.hideNavBar(true);
+                              }),
+                              _showFilterModal(context),
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (_isLoading)
+                    Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(isTablet ? 32 : 24),
+                        child: CircularProgressIndicator(
+                          strokeWidth: isTablet ? 3 : 2,
+                        ),
+                      ),
+                    )
+                  else ...[
+                    _buildTopSearches(),
+                    _buildTrending(),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildTopSearches() {
     final theme = Theme.of(context);
+    final isTablet = ResponsiveConstants.isTablet(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 20.0),
+          padding: EdgeInsets.symmetric(
+            horizontal: isTablet ? 16 : 10,
+            vertical: isTablet ? 24 : 20,
+          ),
           child: Text(
             'Top searches',
-            style: theme.textTheme.titleLarge,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontSize: isTablet ? 24 : 20,
+            ),
           ),
         ),
         if (_topSearches != null) ...[
@@ -364,13 +501,21 @@ class _SearchScreenState extends State<SearchScreen>
               return const SizedBox();
             }
             return ListTile(
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: isTablet ? 20 : 16,
+                vertical: isTablet ? 12 : 8,
+              ),
               title: Text(
                 books.first.title ?? query,
-                style: theme.textTheme.titleMedium,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontSize: isTablet ? 18 : 16,
+                ),
               ),
               subtitle: Text(
                 books.first.author ?? 'Unknown author',
-                style: theme.textTheme.bodyMedium,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontSize: isTablet ? 14 : 12,
+                ),
               ),
               onTap: () {
                 _searchBloc.add(SearchBooks(
@@ -394,24 +539,30 @@ class _SearchScreenState extends State<SearchScreen>
   Widget _buildTrending() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final isTablet = ResponsiveConstants.isTablet(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 20.0),
+          padding: EdgeInsets.symmetric(
+            horizontal: isTablet ? 16 : 10,
+            vertical: isTablet ? 24 : 20,
+          ),
           child: Text(
             'Trending',
-            style: theme.textTheme.titleLarge,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontSize: isTablet ? 24 : 20,
+            ),
           ),
         ),
         if (_trendingBooks != null)
           SizedBox(
-            height: 180,
+            height: isTablet ? 220 : 180,
             child: ListView.builder(
               key: const PageStorageKey('trending_list'),
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+              padding: EdgeInsets.symmetric(horizontal: isTablet ? 16 : 10),
               itemCount: _trendingBooks!.length,
               itemBuilder: (context, index) {
                 final entry = _trendingBooks!.entries.elementAt(index);
@@ -421,7 +572,7 @@ class _SearchScreenState extends State<SearchScreen>
 
                 return RepaintBoundary(
                   child: Padding(
-                    padding: const EdgeInsets.only(right: 10),
+                    padding: EdgeInsets.only(right: isTablet ? 16 : 10),
                     child: GestureDetector(
                       onTap: () {
                         _searchBloc.add(SearchBooks(
@@ -437,14 +588,15 @@ class _SearchScreenState extends State<SearchScreen>
                         );
                       },
                       child: Container(
-                        width: 120,
+                        width: isTablet ? 150 : 120,
                         decoration: BoxDecoration(
                           color: theme.cardColor,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius:
+                              BorderRadius.circular(isTablet ? 12 : 8),
                           boxShadow: [
                             BoxShadow(
                               color: isDark ? Colors.black26 : Colors.black12,
-                              blurRadius: 4,
+                              blurRadius: isTablet ? 6 : 4,
                               offset: const Offset(0, 2),
                             ),
                           ],
@@ -454,11 +606,12 @@ class _SearchScreenState extends State<SearchScreen>
                           children: [
                             if (book.thumbnail != null)
                               ClipRRect(
-                                borderRadius: const BorderRadius.vertical(
-                                    top: Radius.circular(8)),
+                                borderRadius: BorderRadius.vertical(
+                                  top: Radius.circular(isTablet ? 12 : 8),
+                                ),
                                 child: SizedBox(
-                                  height: 120,
-                                  width: 120,
+                                  height: isTablet ? 150 : 120,
+                                  width: isTablet ? 150 : 120,
                                   child: FutureBuilder<ImageProvider>(
                                     key: ValueKey(book.thumbnail),
                                     future: ThumbnailService()
@@ -468,6 +621,7 @@ class _SearchScreenState extends State<SearchScreen>
                                           ConnectionState.waiting) {
                                         return Center(
                                           child: CircularProgressIndicator(
+                                            strokeWidth: isTablet ? 3 : 2,
                                             color: theme.primaryColor,
                                           ),
                                         );
@@ -480,6 +634,7 @@ class _SearchScreenState extends State<SearchScreen>
                                               : Colors.grey[300],
                                           child: Icon(
                                             Icons.book,
+                                            size: isTablet ? 48 : 40,
                                             color: isDark
                                                 ? Colors.white54
                                                 : Colors.black54,
@@ -498,6 +653,7 @@ class _SearchScreenState extends State<SearchScreen>
                                                 : Colors.grey[300],
                                             child: Icon(
                                               Icons.book,
+                                              size: isTablet ? 48 : 40,
                                               color: isDark
                                                   ? Colors.white54
                                                   : Colors.black54,
@@ -511,23 +667,26 @@ class _SearchScreenState extends State<SearchScreen>
                               )
                             else
                               Container(
-                                height: 120,
+                                height: isTablet ? 150 : 120,
                                 color: isDark
                                     ? Colors.grey[800]
                                     : Colors.grey[300],
                                 child: Icon(
                                   Icons.book,
+                                  size: isTablet ? 48 : 40,
                                   color:
                                       isDark ? Colors.white54 : Colors.black54,
                                 ),
                               ),
                             Padding(
-                              padding: const EdgeInsets.all(8.0),
+                              padding: EdgeInsets.all(isTablet ? 12 : 8),
                               child: Text(
                                 book.title ?? "Unknown",
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.labelLarge,
+                                style: theme.textTheme.labelLarge?.copyWith(
+                                  fontSize: isTablet ? 16 : 14,
+                                ),
                               ),
                             ),
                           ],
@@ -540,123 +699,6 @@ class _SearchScreenState extends State<SearchScreen>
             ),
           ),
       ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return BlocConsumer<SearchBloc, SearchState>(
-      bloc: _searchBloc,
-      listener: (context, state) {
-        if (state is SearchError) {
-          showSnackBar(context: context, message: state.message);
-        }
-      },
-      builder: (context, state) {
-        return Scaffold(
-          backgroundColor: theme.scaffoldBackgroundColor,
-          appBar: AppBar(
-            backgroundColor: theme.scaffoldBackgroundColor,
-            centerTitle: false,
-            title: Text(
-              'Search',
-              style: theme.textTheme.displayLarge,
-            ),
-          ),
-          body: GestureDetector(
-            onTap: () {
-              FocusScope.of(context).unfocus();
-            },
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(15.0),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: theme.cardColor,
-                        borderRadius: BorderRadius.circular(50),
-                      ),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            padding: const EdgeInsets.only(right: 5),
-                            color: isDark ? Colors.white54 : Colors.grey,
-                            icon: const Icon(Icons.search, size: 23),
-                            onPressed: () => onSubmit(context),
-                          ),
-                          Expanded(
-                            child: TextField(
-                              onTap: () => {
-                                NavScreen.globalKey.currentState
-                                    ?.hideNavBar(true)
-                              },
-                              onTapOutside: (value) {
-                                WidgetsBinding.instance
-                                    .addPostFrameCallback((_) {
-                                  if (mounted) {
-                                    NavScreen.globalKey.currentState
-                                        ?.hideNavBar(false);
-                                  }
-                                });
-                              },
-                              autocorrect: false,
-                              showCursor: true,
-                              cursorColor:
-                                  isDark ? Colors.white70 : Colors.grey,
-                              decoration: InputDecoration(
-                                contentPadding:
-                                    const EdgeInsets.symmetric(vertical: 15),
-                                border: InputBorder.none,
-                                hintText: "Find some books...",
-                                hintStyle: TextStyle(
-                                  color: isDark ? Colors.white54 : Colors.grey,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                fillColor: theme.cardColor,
-                              ),
-                              onSubmitted: (_) => onSubmit(context),
-                              style: TextStyle(
-                                color: isDark ? Colors.white : Colors.black,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                              onChanged: (value) =>
-                                  setState(() => searchQuery = value),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.filter_list),
-                            color: isDark ? Colors.white54 : Colors.grey,
-                            onPressed: () => {
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                NavScreen.globalKey.currentState
-                                    ?.hideNavBar(true);
-                              }),
-                              _showFilterModal(context),
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (_isLoading)
-                    const Center(child: CircularProgressIndicator())
-                  else ...[
-                    _buildTopSearches(),
-                    _buildTrending(),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 
