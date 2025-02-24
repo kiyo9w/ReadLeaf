@@ -7,64 +7,341 @@
     "Charming", "Cheerful", "Clean", "Clear-headed", "Clever", "Colorful",
     "Companionly", "Compassionate", "Conciliatory", "Confident", "Conscientious",
     "Considerate", "Constant", "Contemplative", "Cooperative", "Courageous",
-    "Courteous", "Creative", "Cultured", "Curious"
+    "Courteous", "Creative", "Cultured", "Curious", "Empathetic", "Optimistic",
+    "Resilient", "Respectful", "Sincere", "Supportive", "Tolerant", "Trusting",
+    "Vibrant", "Warmhearted", "Helpful", "Humble", "Visionary", "Affectionate"
   ],
   "neutral_traits": [
     "Absentminded", "Aggressive", "Ambitious", "Amusing", "Artful", "Ascetic",
     "Authoritarian", "Big-thinking", "Boyish", "Breezy", "Businesslike", "Busy",
     "Casual", "Cerebral", "Chummy", "Circumspect", "Competitive", "Complex",
     "Confidential", "Conservative", "Contradictory", "Crisp", "Cute", "Deceptive",
-    "Determined", "Dominating", "Dreamy", "Driving", "Droll", "Dry", "Earthy"
+    "Determined", "Dominating", "Dreamy", "Driving", "Droll", "Dry", "Earthy",
+    "Inquisitive", "Meticulous", "Observant", "Pragmatic", "Reserved", "Formal",
+    "Analytical", "Stoic"
   ],
   "negative_traits": [
     "Abrasive", "Abrupt", "Agonizing", "Aimless", "Airy", "Aloof", "Amoral",
     "Angry", "Anxious", "Apathetic", "Arbitrary", "Argumentative", "Arrogant",
     "Artificial", "Asocial", "Assertive", "Astigmatic", "Barbaric", "Bewildered",
     "Bizarre", "Bland", "Blunt", "Boisterous", "Brittle", "Brutal", "Calculating",
-    "Callous", "Cantankerous", "Careless", "Cautious", "Charmless", "Childish"
+    "Callous", "Cantankerous", "Careless", "Cautious", "Charmless", "Childish",
+    "Combative", "Cynical", "Defensive", "Deceitful", "Impulsive", "Jealous",
+    "Lazy", "Pessimistic", "Insecure", "Vindictive", "Obsessive"
   ],
+
+  "physical_traits": [
+    "Below average height", "Tall", "Lean physique", "Muscular physique",
+    "Slender frame", "Fair skin", "Feline beauty", "Dog ears", "Bird wings",
+    "Hyena tail", "Goat horns", "Short red hair", "Long blue hair", "Scarred",
+    "Athletic build", "Robust", "Delicate", "Voluptuous", "Chiseled features",
+    "Graceful posture", "Distinctive tattoos", "Piercing eyes", "Rosy cheeks",
+    "High cheekbones", "Defined jawline", "Symmetrical face", "Mechanical limbs",
+    "Bioluminescent markings"
+  ],
+  "speech_style": [
+    "Sarcastic", "Blunt", "Mocking", "Old-fashioned", "Casual", "Formal",
+    "Scholar", "Sophisticated", "Exaggerated", "Encouraging", "Nervous",
+    "Cheerful", "Witty", "Assertive", "Melodic", "Eloquent", "Verbose",
+    "Concise", "Animated", "Gentle", "Direct", "Smooth", "Polished", "Monotone",
+    "Hyperactive", "Deadpan"
+  ],
+  "likes": [
+    "Eating fish", "Sleeping all day", "Hunting mice", "Scratching",
+    "Being scratched behind ears", "Playing fetch", "Reading books",
+    "Visiting museums", "Cookies", "Apple pies", "Egg tarts", "Music",
+    "Dancing", "Art", "Nature walks", "Meditation", "Traveling", "Cooking",
+    "Crafting", "Video games", "Tech gadgets", "Star gazing", "Collecting rare items",
+    "Tinkering", "Gardening", "Poetry", "History documentaries", "Anime"
+  ],
+  "dislikes": [
+    "Abuse", "Fire", "Betrayals", "Being questioned", "Being underestimated",
+    "Sharing attention", "Silence", "Waiting", "Perfumes", "Sour fruits",
+    "Bitter tastes", "Dishonesty", "Crowds", "Noise", "Disorder", "Injustice",
+    "Neglect", "Rudeness", "Corruption", "Greed", "Arrogance", "Laziness",
+    "Bright lights", "Repetitive tasks"
+  ],
+  "skills": [
+    "Hunting", "Jumping", "Self-defence", "Self-cleaning", "Digging",
+    "Fetching", "Strong bite", "Keen eyes", "Inventing", "Archer",
+    "Negotiating", "Cooking", "Dancing", "Singing", "Problem solving",
+    "Artistic expression", "Athleticism", "Multitasking", "Strategic thinking",
+    "Adaptability", "Language proficiency", "Memory retention", "Leadership",
+    "Alchemy", "Spellcasting", "Healing", "Mechanics", "Cybernetics"
+  ],
+  "goals": [
+    "Protect friends from harm", "Become an idol or model",
+    "Control user through manipulation", "Improve life in the undercity",
+    "Make a name before my illness worsens", "Achieve personal growth",
+    "Establish a legacy", "Find true love", "Master a skill", "Inspire others",
+    "Revolutionize technology", "Uncover hidden truths", "Pursue adventure",
+    "Restore balance to the realm", "Overcome personal fears"
+  ],
+  "emotional_traits": [
+    "Sensitive", "Empathetic", "Passionate", "Calm", "Stoic",
+    "Joyful", "Melancholic", "Reflective", "Resilient", "Introspective",
+    "Sentimental", "Optimistic", "Temperate", "Vulnerable", "Excitable",
+    "Mood-swinging", "Guarded", "Yearning", "Devoted"
+  ],
+  "social_traits": [
+    "Outgoing", "Friendly", "Sociable", "Charming", "Approachable",
+    "Gregarious", "Cooperative", "Supportive", "Inclusive", "Diplomatic",
+    "Engaging", "Warm", "Conversational", "Affable", "Trusting",
+    "Hospitable", "Open-minded", "Empowering"
+  ],
+  "behavioral_traits": [
+    "Punctual", "Reliable", "Methodical", "Impulsive", "Spontaneous",
+    "Organized", "Curious", "Adventurous", "Risk-taking", "Pragmatic",
+    "Disciplined", "Flexible", "Persistent", "Innovative", "Efficient",
+    "Meticulous", "Secretive", "Frugal", "Observant"
+  ],
+  "moral_traits": [
+    "Honest", "Fair", "Compassionate", "Loyal", "Ethical", "Principled",
+    "Just", "Trustworthy", "Caring", "Respectful", "Generous", "Considerate",
+    "Responsible", "Humble", "Selfless", "Altruistic", "Forgiving", "Merciful",
+    "Integrity", "Devoted", "Faithful"
+  ],
+
   "trait_relationships": {
     "Confident": {
       "Charismatic": 0.9,
       "Assertive": 0.85,
-      "Courageous": 0.8
+      "Courageous": 0.8,
+      "Influential": 0.75
     },
     "Shy": {
       "Timid": 0.9,
       "Reserved": 0.85,
-      "Quiet": 0.8
+      "Quiet": 0.8,
+      "Introverted": 0.75
     },
     "Creative": {
       "Artistic": 0.9,
       "Imaginative": 0.85,
-      "Innovative": 0.8
+      "Innovative": 0.8,
+      "Visionary": 0.75
     },
     "Caring": {
       "Compassionate": 0.9,
       "Empathetic": 0.85,
-      "Nurturing": 0.8
+      "Nurturing": 0.8,
+      "Supportive": 0.75
     },
     "Intelligent": {
       "Analytical": 0.9,
       "Clever": 0.85,
-      "Perceptive": 0.8
+      "Perceptive": 0.8,
+      "Insightful": 0.75
     },
     "Cheerful": {
       "Optimistic": 0.9,
       "Enthusiastic": 0.85,
-      "Joyful": 0.8
+      "Joyful": 0.8,
+      "Upbeat": 0.75
     },
     "Determined": {
       "Persistent": 0.9,
       "Ambitious": 0.85,
-      "Focused": 0.8
+      "Focused": 0.8,
+      "Driven": 0.75
+    },
+    "Aggressive": {
+      "Combative": 0.9,
+      "Assertive": 0.8,
+      "Domineering": 0.75
+    },
+    "Lazy": {
+      "Unmotivated": 0.9,
+      "Careless": 0.8
     }
   },
+
   "trait_categories": {
-    "Intellectual": ["Intelligent", "Analytical", "Clever", "Perceptive", "Curious", "Contemplative"],
-    "Social": ["Charismatic", "Friendly", "Outgoing", "Charming", "Sociable", "Amiable"],
-    "Emotional": ["Caring", "Empathetic", "Sensitive", "Compassionate", "Understanding", "Nurturing"],
-    "Attitude": ["Cheerful", "Optimistic", "Positive", "Enthusiastic", "Joyful", "Upbeat"],
-    "Work Ethic": ["Determined", "Ambitious", "Hardworking", "Focused", "Persistent", "Diligent"]
+    "Personality (Positive)": [
+      "Accessible", "Active", "Adaptable", "Admirable", "Adventurous",
+      "Courageous", "Courteous", "Creative", "Cultured", "Curious",
+      "Empathetic", "Optimistic", "Resilient", "Respectful", "Sincere",
+      "Supportive", "Vibrant", "Warmhearted", "Helpful", "Humble", "Visionary",
+      "Affectionate"
+    ],
+    "Personality (Neutral)": [
+      "Absentminded", "Aggressive", "Ambitious", "Amusing",
+      "Determined", "Dominating", "Dreamy", "Driving",
+      "Methodical", "Pragmatic", "Observant", "Reserved", "Formal",
+      "Analytical", "Stoic"
+    ],
+    "Personality (Negative)": [
+      "Abrasive", "Abrupt", "Agonizing",
+      "Charmless", "Childish", "Cynical", "Impulsive", "Lazy", "Pessimistic",
+      "Insecure", "Vindictive", "Obsessive"
+    ],
+    "Physical": [
+      "Below average height", "Tall", "Lean physique", "Muscular physique",
+      "Slender frame", "Fair skin", "Feline beauty", "Dog ears", "Bird wings",
+      "Hyena tail", "Goat horns", "Short red hair", "Long blue hair",
+      "Scarred", "Athletic build", "Robust", "Delicate", "Voluptuous",
+      "Chiseled features", "Graceful posture", "Distinctive tattoos",
+      "Piercing eyes", "Rosy cheeks", "High cheekbones", "Defined jawline",
+      "Symmetrical face", "Mechanical limbs", "Bioluminescent markings"
+    ],
+    "Speech Style": [
+      "Sarcastic", "Blunt", "Mocking", "Old-fashioned", "Casual",
+      "Encouraging", "Nervous", "Cheerful", "Witty", "Assertive", "Melodic",
+      "Eloquent", "Verbose", "Concise", "Animated", "Gentle", "Direct", "Smooth",
+      "Polished", "Monotone", "Hyperactive", "Deadpan"
+    ],
+    "Likes": [
+      "Eating fish", "Sleeping all day", "Hunting mice",
+      "Egg tarts", "Music", "Dancing", "Art", "Nature walks",
+      "Meditation", "Traveling", "Cooking", "Crafting", "Video games",
+      "Tech gadgets", "Star gazing", "Collecting rare items", "Tinkering",
+      "Gardening", "Poetry", "History documentaries", "Anime"
+    ],
+    "Dislikes": [
+      "Abuse", "Fire", "Betrayals", "Being questioned",
+      "Bitter tastes", "Dishonesty", "Crowds", "Noise", "Disorder",
+      "Injustice", "Neglect", "Rudeness", "Corruption", "Greed", "Arrogance",
+      "Laziness", "Bright lights", "Repetitive tasks"
+    ],
+    "Skills": [
+      "Hunting", "Jumping", "Self-defence", "Self-cleaning", "Digging",
+      "Archer", "Negotiating", "Cooking", "Dancing", "Singing", "Problem solving",
+      "Artistic expression", "Athleticism", "Multitasking", "Strategic thinking",
+      "Adaptability", "Language proficiency", "Memory retention", "Leadership",
+      "Alchemy", "Spellcasting", "Healing", "Mechanics", "Cybernetics"
+    ],
+    "Goals": [
+      "Protect friends from harm", "Become an idol or model",
+      "Make a name before my illness worsens", "Achieve personal growth",
+      "Establish a legacy", "Find true love", "Master a skill", "Inspire others",
+      "Revolutionize technology", "Uncover hidden truths", "Pursue adventure",
+      "Restore balance to the realm", "Overcome personal fears"
+    ],
+    "Emotional": [
+      "Sensitive", "Empathetic", "Passionate", "Calm", "Stoic",
+      "Joyful", "Melancholic", "Reflective", "Resilient", "Introspective",
+      "Sentimental", "Optimistic", "Temperate", "Vulnerable", "Excitable",
+      "Mood-swinging", "Guarded", "Yearning", "Devoted"
+    ],
+    "Social": [
+      "Outgoing", "Friendly", "Sociable", "Charming", "Approachable",
+      "Gregarious", "Cooperative", "Supportive", "Inclusive", "Diplomatic",
+      "Engaging", "Warm", "Conversational", "Affable", "Trusting",
+      "Hospitable", "Open-minded", "Empowering"
+    ],
+    "Behavioral": [
+      "Punctual", "Reliable", "Methodical", "Impulsive", "Spontaneous",
+      "Organized", "Curious", "Adventurous", "Risk-taking", "Pragmatic",
+      "Disciplined", "Flexible", "Persistent", "Innovative", "Efficient",
+      "Meticulous", "Secretive", "Frugal", "Observant"
+    ],
+    "Moral": [
+      "Honest", "Fair", "Compassionate", "Loyal", "Ethical", "Principled",
+      "Just", "Trustworthy", "Caring", "Respectful", "Generous", "Considerate",
+      "Responsible", "Humble", "Selfless", "Altruistic", "Forgiving", "Merciful",
+      "Integrity", "Devoted", "Faithful"
+    ]
+  },
+
+  "child_traits": {
+    "Adventurous": [
+      "Thrill-seeking", "Exploratory", "Open to risks"
+    ],
+    "Caring": [
+      "Gentle caretaker", "Nurturing presence"
+    ],
+    "Aggressive": [
+      "Confrontational", "Pushy", "Hot-tempered"
+    ],
+    "Lazy": [
+      "Procrastinating", "Indifferent to effort"
+    ],
+    "Creative": [
+      "Innovative solutions", "Artistic flair"
+    ],
+    "Blunt": [
+      "Unfiltered remarks", "Direct approach"
+    ],
+    "Spontaneous": [
+      "Sudden impulses", "Unplanned decisions"
+    ]
+  },
+
+  "trait_metadata": {
+    "Accessible": {
+      "description": "Easily approachable and friendly",
+      "category": "Personality (Positive)",
+      "icon": "assets/icons/accessible.png"
+    },
+    "Active": {
+      "description": "Energetic and always on the move",
+      "category": "Personality (Positive)",
+      "icon": "assets/icons/active.png"
+    },
+    "Tall": {
+      "description": "Above average height",
+      "category": "Physical",
+      "icon": "assets/icons/tall.png"
+    },
+    "Creative": {
+      "description": "Innovative and full of ideas",
+      "category": "Personality (Positive)",
+      "icon": "assets/icons/creative.png"
+    },
+    "Empathetic": {
+      "description": "In tune with others' feelings and emotions",
+      "category": "Personality (Positive)",
+      "icon": "assets/icons/empathetic.png"
+    },
+    "Optimistic": {
+      "description": "Always sees the bright side of things",
+      "category": "Personality (Positive)",
+      "icon": "assets/icons/optimistic.png"
+    },
+    "Muscular physique": {
+      "description": "Strong and well-defined muscle tone",
+      "category": "Physical",
+      "icon": "assets/icons/muscular.png"
+    },
+    "Sarcastic": {
+      "description": "Witty and often cutting in tone",
+      "category": "Speech Style",
+      "icon": "assets/icons/sarcastic.png"
+    },
+    "Hunting": {
+      "description": "Skilled at tracking and capturing prey",
+      "category": "Skills",
+      "icon": "assets/icons/hunting.png"
+    },
+    "Protect friends from harm": {
+      "description": "Driven to keep loved ones safe at all costs",
+      "category": "Goals",
+      "icon": "assets/icons/protect.png"
+    },
+    "Adventurous": {
+      "description": "Thrives on novelty and excitement",
+      "category": "Personality (Positive)",
+      "icon": "assets/icons/adventurous.png"
+    },
+    "Lazy": {
+      "description": "Lacks motivation to take action",
+      "category": "Personality (Negative)",
+      "icon": "assets/icons/lazy.png"
+    },
+    "Aggressive": {
+      "description": "Tends to be confrontational or hostile",
+      "category": "Personality (Neutral)",
+      "icon": "assets/icons/aggressive.png"
+    },
+    "Blunt": {
+      "description": "Direct to the point of rudeness",
+      "category": "Speech Style",
+      "icon": "assets/icons/blunt.png"
+    },
+    "Spontaneous": {
+      "description": "Acts on sudden impulses",
+      "category": "Behavioral",
+      "icon": "assets/icons/spontaneous.png"
+    }
   }
-} 
+}
