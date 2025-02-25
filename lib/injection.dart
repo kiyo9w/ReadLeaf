@@ -28,6 +28,7 @@ import 'package:read_leaf/services/sync/sync_manager.dart';
 import 'package:read_leaf/services/user_preferences_service.dart';
 import 'package:read_leaf/services/thumbnail_service.dart';
 import 'package:read_leaf/services/character_template_service.dart';
+import 'package:read_leaf/services/text_selection_service.dart';
 
 final getIt = GetIt.instance;
 
@@ -128,6 +129,8 @@ Future<void> configureDependencies() async {
   getIt.registerSingleton<ChatService>(chatService);
   getIt.registerSingleton<GeminiService>(geminiService);
   getIt.registerSingleton<RagService>(ragService);
+  final textSelectionService = TextSelectionService();
+  getIt.registerSingleton<TextSelectionService>(textSelectionService);
 
   // Register blocs
   getIt.registerLazySingleton<ReaderBloc>(() => ReaderBloc());
@@ -232,4 +235,7 @@ abstract class RegisterModule {
   @lazySingleton
   CharacterTemplateService get characterTemplateService =>
       CharacterTemplateService();
+
+  @lazySingleton
+  TextSelectionService get textSelectionService => TextSelectionService();
 }
