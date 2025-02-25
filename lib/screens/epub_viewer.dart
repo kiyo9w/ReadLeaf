@@ -25,6 +25,9 @@ import 'package:read_leaf/widgets/floating_selection_menu.dart';
 import 'package:read_leaf/widgets/full_selection_menu.dart';
 import 'dart:math' as math;
 import 'dart:core';
+import 'package:read_leaf/services/epub_processing_service.dart';
+import 'package:read_leaf/models/epub_page_content.dart';
+import 'package:read_leaf/widgets/reader/reader_settings_menu.dart';
 
 enum EpubLayoutMode { longStrip, vertical, horizontal, facing }
 
@@ -33,13 +36,25 @@ class PageContent {
   final int chapterIndex;
   final int pageNumberInChapter;
   final String chapterTitle;
+  final int absolutePageNumber;
 
   PageContent({
     required this.content,
     required this.chapterIndex,
     required this.pageNumberInChapter,
     required this.chapterTitle,
+    this.absolutePageNumber = 0,
   });
+
+  factory PageContent.fromEpubPageContent(EpubPageContent pageContent) {
+    return PageContent(
+      content: pageContent.content,
+      chapterIndex: pageContent.chapterIndex,
+      pageNumberInChapter: pageContent.pageNumberInChapter,
+      chapterTitle: pageContent.chapterTitle,
+      absolutePageNumber: pageContent.absolutePageNumber,
+    );
+  }
 }
 
 class ParsedContent {
@@ -406,6 +421,7 @@ class EpubPageCalculator {
       chapterIndex: chapterIndex,
       pageNumberInChapter: pageNumber,
       chapterTitle: chapterTitle,
+      absolutePageNumber: 0, // Default value, will be updated later if needed
     );
   }
 
@@ -1184,16 +1200,28 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
     try {
       // Calculate pages using the page calculator
-      final pages = await _pageCalculator.calculatePages(
+      final epubPages = await _pageCalculator.calculatePages(
         content,
         chapterIndex,
         chapter.Title ?? 'Chapter ${chapterIndex + 1}',
       );
 
+      // Convert to PageContent objects defined in this file
+      final pages = epubPages
+          .map((p) => PageContent(
+                content: p.content,
+                chapterIndex: p.chapterIndex,
+                pageNumberInChapter: p.pageNumberInChapter,
+                chapterTitle: p.chapterTitle,
+                absolutePageNumber: p.absolutePageNumber,
+              ))
+          .toList();
+
       if (!_isDisposed) {
         _safeSetState(() {
           _chapterPagesCache[chapterIndex] = pages;
         });
+        // Update total pages whenever a new chapter is loaded
         _calculateTotalPages();
       }
     } catch (e) {
@@ -1207,6 +1235,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
               chapterIndex: chapterIndex,
               pageNumberInChapter: 1,
               chapterTitle: chapter.Title ?? 'Chapter ${chapterIndex + 1}',
+              absolutePageNumber: 0, // Default value for error page
             )
           ];
         });
@@ -1353,24 +1382,41 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                                 size: ResponsiveConstants.getIconSize(context),
                               ),
                               onPressed: () {
-                                _safeSetState(() {
-                                  _showChapters = !_showChapters;
-                                });
+                                showReaderSettingsMenu(
+                                  context: context,
+                                  filePath: state.file.path,
+                                  currentLayoutMode:
+                                      convertToReaderLayoutMode(_layoutMode),
+                                  onLayoutModeChanged: (mode) {
+                                    Navigator.pop(context); // Close the menu
+
+                                    switch (mode) {
+                                      case ReaderLayoutMode.vertical:
+                                        _handleLayoutChange(
+                                            EpubLayoutMode.vertical);
+                                        break;
+                                      case ReaderLayoutMode.horizontal:
+                                        _handleLayoutChange(
+                                            EpubLayoutMode.horizontal);
+                                        break;
+                                      case ReaderLayoutMode.longStrip:
+                                        _handleLayoutChange(
+                                            EpubLayoutMode.longStrip);
+                                        break;
+                                      default:
+                                        _handleLayoutChange(
+                                            EpubLayoutMode.vertical);
+                                    }
+                                  },
+                                  showLongStripOption: true,
+                                );
                               },
                               padding: EdgeInsets.all(
                                   ResponsiveConstants.isTablet(context)
                                       ? 12
                                       : 8),
                             ),
-                            PopupMenuButton<String>(
-                              elevation: 8,
-                              color: Theme.of(context).brightness ==
-                                      Brightness.dark
-                                  ? const Color(0xFF352A3B)
-                                  : const Color(0xFFF8F1F1),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
+                            IconButton(
                               icon: Icon(
                                 Icons.more_vert,
                                 color: Theme.of(context).brightness ==
@@ -1379,498 +1425,15 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                                     : const Color(0xFF1C1C1E),
                                 size: ResponsiveConstants.getIconSize(context),
                               ),
+                              onPressed: () {
+                                _safeSetState(() {
+                                  _showChapters = !_showChapters;
+                                });
+                              },
                               padding: EdgeInsets.all(
                                   ResponsiveConstants.isTablet(context)
                                       ? 12
                                       : 8),
-                              position: PopupMenuPosition.under,
-                              onSelected: (val) async {
-                                switch (val) {
-                                  case 'layout_mode':
-                                    final RenderBox button =
-                                        context.findRenderObject() as RenderBox;
-                                    final RenderBox overlay =
-                                        Navigator.of(context)
-                                            .overlay!
-                                            .context
-                                            .findRenderObject() as RenderBox;
-                                    final buttonPos =
-                                        button.localToGlobal(Offset.zero);
-                                    final overlayPos =
-                                        overlay.localToGlobal(Offset.zero);
-
-                                    final RelativeRect position =
-                                        RelativeRect.fromLTRB(
-                                      buttonPos.dx,
-                                      buttonPos.dy + button.size.height,
-                                      overlayPos.dx +
-                                          overlay.size.width -
-                                          buttonPos.dx -
-                                          button.size.width,
-                                      overlayPos.dy +
-                                          overlay.size.height -
-                                          buttonPos.dy,
-                                    );
-
-                                    showMenu<EpubLayoutMode>(
-                                      context: context,
-                                      position: position,
-                                      color: Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFF352A3B)
-                                          : const Color(0xFFF8F1F1),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      items: [
-                                        PopupMenuItem(
-                                          value: EpubLayoutMode.longStrip,
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                Icons.view_day,
-                                                color: _layoutMode ==
-                                                        EpubLayoutMode.longStrip
-                                                    ? Theme.of(context)
-                                                        .primaryColor
-                                                    : null,
-                                                size: 20,
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Text('Long Strip',
-                                                  style: TextStyle(
-                                                    color: _layoutMode ==
-                                                            EpubLayoutMode
-                                                                .longStrip
-                                                        ? Theme.of(context)
-                                                            .primaryColor
-                                                        : null,
-                                                  )),
-                                            ],
-                                          ),
-                                        ),
-                                        PopupMenuItem(
-                                          value: EpubLayoutMode.vertical,
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                Icons.vertical_distribute,
-                                                color: _layoutMode ==
-                                                        EpubLayoutMode.vertical
-                                                    ? Theme.of(context)
-                                                        .primaryColor
-                                                    : null,
-                                                size: 20,
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Text('Vertical Scroll',
-                                                  style: TextStyle(
-                                                    color: _layoutMode ==
-                                                            EpubLayoutMode
-                                                                .vertical
-                                                        ? Theme.of(context)
-                                                            .primaryColor
-                                                        : null,
-                                                  )),
-                                            ],
-                                          ),
-                                        ),
-                                        PopupMenuItem(
-                                          value: EpubLayoutMode.horizontal,
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                Icons.horizontal_distribute,
-                                                color: _layoutMode ==
-                                                        EpubLayoutMode
-                                                            .horizontal
-                                                    ? Theme.of(context)
-                                                        .primaryColor
-                                                    : null,
-                                                size: 20,
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Text('Horizontal Scroll',
-                                                  style: TextStyle(
-                                                    color: _layoutMode ==
-                                                            EpubLayoutMode
-                                                                .horizontal
-                                                        ? Theme.of(context)
-                                                            .primaryColor
-                                                        : null,
-                                                  )),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ).then((EpubLayoutMode? mode) {
-                                      if (mode != null && mounted) {
-                                        _handleLayoutChange(mode);
-                                      }
-                                    });
-                                    break;
-                                  case 'reading_mode':
-                                    final readingMode =
-                                        await showMenu<ReadingMode>(
-                                      context: context,
-                                      position: RelativeRect.fromLTRB(
-                                        MediaQuery.of(context).size.width - 200,
-                                        kToolbarHeight + 20,
-                                        MediaQuery.of(context).size.width - 10,
-                                        kToolbarHeight + 100,
-                                      ),
-                                      color: Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFF352A3B)
-                                          : const Color(0xFFF8F1F1),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      items: [
-                                        PopupMenuItem(
-                                          value: ReadingMode.light,
-                                          child: Text('Light',
-                                              style: TextStyle(
-                                                  color: Theme.of(context)
-                                                              .brightness ==
-                                                          Brightness.dark
-                                                      ? const Color(0xFFF2F2F7)
-                                                      : const Color(
-                                                          0xFF1C1C1E))),
-                                        ),
-                                        PopupMenuItem(
-                                          value: ReadingMode.dark,
-                                          child: Text('Dark',
-                                              style: TextStyle(
-                                                  color: Theme.of(context)
-                                                              .brightness ==
-                                                          Brightness.dark
-                                                      ? const Color(0xFFF2F2F7)
-                                                      : const Color(
-                                                          0xFF1C1C1E))),
-                                        ),
-                                        PopupMenuItem(
-                                          value: ReadingMode.sepia,
-                                          child: Text('Sepia',
-                                              style: TextStyle(
-                                                  color: Theme.of(context)
-                                                              .brightness ==
-                                                          Brightness.dark
-                                                      ? const Color(0xFFF2F2F7)
-                                                      : const Color(
-                                                          0xFF1C1C1E))),
-                                        ),
-                                      ],
-                                    );
-                                    if (readingMode != null && mounted) {
-                                      context
-                                          .read<ReaderBloc>()
-                                          .add(setReadingMode(readingMode));
-                                    }
-                                    break;
-                                  case 'move_trash':
-                                    final shouldDelete = await showDialog<bool>(
-                                      context: context,
-                                      builder: (context) => AlertDialog(
-                                        title: const Text('Delete File'),
-                                        content: const Text(
-                                            'Are you sure you want to delete this file? This action cannot be undone.'),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.of(context)
-                                                    .pop(false),
-                                            child: const Text('Cancel'),
-                                          ),
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.of(context).pop(true),
-                                            style: TextButton.styleFrom(
-                                                foregroundColor: Colors.red),
-                                            child: const Text('Delete'),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-
-                                    if (shouldDelete == true && mounted) {
-                                      try {
-                                        final file = File(state.file.path);
-                                        if (await file.exists()) {
-                                          await file.delete();
-                                          if (mounted) {
-                                            context.read<FileBloc>().add(
-                                                RemoveFile(state.file.path));
-                                            context
-                                                .read<ReaderBloc>()
-                                                .add(CloseReader());
-                                            Navigator.of(context).pop();
-                                          }
-                                        }
-                                      } catch (e) {
-                                        if (mounted) {
-                                          ScaffoldMessenger.of(context)
-                                              .showSnackBar(
-                                            SnackBar(
-                                                content: Text(
-                                                    'Error deleting file: $e')),
-                                          );
-                                        }
-                                      }
-                                    }
-                                    break;
-                                  case 'share':
-                                    try {
-                                      final file = File(state.file.path);
-                                      if (await file.exists()) {
-                                        await Share.share(
-                                          state.file.path,
-                                          subject:
-                                              path.basename(state.file.path),
-                                        );
-                                      }
-                                    } catch (e) {
-                                      if (mounted) {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(
-                                              content: Text(
-                                                  'Error sharing file: $e')),
-                                        );
-                                      }
-                                    }
-                                    break;
-                                  case 'toggle_star':
-                                    context
-                                        .read<FileBloc>()
-                                        .add(ToggleStarred(state.file.path));
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Updated starred status'),
-                                        duration: Duration(seconds: 1),
-                                      ),
-                                    );
-                                    break;
-                                  case 'mark_as_read':
-                                    context
-                                        .read<FileBloc>()
-                                        .add(ViewFile(state.file.path));
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Marked as read'),
-                                        duration: Duration(seconds: 1),
-                                      ),
-                                    );
-                                    break;
-                                  case 'font_size':
-                                    _showFontSizeDialog();
-                                    break;
-                                }
-                              },
-                              itemBuilder: (context) => [
-                                PopupMenuItem(
-                                  value: 'layout_mode',
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.view_agenda_outlined,
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                        size: 20,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        'Page Layout',
-                                        style: TextStyle(
-                                          color: Theme.of(context).brightness ==
-                                                  Brightness.dark
-                                              ? const Color(0xFFF2F2F7)
-                                              : const Color(0xFF1C1C1E),
-                                        ),
-                                      ),
-                                      const Spacer(),
-                                      Icon(
-                                        Icons.arrow_right,
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                        size: 20,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                PopupMenuItem(
-                                  value: 'reading_mode',
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.palette_outlined,
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                        size: 20,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        'Reading Mode',
-                                        style: TextStyle(
-                                          color: Theme.of(context).brightness ==
-                                                  Brightness.dark
-                                              ? const Color(0xFFF2F2F7)
-                                              : const Color(0xFF1C1C1E),
-                                        ),
-                                      ),
-                                      const Spacer(),
-                                      Icon(
-                                        Icons.arrow_right,
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                        size: 20,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                PopupMenuItem(
-                                  value: 'move_trash',
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.delete_outline,
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                        size: 20,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        'Move to trash',
-                                        style: TextStyle(
-                                          color: Theme.of(context).brightness ==
-                                                  Brightness.dark
-                                              ? const Color(0xFFF2F2F7)
-                                              : const Color(0xFF1C1C1E),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                PopupMenuItem(
-                                  value: 'share',
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.share_outlined,
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                        size: 20,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        'Share file',
-                                        style: TextStyle(
-                                          color: Theme.of(context).brightness ==
-                                                  Brightness.dark
-                                              ? const Color(0xFFF2F2F7)
-                                              : const Color(0xFF1C1C1E),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                PopupMenuItem(
-                                  value: 'toggle_star',
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.star_outline,
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                        size: 20,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        'Toggle star',
-                                        style: TextStyle(
-                                          color: Theme.of(context).brightness ==
-                                                  Brightness.dark
-                                              ? const Color(0xFFF2F2F7)
-                                              : const Color(0xFF1C1C1E),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                PopupMenuItem(
-                                  value: 'mark_as_read',
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.check_circle_outline,
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                        size: 20,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        'Mark as read',
-                                        style: TextStyle(
-                                          color: Theme.of(context).brightness ==
-                                                  Brightness.dark
-                                              ? const Color(0xFFF2F2F7)
-                                              : const Color(0xFF1C1C1E),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                PopupMenuItem(
-                                  value: 'font_size',
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.format_size,
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                        size: 20,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        'Font Size',
-                                        style: TextStyle(
-                                          color: Theme.of(context).brightness ==
-                                                  Brightness.dark
-                                              ? const Color(0xFFF2F2F7)
-                                              : const Color(0xFF1C1C1E),
-                                        ),
-                                      ),
-                                      const Spacer(),
-                                      Icon(
-                                        Icons.arrow_right,
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                        size: 20,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
                             ),
                           ],
                         ),
@@ -2303,11 +1866,22 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     if (chapter.HtmlContent == null) return;
 
     try {
-      final pages = await _pageCalculator.calculatePages(
+      final calculatedPages = await _pageCalculator.calculatePages(
         chapter.HtmlContent!,
         index,
         chapter.Title ?? 'Chapter ${index + 1}',
       );
+
+      // Convert to PageContent objects defined in this file
+      final pages = calculatedPages
+          .map((p) => PageContent(
+                content: p.content,
+                chapterIndex: p.chapterIndex,
+                pageNumberInChapter: p.pageNumberInChapter,
+                chapterTitle: p.chapterTitle,
+                absolutePageNumber: p.absolutePageNumber,
+              ))
+          .toList();
 
       if (!_isDisposed) {
         _safeSetState(() {

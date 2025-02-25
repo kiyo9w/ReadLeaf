@@ -23,6 +23,8 @@ import 'package:share_plus/share_plus.dart';
 import 'package:read_leaf/constants/responsive_constants.dart';
 import 'package:read_leaf/widgets/floating_selection_menu.dart';
 import 'package:read_leaf/widgets/full_selection_menu.dart';
+import 'package:read_leaf/widgets/reader/reader_settings_menu.dart';
+import 'package:read_leaf/widgets/reader/reader_loading_screen.dart';
 import 'dart:async';
 
 enum PdfLayoutMode { vertical, horizontal, facing }
@@ -63,6 +65,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   PdfLayoutMode _layoutMode = PdfLayoutMode.vertical;
   final bool _isRightToLeftReadingOrder = false;
   final bool _needCoverPage = true;
+  bool _isInitialLoading = true;
+  double _loadingProgress = 0.0;
 
   String get _currentTitle {
     switch (_tabController.index) {
@@ -1078,11 +1082,11 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                     : const Color(0xFF1C1C1E),
                                 size: ResponsiveConstants.getIconSize(context),
                               ),
-                              onPressed: _toggleSearchPanel,
                               padding: EdgeInsets.all(
                                   ResponsiveConstants.isTablet(context)
                                       ? 12
                                       : 8),
+                              onPressed: _toggleSearchPanel,
                             ),
                             IconButton(
                               icon: Icon(
@@ -1093,497 +1097,56 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                     : const Color(0xFF1C1C1E),
                                 size: ResponsiveConstants.getIconSize(context),
                               ),
-                              onPressed: () => _toggleSideNav(),
                               padding: EdgeInsets.all(
                                   ResponsiveConstants.isTablet(context)
                                       ? 12
                                       : 8),
-                            ),
-                            PopupMenuButton<String>(
-                              elevation: 8,
-                              color: Theme.of(context).brightness ==
-                                      Brightness.dark
-                                  ? const Color(0xFF352A3B)
-                                  : const Color(0xFFF8F1F1),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              icon: Icon(
-                                Icons.more_vert,
-                                color: Theme.of(context).brightness ==
-                                        Brightness.dark
-                                    ? const Color(0xFFF2F2F7)
-                                    : const Color(0xFF1C1C1E),
-                                size: ResponsiveConstants.getIconSize(context),
-                              ),
-                              padding: EdgeInsets.all(
-                                  ResponsiveConstants.isTablet(context)
-                                      ? 12
-                                      : 8),
-                              position: PopupMenuPosition.under,
-                              onSelected: (val) async {
-                                switch (val) {
-                                  case 'layout_mode':
-                                    final RenderBox button =
-                                        context.findRenderObject() as RenderBox;
-                                    final RenderBox overlay =
-                                        Navigator.of(context)
-                                            .overlay!
-                                            .context
-                                            .findRenderObject() as RenderBox;
-                                    final RelativeRect position =
-                                        RelativeRect.fromRect(
-                                      Rect.fromPoints(
-                                        button.localToGlobal(Offset.zero),
-                                        button.localToGlobal(button.size
-                                            .bottomRight(Offset.zero)),
-                                      ),
-                                      Offset.zero & overlay.size,
-                                    );
-
-                                    showMenu<PdfLayoutMode>(
-                                      context: context,
-                                      position: position,
-                                      color: Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFF352A3B)
-                                          : const Color(0xFFF8F1F1),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      items: [
-                                        PopupMenuItem(
-                                          value: PdfLayoutMode.vertical,
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                Icons.vertical_distribute,
-                                                color: _layoutMode ==
-                                                        PdfLayoutMode.vertical
-                                                    ? Theme.of(context)
-                                                        .primaryColor
-                                                    : null,
-                                                size: 20,
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Text('Vertical Scroll',
-                                                  style: TextStyle(
-                                                    color: _layoutMode ==
-                                                            PdfLayoutMode
-                                                                .vertical
-                                                        ? Theme.of(context)
-                                                            .primaryColor
-                                                        : null,
-                                                  )),
-                                            ],
-                                          ),
-                                        ),
-                                        PopupMenuItem(
-                                          value: PdfLayoutMode.horizontal,
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                Icons.horizontal_distribute,
-                                                color: _layoutMode ==
-                                                        PdfLayoutMode.horizontal
-                                                    ? Theme.of(context)
-                                                        .primaryColor
-                                                    : null,
-                                                size: 20,
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Text('Horizontal Scroll',
-                                                  style: TextStyle(
-                                                    color: _layoutMode ==
-                                                            PdfLayoutMode
-                                                                .horizontal
-                                                        ? Theme.of(context)
-                                                            .primaryColor
-                                                        : null,
-                                                  )),
-                                            ],
-                                          ),
-                                        ),
-                                        PopupMenuItem(
-                                          value: PdfLayoutMode.facing,
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                Icons.book_outlined,
-                                                color: _layoutMode ==
-                                                        PdfLayoutMode.facing
-                                                    ? Theme.of(context)
-                                                        .primaryColor
-                                                    : null,
-                                                size: 20,
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Text('Facing Pages',
-                                                  style: TextStyle(
-                                                    color: _layoutMode ==
-                                                            PdfLayoutMode.facing
-                                                        ? Theme.of(context)
-                                                            .primaryColor
-                                                        : null,
-                                                  )),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ).then((PdfLayoutMode? mode) {
-                                      if (mode != null && mounted) {
-                                        final currentPage = context
-                                                .read<ReaderBloc>()
-                                                .state is ReaderLoaded
-                                            ? (context.read<ReaderBloc>().state
-                                                    as ReaderLoaded)
-                                                .currentPage
-                                            : 1;
-                                        setState(() {
-                                          _layoutMode = mode;
-                                        });
-                                        // Ensure we stay on the same page after layout change
-                                        WidgetsBinding.instance
-                                            .addPostFrameCallback((_) {
-                                          if (mounted) {
-                                            _controller.goToPage(
-                                                pageNumber: currentPage);
-                                          }
-                                        });
-                                      }
-                                    });
-                                    break;
-                                  case 'reading_mode':
-                                    final RenderBox button =
-                                        context.findRenderObject() as RenderBox;
-                                    final RenderBox overlay =
-                                        Navigator.of(context)
-                                            .overlay!
-                                            .context
-                                            .findRenderObject() as RenderBox;
-                                    final Offset offset =
-                                        button.localToGlobal(Offset.zero);
-                                    final RelativeRect position =
-                                        RelativeRect.fromRect(
-                                      Rect.fromPoints(
-                                        offset,
-                                        offset.translate(0, button.size.height),
-                                      ),
-                                      Offset.zero & overlay.size,
-                                    );
-
-                                    final readingMode =
-                                        await showMenu<ReadingMode>(
-                                      context: context,
-                                      position: position,
-                                      color: Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFF352A3B)
-                                          : const Color(0xFFF8F1F1),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      items: [
-                                        PopupMenuItem(
-                                          value: ReadingMode.light,
-                                          child: Text('Light',
-                                              style: TextStyle(
-                                                  color: Theme.of(context)
-                                                              .brightness ==
-                                                          Brightness.dark
-                                                      ? const Color(0xFFF2F2F7)
-                                                      : const Color(
-                                                          0xFF1C1C1E))),
-                                        ),
-                                        PopupMenuItem(
-                                          value: ReadingMode.dark,
-                                          child: Text('Dark',
-                                              style: TextStyle(
-                                                  color: Theme.of(context)
-                                                              .brightness ==
-                                                          Brightness.dark
-                                                      ? const Color(0xFFF2F2F7)
-                                                      : const Color(
-                                                          0xFF1C1C1E))),
-                                        ),
-                                        PopupMenuItem(
-                                          value: ReadingMode.darkContrast,
-                                          child: Text('Dark Contrast',
-                                              style: TextStyle(
-                                                  color: Theme.of(context)
-                                                              .brightness ==
-                                                          Brightness.dark
-                                                      ? const Color(0xFFF2F2F7)
-                                                      : const Color(
-                                                          0xFF1C1C1E))),
-                                        ),
-                                        PopupMenuItem(
-                                          value: ReadingMode.sepia,
-                                          child: Text('Sepia',
-                                              style: TextStyle(
-                                                  color: Theme.of(context)
-                                                              .brightness ==
-                                                          Brightness.dark
-                                                      ? const Color(0xFFF2F2F7)
-                                                      : const Color(
-                                                          0xFF1C1C1E))),
-                                        ),
-                                        PopupMenuItem(
-                                          value: ReadingMode.twilight,
-                                          child: Text('Twilight',
-                                              style: TextStyle(
-                                                  color: Theme.of(context)
-                                                              .brightness ==
-                                                          Brightness.dark
-                                                      ? const Color(0xFFF2F2F7)
-                                                      : const Color(
-                                                          0xFF1C1C1E))),
-                                        ),
-                                        PopupMenuItem(
-                                          value: ReadingMode.console,
-                                          child: Text('Console',
-                                              style: TextStyle(
-                                                  color: Theme.of(context)
-                                                              .brightness ==
-                                                          Brightness.dark
-                                                      ? const Color(0xFFF2F2F7)
-                                                      : const Color(
-                                                          0xFF1C1C1E))),
-                                        ),
-                                        PopupMenuItem(
-                                          value: ReadingMode.birthday,
-                                          child: Text('Birthday',
-                                              style: TextStyle(
-                                                  color: Theme.of(context)
-                                                              .brightness ==
-                                                          Brightness.dark
-                                                      ? const Color(0xFFF2F2F7)
-                                                      : const Color(
-                                                          0xFF1C1C1E))),
-                                        ),
-                                      ],
-                                    ).then((ReadingMode? mode) {
-                                      if (mode != null) {
-                                        context
+                              onPressed: () {
+                                showReaderSettingsMenu(
+                                  context: context,
+                                  filePath: state.file.path,
+                                  currentLayoutMode:
+                                      convertToReaderLayoutMode(_layoutMode),
+                                  onLayoutModeChanged: (mode) {
+                                    final currentPage = context
                                             .read<ReaderBloc>()
-                                            .add(setReadingMode(mode));
+                                            .state is ReaderLoaded
+                                        ? (context.read<ReaderBloc>().state
+                                                as ReaderLoaded)
+                                            .currentPage
+                                        : 1;
+
+                                    Navigator.pop(context); // Close the menu
+
+                                    setState(() {
+                                      switch (mode) {
+                                        case ReaderLayoutMode.vertical:
+                                          _layoutMode = PdfLayoutMode.vertical;
+                                          break;
+                                        case ReaderLayoutMode.horizontal:
+                                          _layoutMode =
+                                              PdfLayoutMode.horizontal;
+                                          break;
+                                        case ReaderLayoutMode.facing:
+                                          _layoutMode = PdfLayoutMode.facing;
+                                          break;
+                                        default:
+                                          _layoutMode = PdfLayoutMode.vertical;
                                       }
                                     });
-                                    break;
-                                  case 'move_trash':
-                                    final shouldDelete = await showDialog<bool>(
-                                      context: context,
-                                      builder: (context) => AlertDialog(
-                                        title: const Text('Delete File'),
-                                        content: const Text(
-                                            'Are you sure you want to delete this file? This action cannot be undone.'),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.of(context)
-                                                    .pop(false),
-                                            child: const Text('Cancel'),
-                                          ),
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.of(context).pop(true),
-                                            style: TextButton.styleFrom(
-                                                foregroundColor: Colors.red),
-                                            child: const Text('Delete'),
-                                          ),
-                                        ],
-                                      ),
-                                    );
 
-                                    if (shouldDelete == true && mounted) {
-                                      try {
-                                        final file = File(state.file.path);
-                                        if (await file.exists()) {
-                                          await file.delete();
-                                          if (mounted) {
-                                            context.read<FileBloc>().add(
-                                                RemoveFile(state.file.path));
-                                            context
-                                                .read<ReaderBloc>()
-                                                .add(CloseReader());
-                                            Navigator.of(context).pop();
-                                          }
-                                        }
-                                      } catch (e) {
-                                        if (mounted) {
-                                          Utils.showErrorSnackBar(context,
-                                              'Error deleting file: $e');
-                                        }
-                                      }
-                                    }
-                                    break;
-                                  case 'share':
-                                    try {
-                                      final file = File(state.file.path);
-                                      if (await file.exists()) {
-                                        await Share.share(
-                                          state.file.path,
-                                          subject:
-                                              path.basename(state.file.path),
-                                        );
-                                      }
-                                    } catch (e) {
+                                    // Ensure we stay on the same page after layout change
+                                    WidgetsBinding.instance
+                                        .addPostFrameCallback((_) {
                                       if (mounted) {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(
-                                              content: Text(
-                                                  'Error sharing file: $e')),
-                                        );
+                                        _controller.goToPage(
+                                            pageNumber: currentPage);
                                       }
-                                    }
-                                    break;
-                                  case 'toggle_star':
-                                    context
-                                        .read<FileBloc>()
-                                        .add(ToggleStarred(state.file.path));
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Updated starred status'),
-                                        duration: Duration(seconds: 1),
-                                      ),
-                                    );
-                                    break;
-                                  case 'mark_as_read':
-                                    context
-                                        .read<FileBloc>()
-                                        .add(ViewFile(state.file.path));
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Marked as read'),
-                                        duration: Duration(seconds: 1),
-                                      ),
-                                    );
-                                    break;
-                                }
+                                    });
+                                  },
+                                  showFacingOption: true,
+                                );
                               },
-                              itemBuilder: (context) => [
-                                PopupMenuItem(
-                                  value: 'layout_mode',
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.view_agenda_outlined,
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                        size: 20,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        'Page Layout',
-                                        style: TextStyle(
-                                          color: Theme.of(context).brightness ==
-                                                  Brightness.dark
-                                              ? const Color(0xFFF2F2F7)
-                                              : const Color(0xFF1C1C1E),
-                                        ),
-                                      ),
-                                      const Spacer(),
-                                      Icon(
-                                        Icons.arrow_right,
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                        size: 20,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                PopupMenuItem(
-                                  value: 'reading_mode',
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 8),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.palette_outlined,
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                        size: 20,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        'Reading Mode',
-                                        style: TextStyle(
-                                          color: Theme.of(context).brightness ==
-                                                  Brightness.dark
-                                              ? const Color(0xFFF2F2F7)
-                                              : const Color(0xFF1C1C1E),
-                                        ),
-                                      ),
-                                      const Spacer(),
-                                      Icon(
-                                        Icons.arrow_right,
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                        size: 20,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                PopupMenuItem(
-                                  value: 'move_trash',
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.delete_outline,
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                        size: 20,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        'Move to trash',
-                                        style: TextStyle(
-                                          color: Theme.of(context).brightness ==
-                                                  Brightness.dark
-                                              ? const Color(0xFFF2F2F7)
-                                              : const Color(0xFF1C1C1E),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                PopupMenuItem(
-                                  value: 'share',
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.share_outlined,
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFF2F2F7)
-                                            : const Color(0xFF1C1C1E),
-                                        size: 20,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        'Share file',
-                                        style: TextStyle(
-                                          color: Theme.of(context).brightness ==
-                                                  Brightness.dark
-                                              ? const Color(0xFFF2F2F7)
-                                              : const Color(0xFF1C1C1E),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
                             ),
                           ],
                         ),
