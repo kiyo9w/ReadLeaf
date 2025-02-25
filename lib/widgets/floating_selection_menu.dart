@@ -280,7 +280,7 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
                     ? 0
                     : MediaQuery.of(context).padding.bottom + 16,
               ),
-              height: 385, // Increased height to accommodate tabs
+              height: 385,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -312,11 +312,9 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
                                   ? Theme.of(context)
                                       .colorScheme
                                       .primary
-                                      .withOpacity(0.9)
                                   : Theme.of(context)
                                       .colorScheme
-                                      .surface
-                                      .withOpacity(0.7),
+                                      .surface,
                               borderRadius: BorderRadius.circular(20),
                               boxShadow: isSelected
                                   ? [
@@ -324,7 +322,7 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
                                         color: Theme.of(context)
                                             .colorScheme
                                             .primary
-                                            .withOpacity(0.3),
+                                            .withValues(alpha: 0.3),
                                         blurRadius: 4,
                                         offset: const Offset(0, 2),
                                       )
@@ -771,8 +769,8 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: isDark
-                          ? const Color(0xFF251B2F).withOpacity(0.5)
-                          : theme.colorScheme.primary.withOpacity(0.1),
+                          ? const Color(0xFF251B2F).withValues(alpha: 0.5)
+                          : theme.colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: isDark

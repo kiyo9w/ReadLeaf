@@ -884,283 +884,407 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
           _isLoading = false;
         });
       }
-      widget.onDismiss?.call();
     }
   }
 
   Future<void> _handleAskAi() async {
-    if (widget.selectedText.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              'Selected text appears to be empty. Please try selecting again.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
+    // Get all required data before closing dialog
+    final selectedText = widget.selectedText;
+    final chatKey = widget.floatingChatKey;
+    final customInstructionsText = _customInstructionsController.text.trim();
 
-    final state = context.read<ReaderBloc>().state;
-    if (state is! ReaderLoaded) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please wait for the document to load completely.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
+    // Get book information from the ReaderBloc
+    String bookTitle = 'Ask AI';
+    int currentPage = 1;
+    int totalPages = 1;
 
-    final bookTitle = path.basename(state.file.path);
-    final currentPage = state.currentPage;
-    final totalPages = state.totalPages;
-
-    Navigator.of(context).pop(); // Close this dialog
-
-    // Show the floating chat if a key was provided
-    if (widget.floatingChatKey?.currentState != null) {
-      widget.floatingChatKey!.currentState!.showChat();
-
-      await Future.delayed(const Duration(milliseconds: 100));
-
-      if (mounted) {
-        // Add user message to chat
-        widget.floatingChatKey!.currentState!
-            .addUserMessage('Imported Text: """${widget.selectedText}"""');
-
-        if (_customInstructionsController.text.isNotEmpty) {
-          widget.floatingChatKey!.currentState!
-              .addUserMessage(_customInstructionsController.text);
-        }
+    try {
+      final state = context.read<ReaderBloc>().state;
+      if (state is ReaderLoaded) {
+        bookTitle = path.basename(state.file.path);
+        currentPage = state.currentPage;
+        totalPages = state.totalPages;
       }
+    } catch (e) {
+      print('Error accessing ReaderBloc: $e');
+    }
+
+    // Close dialog and THEN handle the async operations
+    if (widget.onDismiss != null) {
+      widget.onDismiss!();
+    }
+
+    // Use microtask to ensure this runs after the dialog is fully dismissed
+    Future.microtask(() async {
+      if (chatKey?.currentState == null) return;
 
       try {
-        final response = await _geminiService.askAboutText(
-          widget.selectedText,
-          customPrompt: _customInstructionsController.text.isNotEmpty
-              ? _customInstructionsController.text
-              : 'Can you explain what the text is about? After that share your thoughts in a single open ended question in the same paragraph, make the question short and concise.',
+        // Format query with selected text visually distinct
+        final query = customInstructionsText.isNotEmpty
+            ? 'Selected text: "_${selectedText}_"\n\n$customInstructionsText'
+            : 'Selected text: "_${selectedText}_"\n\nPlease analyze this.';
+
+        // Show the chat first
+        chatKey!.currentState!.showChat();
+
+        // Add user message with selected text
+        chatKey.currentState!.addUserMessage(query);
+
+        final geminiService = GetIt.I<GeminiService>();
+        final response = await geminiService.askAboutText(
+          selectedText,
+          customPrompt: customInstructionsText,
           bookTitle: bookTitle,
           currentPage: currentPage,
           totalPages: totalPages,
-          task: _customInstructionsController.text.isNotEmpty
-              ? 'custom_request'
-              : 'encouragement',
         );
 
-        if (widget.floatingChatKey?.currentState != null) {
-          widget.floatingChatKey!.currentState!.addAiResponse(response);
+        // Add AI response if chat is still available
+        if (chatKey.currentState != null) {
+          chatKey.currentState!.addAiResponse(response);
         }
       } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: $e'),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+        print('Error in _handleAskAi: $e');
+        // We've already checked chatKey isn't null above
+        if (chatKey!.currentState != null) {
+          chatKey.currentState!.addAiResponse(
+              "**Error**\n\nI couldn't process your request. Please try again.");
         }
-      }
-    }
-  }
-
-  Future<void> _handleTranslate() async {
-    try {
-      final language = _selectedOption ?? 'Spanish';
-      final languageCode = _getLanguageCode(language);
-
-      final result = await _textSelectionService.translateText(
-        widget.selectedText,
-        language,
-      );
-
-      if (result['success']) {
-        _showResponseInChat(
-          'Translation to $language',
-          result['translation'],
-          'Translated from: "${widget.selectedText}"',
-        );
-      } else {
-        _showError('Translation failed: ${result['error']}');
-      }
-    } catch (e) {
-      _showError('Translation error: $e');
-    }
-  }
-
-  Future<void> _handleDictionary() async {
-    try {
-      final language = _selectedOption ?? 'English';
-      final languageCode = _getLanguageCode(language);
-
-      final result = await _textSelectionService.getDictionaryDefinition(
-        widget.selectedText,
-        language: languageCode,
-      );
-
-      if (result['success']) {
-        final String displayData;
-
-        if (result['source'] == 'gemini') {
-          displayData = result['data'] as String;
-        } else {
-          // Format the API response
-          final List<dynamic> data = result['data'];
-          final buffer = StringBuffer();
-
-          for (var entry in data) {
-            buffer.writeln('## ${entry['word']}');
-
-            if (entry['phonetics'] != null && entry['phonetics'].isNotEmpty) {
-              for (var phonetic in entry['phonetics']) {
-                if (phonetic['text'] != null && phonetic['text'].isNotEmpty) {
-                  buffer.writeln('**Pronunciation:** ${phonetic['text']}');
-                  break;
-                }
-              }
-            }
-
-            if (entry['meanings'] != null) {
-              for (var meaning in entry['meanings']) {
-                buffer.writeln('\n### ${meaning['partOfSpeech']}');
-
-                if (meaning['definitions'] != null) {
-                  for (var i = 0; i < meaning['definitions'].length; i++) {
-                    final def = meaning['definitions'][i];
-                    buffer.writeln('${i + 1}. ${def['definition']}');
-
-                    if (def['example'] != null) {
-                      buffer.writeln('   *Example:* "${def['example']}"');
-                    }
-                  }
-                }
-
-                if (meaning['synonyms'] != null &&
-                    meaning['synonyms'].isNotEmpty) {
-                  buffer.writeln(
-                      '\n**Synonyms:** ${meaning['synonyms'].join(', ')}');
-                }
-              }
-            }
-
-            buffer.writeln('\n---\n');
-          }
-
-          displayData = buffer.toString();
-        }
-
-        _showResponseInChat(
-          'Dictionary Lookup',
-          displayData,
-          'Looked up: "${widget.selectedText}"',
-        );
-      } else {
-        _showError('Dictionary lookup failed: ${result['error']}');
-      }
-    } catch (e) {
-      _showError('Dictionary error: $e');
-    }
-  }
-
-  Future<void> _handleWikipedia() async {
-    try {
-      final language = _selectedOption ?? 'English';
-      final languageCode = _getLanguageCode(language);
-
-      final result = await _textSelectionService.getWikipediaInformation(
-        widget.selectedText,
-        language: languageCode,
-      );
-
-      if (result['success']) {
-        final String displayData;
-
-        if (result['source'] == 'gemini') {
-          displayData = result['data'] as String;
-        } else {
-          // Format the API response
-          final data = result['data'];
-          final buffer = StringBuffer();
-
-          if (data['title'] != null) {
-            buffer.writeln('# ${data['title']}');
-          }
-
-          if (data['description'] != null) {
-            buffer.writeln('\n*${data['description']}*\n');
-          }
-
-          if (data['extract'] != null) {
-            buffer.writeln(data['extract']);
-          }
-
-          displayData = buffer.toString();
-        }
-
-        _showResponseInChat(
-          'Wikipedia Information',
-          displayData,
-          'Searched for: "${widget.selectedText}"',
-        );
-      } else {
-        _showError('Wikipedia search failed: ${result['error']}');
-      }
-    } catch (e) {
-      _showError('Wikipedia error: $e');
-    }
-  }
-
-  Future<void> _handleGenerateImage() async {
-    try {
-      final style = _selectedOption ?? 'Realistic';
-      final customInstruction = _customInstructionsController.text.isNotEmpty
-          ? _customInstructionsController.text
-          : 'Generate a $style image of: ${widget.selectedText}';
-
-      final response = await _geminiService.askAboutText(
-        widget.selectedText,
-        customPrompt: customInstruction,
-        bookTitle: 'Image Generation',
-        currentPage: 1,
-        totalPages: 1,
-        task: 'generate_image',
-      );
-
-      _showResponseInChat(
-        'Image Generation',
-        response,
-        'Generated image of: "${widget.selectedText}" in $style style',
-      );
-    } catch (e) {
-      _showError('Image generation error: $e');
-    }
-  }
-
-  void _showResponseInChat(String title, String content, String query) {
-    if (widget.floatingChatKey?.currentState == null) return;
-
-    // Show the floating chat
-    widget.floatingChatKey!.currentState!.showChat();
-
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (mounted && widget.floatingChatKey?.currentState != null) {
-        // Add user message to chat
-        widget.floatingChatKey!.currentState!.addUserMessage(query);
-        widget.floatingChatKey!.currentState!
-            .addAiResponse("**$title**\n\n$content");
       }
     });
   }
 
-  void _showError(String message) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+  Future<void> _handleTranslate() async {
+    // Get all required data before closing dialog
+    final selectedText = widget.selectedText;
+    final chatKey = widget.floatingChatKey;
+    final language = _selectedOption ?? 'Spanish';
+
+    // Get book information from the ReaderBloc
+    String bookTitle = 'Translation';
+    int currentPage = 1;
+    int totalPages = 1;
+
+    try {
+      final state = context.read<ReaderBloc>().state;
+      if (state is ReaderLoaded) {
+        bookTitle = path.basename(state.file.path);
+        currentPage = state.currentPage;
+        totalPages = state.totalPages;
+      }
+    } catch (e) {
+      print('Error accessing ReaderBloc: $e');
     }
+
+    // Close dialog and THEN handle the async operations
+    if (widget.onDismiss != null) {
+      widget.onDismiss!();
+    }
+
+    // Use microtask to ensure this runs after the dialog is fully dismissed
+    Future.microtask(() async {
+      if (chatKey?.currentState == null) return;
+
+      try {
+        // Format query with selected text visually distinct
+        final query =
+            'Selected text: "_${selectedText}_"\n\nTranslate to $language';
+
+        // Show the chat first
+        chatKey!.currentState!.showChat();
+
+        // Add user message with selected text
+        chatKey.currentState!.addUserMessage(query);
+
+        final textSelectionService = GetIt.I<TextSelectionService>();
+        final result = await textSelectionService.translateText(
+          selectedText,
+          language,
+          bookTitle: bookTitle,
+          currentPage: currentPage,
+          totalPages: totalPages,
+        );
+
+        String responseText;
+        if (result['success'] == true) {
+          responseText =
+              "**Translation to $language**\n\n${result['translation']}";
+        } else {
+          responseText =
+              "**Translation Error**\n\nI couldn't translate the text. Please try again.";
+        }
+
+        // Add AI response if chat is still available
+        if (chatKey.currentState != null) {
+          chatKey.currentState!.addAiResponse(responseText);
+        }
+      } catch (e) {
+        print('Error in _handleTranslate: $e');
+        // We've already checked chatKey isn't null above
+        if (chatKey!.currentState != null) {
+          chatKey.currentState!.addAiResponse(
+              "**Translation Error**\n\nI couldn't translate the text. Please try again.");
+        }
+      }
+    });
+  }
+
+  Future<void> _handleDictionary() async {
+    // Get all required data before closing dialog
+    final selectedText = widget.selectedText;
+    final chatKey = widget.floatingChatKey;
+    final language = _getLanguageCode(_selectedOption ?? 'English');
+
+    // Get book information from the ReaderBloc
+    String bookTitle = 'Dictionary';
+    int currentPage = 1;
+    int totalPages = 1;
+
+    try {
+      final state = context.read<ReaderBloc>().state;
+      if (state is ReaderLoaded) {
+        bookTitle = path.basename(state.file.path);
+        currentPage = state.currentPage;
+        totalPages = state.totalPages;
+      }
+    } catch (e) {
+      print('Error accessing ReaderBloc: $e');
+    }
+
+    // Close dialog and THEN handle the async operations
+    if (widget.onDismiss != null) {
+      widget.onDismiss!();
+    }
+
+    // Use microtask to ensure this runs after the dialog is fully dismissed
+    Future.microtask(() async {
+      if (chatKey?.currentState == null) return;
+
+      try {
+        // Format query with selected text visually distinct
+        final query =
+            'Selected text: "_${selectedText}_"\n\nLook up in dictionary';
+
+        // Show the chat first
+        chatKey!.currentState!.showChat();
+
+        // Add user message with selected text
+        chatKey.currentState!.addUserMessage(query);
+
+        final textSelectionService = GetIt.I<TextSelectionService>();
+        final result = await textSelectionService.getDictionaryDefinition(
+          selectedText,
+          language: language,
+          bookTitle: bookTitle,
+          currentPage: currentPage,
+          totalPages: totalPages,
+        );
+
+        String responseText;
+        if (result['success'] == true) {
+          if (result['source'] == 'gemini') {
+            responseText = "**Dictionary Lookup**\n\n${result['data']}";
+          } else {
+            // Format API response
+            final data = result['data'][0];
+            final word = data['word'] ?? selectedText;
+            final phonetic = data['phonetic'] ?? '';
+
+            responseText = "**Dictionary: $word** $phonetic\n\n";
+
+            if (data['meanings'] != null) {
+              for (var meaning in data['meanings']) {
+                final partOfSpeech = meaning['partOfSpeech'];
+                responseText += "• *$partOfSpeech*\n";
+
+                for (var definition in meaning['definitions']) {
+                  responseText += "  - ${definition['definition']}\n";
+                  if (definition['example'] != null) {
+                    responseText +=
+                        "    Example: \"${definition['example']}\"\n";
+                  }
+                }
+                responseText += "\n";
+              }
+            }
+          }
+        } else {
+          responseText =
+              "**Dictionary Error**\n\nI couldn't find a definition for this word.";
+        }
+
+        // Add AI response if chat is still available
+        if (chatKey.currentState != null) {
+          chatKey.currentState!.addAiResponse(responseText);
+        }
+      } catch (e) {
+        print('Error in _handleDictionary: $e');
+        // We've already checked chatKey isn't null above
+        if (chatKey!.currentState != null) {
+          chatKey.currentState!.addAiResponse(
+              "**Dictionary Error**\n\nI couldn't look up this word. Please try again.");
+        }
+      }
+    });
+  }
+
+  Future<void> _handleWikipedia() async {
+    // Get all required data before closing dialog
+    final selectedText = widget.selectedText;
+    final chatKey = widget.floatingChatKey;
+
+    // Get book information from the ReaderBloc
+    String bookTitle = 'Wikipedia';
+    int currentPage = 1;
+    int totalPages = 1;
+
+    try {
+      final state = context.read<ReaderBloc>().state;
+      if (state is ReaderLoaded) {
+        bookTitle = path.basename(state.file.path);
+        currentPage = state.currentPage;
+        totalPages = state.totalPages;
+      }
+    } catch (e) {
+      print('Error accessing ReaderBloc: $e');
+    }
+
+    // Close dialog and THEN handle the async operations
+    if (widget.onDismiss != null) {
+      widget.onDismiss!();
+    }
+
+    // Use microtask to ensure this runs after the dialog is fully dismissed
+    Future.microtask(() async {
+      if (chatKey?.currentState == null) return;
+
+      try {
+        // Format query with selected text visually distinct
+        final query = 'Selected text: "_${selectedText}_"\n\nSearch Wikipedia';
+
+        // Show the chat first
+        chatKey!.currentState!.showChat();
+
+        // Add user message with selected text
+        chatKey.currentState!.addUserMessage(query);
+
+        final textSelectionService = GetIt.I<TextSelectionService>();
+        final result = await textSelectionService.getWikipediaInformation(
+          selectedText,
+          bookTitle: bookTitle,
+          currentPage: currentPage,
+          totalPages: totalPages,
+        );
+
+        String responseText;
+        if (result['success'] == true) {
+          if (result['source'] == 'gemini') {
+            responseText = "**Wikipedia Information**\n\n${result['data']}";
+          } else {
+            // Format API response
+            final data = result['data'];
+            final title = data['title'] ?? selectedText;
+            final extract = data['extract'] ?? "No information found.";
+
+            responseText = "**Wikipedia: $title**\n\n$extract";
+
+            if (data['content_urls'] != null &&
+                data['content_urls']['desktop'] != null) {
+              responseText +=
+                  "\n\n[Read more on Wikipedia](${data['content_urls']['desktop']['page']})";
+            }
+          }
+        } else {
+          responseText =
+              "**Wikipedia Error**\n\nI couldn't find information on this topic.";
+        }
+
+        // Add AI response if chat is still available
+        if (chatKey.currentState != null) {
+          chatKey.currentState!.addAiResponse(responseText);
+        }
+      } catch (e) {
+        print('Error in _handleWikipedia: $e');
+        // We've already checked chatKey isn't null above
+        if (chatKey!.currentState != null) {
+          chatKey.currentState!.addAiResponse(
+              "**Wikipedia Error**\n\nI couldn't look up this information. Please try again.");
+        }
+      }
+    });
+  }
+
+  Future<void> _handleGenerateImage() async {
+    // Get all required data before closing dialog
+    final selectedText = widget.selectedText;
+    final chatKey = widget.floatingChatKey;
+    final style = _selectedOption ?? 'Realistic';
+    final customInstructions = _customInstructionsController.text.trim();
+
+    // Get book information from the ReaderBloc
+    String bookTitle = 'Image Generation';
+    int currentPage = 1;
+    int totalPages = 1;
+
+    try {
+      final state = context.read<ReaderBloc>().state;
+      if (state is ReaderLoaded) {
+        bookTitle = path.basename(state.file.path);
+        currentPage = state.currentPage;
+        totalPages = state.totalPages;
+      }
+    } catch (e) {
+      print('Error accessing ReaderBloc: $e');
+    }
+
+    // Close dialog and THEN handle the async operations
+    if (widget.onDismiss != null) {
+      widget.onDismiss!();
+    }
+
+    // Use microtask to ensure this runs after the dialog is fully dismissed
+    Future.microtask(() async {
+      if (chatKey?.currentState == null) return;
+
+      try {
+        // Format the custom instruction
+        final formattedInstructions = customInstructions.isNotEmpty
+            ? "$customInstructions\nStyle: $style"
+            : "Generate an image based on this text in $style style";
+
+        // Format query with selected text visually distinct
+        final query =
+            'Selected text: "_${selectedText}_"\n\nGenerate image in $style style';
+
+        // Show the chat first
+        chatKey!.currentState!.showChat();
+
+        // Add user message with selected text
+        chatKey.currentState!.addUserMessage(query);
+
+        final geminiService = GetIt.I<GeminiService>();
+        final response = await geminiService.askAboutText(
+          selectedText,
+          customPrompt: formattedInstructions,
+          bookTitle: bookTitle,
+          currentPage: currentPage,
+          totalPages: totalPages,
+        );
+
+        // Add AI response if chat is still available
+        if (chatKey.currentState != null) {
+          chatKey.currentState!
+              .addAiResponse("**Image Prompt Created**\n\n$response");
+        }
+      } catch (e) {
+        print('Error in _handleGenerateImage: $e');
+        // We've already checked chatKey isn't null above
+        if (chatKey!.currentState != null) {
+          chatKey.currentState!.addAiResponse(
+              "**Error**\n\nI couldn't generate an image prompt. Please try again.");
+        }
+      }
+    });
   }
 
   String _getLanguageCode(String language) {
@@ -1178,5 +1302,28 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
     };
 
     return codeMap[language] ?? 'en';
+  }
+
+  // Helper methods for showing responses in chat
+  void _showResponseInChat(String title, String content, String query) {
+    if (widget.floatingChatKey?.currentState == null) return;
+
+    // Show the floating chat
+    widget.floatingChatKey!.currentState!.showChat();
+
+    // Add messages directly without delay, which can cause context issues
+    widget.floatingChatKey!.currentState!.addUserMessage(query);
+    widget.floatingChatKey!.currentState!
+        .addAiResponse("**$title**\n\n$content");
+  }
+
+  void _showError(String message) {
+    // Don't use context here as it may be disposed
+    print('Error in FullSelectionMenu: $message');
+
+    if (widget.floatingChatKey?.currentState != null) {
+      widget.floatingChatKey!.currentState!
+          .addAiResponse("**Error**\n\n$message");
+    }
   }
 }

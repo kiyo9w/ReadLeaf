@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:math';
+import 'dart:developer' as dev;
 import 'package:flutter/material.dart' hide Image;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:read_leaf/blocs/FileBloc/file_bloc.dart';
@@ -2462,106 +2464,270 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   }
 
   void _showFloatingMenuAt(Offset anchor) {
-    if (!mounted) return;
-
     final screenSize = MediaQuery.of(context).size;
     final bool isInUpperHalf = anchor.dy < (screenSize.height / 2);
     _removeFloatingMenu();
 
-    if (context.read<ReaderBloc>().state is ReaderLoaded) {
-      context.read<ReaderBloc>().add(ToggleUIVisibility());
+    // Calculate positions
+    double menuTop;
+    final double quickActionsBottom =
+        isInUpperHalf ? anchor.dy + 48 : anchor.dy - 48;
+    final double quickActionsTop =
+        isInUpperHalf ? anchor.dy - 8 : anchor.dy - 88;
+
+    // Position main menu at bottom or top based on selection position
+    if (isInUpperHalf) {
+      menuTop = screenSize.height * 0.57;
+    } else {
+      menuTop = -20;
     }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-
-      double menuTop = isInUpperHalf ? screenSize.height * 0.57 : -20;
-
-      _floatingMenuEntry = OverlayEntry(
-        builder: (context) => Positioned(
-          left: 16,
-          right: 16,
-          top: menuTop,
-          child: Material(
-            color: Colors.transparent,
-            child: FloatingSelectionMenu(
-              selectedText: _selectedText ?? '',
-              displayAtTop: !isInUpperHalf,
-              onMenuSelected: (menuType, text) {
-                _removeFloatingMenu();
-                switch (menuType) {
-                  case SelectionMenuType.highlight:
-                    _addHighlight(
-                      text,
-                      _currentChapterIndex,
-                      text.length,
-                      text.length + text.length,
-                      Colors.yellow,
-                    );
-                    break;
-                  case SelectionMenuType.askAi:
-                    _handleAskAi(text);
-                    break;
-                  case SelectionMenuType.audio:
-                    break;
-                  case SelectionMenuType.translate:
-                  case SelectionMenuType.dictionary:
-                  case SelectionMenuType.wikipedia:
-                  case SelectionMenuType.generateImage:
-                    showDialog(
-                      context: context,
-                      barrierColor: Colors.transparent,
-                      barrierDismissible: false,
-                      builder: (context) => Stack(
-                        children: [
-                          Positioned.fill(
-                            child: GestureDetector(
-                              behavior: HitTestBehavior.translucent,
-                              onTapDown: (_) {},
+    // Create overlay entry with both quick actions and main menu
+    _floatingMenuEntry = OverlayEntry(
+      builder: (context) => Stack(
+        children: [
+          // Main menu
+          Positioned(
+            left: 16,
+            right: 16,
+            top: menuTop,
+            child: Material(
+              color: Colors.transparent,
+              child: FloatingSelectionMenu(
+                selectedText: _selectedText ?? '',
+                displayAtTop: !isInUpperHalf,
+                onMenuSelected: (menuType, text) {
+                  _removeFloatingMenu();
+                  switch (menuType) {
+                    case SelectionMenuType.askAi:
+                    case SelectionMenuType.translate:
+                    case SelectionMenuType.dictionary:
+                    case SelectionMenuType.wikipedia:
+                    case SelectionMenuType.generateImage:
+                      showDialog(
+                        context: context,
+                        barrierColor: Colors.transparent,
+                        barrierDismissible: false,
+                        builder: (context) => Stack(
+                          children: [
+                            Positioned.fill(
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.translucent,
+                                onTapDown: (_) {},
+                              ),
                             ),
-                          ),
-                          FullSelectionMenu(
-                            selectedText: text,
-                            menuType: menuType,
-                            onDismiss: () => Navigator.pop(context),
-                          ),
-                        ],
-                      ),
-                    );
-                    break;
-                }
-              },
-              onDismiss: _removeFloatingMenu,
-              onExpand: () {
-                _removeFloatingMenu();
-                showDialog(
-                  context: context,
-                  barrierColor: Colors.transparent,
-                  barrierDismissible: false,
-                  builder: (context) => Stack(
-                    children: [
-                      Positioned.fill(
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.translucent,
-                          onTapDown: (_) {},
+                            FullSelectionMenu(
+                              selectedText: text,
+                              menuType: menuType,
+                              onDismiss: () => Navigator.pop(context),
+                              floatingChatKey: _floatingChatKey,
+                            ),
+                          ],
                         ),
-                      ),
-                      FullSelectionMenu(
-                        selectedText: _selectedText ?? '',
-                        menuType: SelectionMenuType.askAi,
-                        onDismiss: () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
-                );
-              },
+                      );
+                      break;
+                    default:
+                      break;
+                  }
+                },
+                onDismiss: _removeFloatingMenu,
+                onExpand: () {
+                  _removeFloatingMenu();
+                  showDialog(
+                    context: context,
+                    barrierColor: Colors.transparent,
+                    barrierDismissible: false,
+                    builder: (context) => Stack(
+                      children: [
+                        Positioned.fill(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onTapDown: (_) {},
+                          ),
+                        ),
+                        FullSelectionMenu(
+                          selectedText: _selectedText ?? '',
+                          menuType: SelectionMenuType.askAi,
+                          onDismiss: () => Navigator.pop(context),
+                          floatingChatKey: _floatingChatKey,
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
           ),
-        ),
-      );
 
-      Overlay.of(context).insert(_floatingMenuEntry!);
-    });
+          // Quick action buttons near text selection
+          Positioned(
+            left: max(16, anchor.dx - 120),
+            top: isInUpperHalf ? quickActionsTop : quickActionsBottom,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFF352A3B)
+                      : Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    )
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Highlight button
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: const BorderRadius.horizontal(
+                          left: Radius.circular(20),
+                        ),
+                        onTap: () {
+                          _removeFloatingMenu();
+                          if (_selectedText != null &&
+                              _selectedText!.isNotEmpty) {
+                            // Add highlight to the selected text
+                            final state = context.read<ReaderBloc>().state;
+                            if (state is ReaderLoaded) {
+                              context.read<ReaderBloc>().add(AddHighlight(
+                                    text: _selectedText!,
+                                    note: null,
+                                    pageNumber: state.currentPage,
+                                  ));
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Highlight added'),
+                                  behavior: SnackBarBehavior.floating,
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.highlight,
+                                size: 20,
+                                color: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? const Color(0xFFAA96B6)
+                                    : Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Highlight',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? const Color(0xFFAA96B6)
+                                      : Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Divider
+                    Container(
+                      width: 1,
+                      height: 24,
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF4A4A4A)
+                          : const Color(0xFFE0E0E0),
+                    ),
+
+                    // Audio button
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: const BorderRadius.horizontal(
+                          right: Radius.circular(20),
+                        ),
+                        onTap: () {
+                          _removeFloatingMenu();
+                          // Show the audio dialog
+                          showDialog(
+                            context: context,
+                            barrierColor: Colors.transparent,
+                            barrierDismissible: false,
+                            builder: (context) => Stack(
+                              children: [
+                                Positioned.fill(
+                                  child: GestureDetector(
+                                    behavior: HitTestBehavior.translucent,
+                                    onTapDown: (_) {},
+                                  ),
+                                ),
+                                FullSelectionMenu(
+                                  selectedText: _selectedText ?? '',
+                                  menuType: SelectionMenuType.audio,
+                                  onDismiss: () => Navigator.pop(context),
+                                  floatingChatKey: _floatingChatKey,
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.volume_up_outlined,
+                                size: 20,
+                                color: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? const Color(0xFFAA96B6)
+                                    : Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Audio',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? const Color(0xFFAA96B6)
+                                      : Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    Overlay.of(context).insert(_floatingMenuEntry!);
   }
 
   void _removeFloatingMenu() {

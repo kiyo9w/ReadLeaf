@@ -472,440 +472,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
     }
   }
 
-  void _handleAskAi() async {
-    if (_selectedText == null || _selectedText!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select some text to ask AI.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    final String selectedTextCopy = _selectedText!;
-
-    if (selectedTextCopy.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              'Selected text appears to be empty. Please try selecting again.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    bool isLoading = false;
-    String? customPrompt;
-    final promptController = TextEditingController();
-
-    final state = context.read<ReaderBloc>().state;
-    if (state is! ReaderLoaded) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please wait for the document to load completely.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    final bookTitle = path.basename(state.file.path);
-    final currentPage = state.currentPage;
-    final totalPages = state.totalPages;
-
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return GestureDetector(
-            onTap: () => Navigator.pop(dialogContext),
-            child: Material(
-              color: Colors.transparent,
-              child: GestureDetector(
-                onTap:
-                    () {}, // Prevent tap from propagating to outer GestureDetector
-                child: Dialog(
-                  alignment: Alignment.bottomCenter,
-                  insetPadding: EdgeInsets.zero,
-                  backgroundColor:
-                      Theme.of(context).brightness == Brightness.dark
-                          ? const Color(0xFF251B2F)
-                          : Colors.white,
-                  child: GestureDetector(
-                    onTap: () => FocusScope.of(context).unfocus(),
-                    child: Container(
-                      width: MediaQuery.of(context).size.width,
-                      constraints: BoxConstraints(
-                        maxHeight: MediaQuery.of(context).size.height * 0.8,
-                        maxWidth: 500,
-                      ),
-                      margin: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 16),
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final keyboardVisible =
-                              MediaQuery.of(context).viewInsets.bottom > 0;
-                          final availableHeight = constraints.maxHeight;
-                          final contentHeight = keyboardVisible
-                              ? availableHeight - 180
-                              : availableHeight;
-
-                          return Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Header - Always visible
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text(
-                                    'Ask AI Assistant',
-                                    style: TextStyle(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.close),
-                                    onPressed: () =>
-                                        Navigator.pop(dialogContext),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-
-                              // Scrollable content
-                              Flexible(
-                                child: SingleChildScrollView(
-                                  physics: const ClampingScrollPhysics(),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      // Book info - Minimal design
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.description_outlined,
-                                            size: 16,
-                                            color: Colors.grey[600],
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              bookTitle.length > 30
-                                                  ? '${bookTitle.substring(0, 27)}...'
-                                                  : bookTitle,
-                                              style: TextStyle(
-                                                color: Colors.grey[600],
-                                                fontSize: 13,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 6, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: Theme.of(context)
-                                                          .brightness ==
-                                                      Brightness.dark
-                                                  ? const Color(0xFF352A3B)
-                                                      .withOpacity(0.5)
-                                                  : Colors.grey[100],
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                            ),
-                                            child: Text(
-                                              '$currentPage/$totalPages',
-                                              style: TextStyle(
-                                                color: Colors.grey[600],
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 16),
-
-                                      // Selected text section
-                                      Container(
-                                        height: keyboardVisible
-                                            ? 60
-                                            : contentHeight * 0.3,
-                                        decoration: BoxDecoration(
-                                          color: Theme.of(context).brightness ==
-                                                  Brightness.dark
-                                              ? const Color(0xFF352A3B)
-                                                  .withOpacity(0.3)
-                                              : Colors.grey[50],
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                          border: Border.all(
-                                            color:
-                                                Theme.of(context).brightness ==
-                                                        Brightness.dark
-                                                    ? const Color(0xFF352A3B)
-                                                    : Colors.grey[200]!,
-                                          ),
-                                        ),
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Padding(
-                                              padding: const EdgeInsets.all(12),
-                                              child: Row(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment
-                                                        .spaceBetween,
-                                                children: [
-                                                  Row(
-                                                    children: [
-                                                      Icon(Icons.text_fields,
-                                                          size: 18,
-                                                          color:
-                                                              Colors.grey[600]),
-                                                      const SizedBox(width: 8),
-                                                      const Text(
-                                                        'Selected Text',
-                                                        style: TextStyle(
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                          fontSize: 14,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  if (!keyboardVisible)
-                                                    Text(
-                                                      '${selectedTextCopy.length} characters',
-                                                      style: TextStyle(
-                                                        color: Colors.grey[600],
-                                                        fontSize: 12,
-                                                      ),
-                                                    ),
-                                                ],
-                                              ),
-                                            ),
-                                            if (!keyboardVisible)
-                                              Expanded(
-                                                child: SingleChildScrollView(
-                                                  padding:
-                                                      const EdgeInsets.fromLTRB(
-                                                          12, 0, 12, 12),
-                                                  child: SelectableText(
-                                                    selectedTextCopy,
-                                                    style: TextStyle(
-                                                      color: Theme.of(context)
-                                                                  .brightness ==
-                                                              Brightness.dark
-                                                          ? Colors.white
-                                                          : Colors.black,
-                                                      fontSize: 14,
-                                                      height: 1.5,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(height: 16),
-
-                                      // Custom instructions section
-                                      const Text(
-                                        'Custom Instructions',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      TextField(
-                                        controller: promptController,
-                                        maxLines: keyboardVisible ? 2 : 3,
-                                        decoration: InputDecoration(
-                                          hintText:
-                                              'Example: Explain this in simple terms\nOr: Translate this to French',
-                                          hintStyle: TextStyle(
-                                              color: Colors.grey[400]),
-                                          filled: true,
-                                          fillColor:
-                                              Theme.of(context).brightness ==
-                                                      Brightness.dark
-                                                  ? const Color(0xFF352A3B)
-                                                      .withOpacity(0.3)
-                                                  : Colors.grey[50],
-                                          border: OutlineInputBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                            borderSide: BorderSide(
-                                              color: Theme.of(context)
-                                                          .brightness ==
-                                                      Brightness.dark
-                                                  ? const Color(0xFF352A3B)
-                                                  : Colors.grey[300]!,
-                                            ),
-                                          ),
-                                          enabledBorder: OutlineInputBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                            borderSide: BorderSide(
-                                              color: Theme.of(context)
-                                                          .brightness ==
-                                                      Brightness.dark
-                                                  ? const Color(0xFF352A3B)
-                                                  : Colors.grey[300]!,
-                                            ),
-                                          ),
-                                          focusedBorder: OutlineInputBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                            borderSide: BorderSide(
-                                              color: Theme.of(context)
-                                                          .brightness ==
-                                                      Brightness.dark
-                                                  ? const Color(0xFFAA96B6)
-                                                  : Theme.of(context)
-                                                      .primaryColor,
-                                              width: 2,
-                                            ),
-                                          ),
-                                          contentPadding:
-                                              const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 12,
-                                          ),
-                                        ),
-                                        onChanged: (value) {
-                                          customPrompt =
-                                              value.isNotEmpty ? value : null;
-                                        },
-                                      ),
-
-                                      const SizedBox(height: 16),
-
-                                      // Action buttons
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.end,
-                                        children: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(dialogContext),
-                                            style: TextButton.styleFrom(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                horizontal: 24,
-                                                vertical: 12,
-                                              ),
-                                              foregroundColor: Theme.of(context)
-                                                          .brightness ==
-                                                      Brightness.dark
-                                                  ? const Color(0xFF8E8E93)
-                                                  : Colors.grey[600],
-                                            ),
-                                            child: Text(
-                                              'Cancel',
-                                              style: TextStyle(
-                                                color: Colors.grey[600],
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          ElevatedButton(
-                                            onPressed: () async {
-                                              if (selectedTextCopy.isEmpty) {
-                                                return;
-                                              }
-
-                                              setDialogState(
-                                                  () => isLoading = true);
-                                              Navigator.pop(dialogContext);
-                                              _floatingChatKey.currentState
-                                                  ?.showChat();
-
-                                              await Future.delayed(
-                                                  const Duration(
-                                                      milliseconds: 100));
-
-                                              if (!mounted) return;
-
-                                              if (selectedTextCopy.isNotEmpty) {
-                                                _floatingChatKey.currentState!
-                                                    .addUserMessage(
-                                                        'Imported Text: """$selectedTextCopy"""');
-
-                                                if (customPrompt != null &&
-                                                    customPrompt!.isNotEmpty) {
-                                                  _floatingChatKey.currentState!
-                                                      .addUserMessage(
-                                                          customPrompt!);
-                                                }
-                                              }
-
-                                              _handleChatMessage(
-                                                customPrompt,
-                                                selectedText: selectedTextCopy,
-                                              );
-                                            },
-                                            style: ElevatedButton.styleFrom(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                horizontal: 24,
-                                                vertical: 12,
-                                              ),
-                                              backgroundColor: Theme.of(context)
-                                                          .brightness ==
-                                                      Brightness.dark
-                                                  ? const Color(0xFFAA96B6)
-                                                  : Theme.of(context)
-                                                      .primaryColor,
-                                              foregroundColor: Colors.white,
-                                              elevation: 0,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(Icons.chat_bubble_outline,
-                                                    size: 18,
-                                                    color: Colors.white),
-                                                const SizedBox(width: 8),
-                                                const Text('Ask AI'),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   PdfPageLayout _handleLayoutPages(
       List<PdfPage> pages, PdfViewerParams params) {
     switch (_layoutMode) {
@@ -1006,38 +572,71 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
       context.read<ReaderBloc>().add(ToggleUIVisibility());
     }
 
+    // Calculate positions
     double menuTop;
+    final double quickActionsBottom =
+        isInUpperHalf ? anchor.dy + 48 : anchor.dy - 48;
+    final double quickActionsTop =
+        isInUpperHalf ? anchor.dy - 8 : anchor.dy - 88;
+
+    // Position main menu at bottom or top based on selection position
     if (isInUpperHalf) {
       menuTop = screenSize.height * 0.57;
     } else {
       menuTop = -20;
     }
 
+    // Create overlay entry with both quick actions and main menu
     _floatingMenuEntry = OverlayEntry(
-      builder: (context) => Positioned(
-        left: 16,
-        right: 16,
-        top: menuTop,
-        child: Material(
-          color: Colors.transparent,
-          child: FloatingSelectionMenu(
-            selectedText: _selectedText ?? '',
-            displayAtTop: !isInUpperHalf,
-            onMenuSelected: (menuType, text) {
-              _removeFloatingMenu();
-              switch (menuType) {
-                case SelectionMenuType.highlight:
-                  _addCurrentSelectionToMarkers(Colors.yellow);
-                  break;
-                case SelectionMenuType.askAi:
-                  _handleAskAi();
-                  break;
-                case SelectionMenuType.audio:
-                  break;
-                case SelectionMenuType.translate:
-                case SelectionMenuType.dictionary:
-                case SelectionMenuType.wikipedia:
-                case SelectionMenuType.generateImage:
+      builder: (context) => Stack(
+        children: [
+          // Main menu
+          Positioned(
+            left: 16,
+            right: 16,
+            top: menuTop,
+            child: Material(
+              color: Colors.transparent,
+              child: FloatingSelectionMenu(
+                selectedText: _selectedText ?? '',
+                displayAtTop: !isInUpperHalf,
+                onMenuSelected: (menuType, text) {
+                  _removeFloatingMenu();
+                  switch (menuType) {
+                    case SelectionMenuType.askAi:
+                    case SelectionMenuType.translate:
+                    case SelectionMenuType.dictionary:
+                    case SelectionMenuType.wikipedia:
+                    case SelectionMenuType.generateImage:
+                      showDialog(
+                        context: context,
+                        barrierColor: Colors.transparent,
+                        barrierDismissible: false,
+                        builder: (context) => Stack(
+                          children: [
+                            Positioned.fill(
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.translucent,
+                                onTapDown: (_) {},
+                              ),
+                            ),
+                            FullSelectionMenu(
+                              selectedText: text,
+                              menuType: menuType,
+                              onDismiss: () => Navigator.pop(context),
+                              floatingChatKey: _floatingChatKey,
+                            ),
+                          ],
+                        ),
+                      );
+                      break;
+                    default:
+                      break;
+                  }
+                },
+                onDismiss: _removeFloatingMenu,
+                onExpand: () {
+                  _removeFloatingMenu();
                   showDialog(
                     context: context,
                     barrierColor: Colors.transparent,
@@ -1051,42 +650,145 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                           ),
                         ),
                         FullSelectionMenu(
-                          selectedText: text,
-                          menuType: menuType,
+                          selectedText: _selectedText ?? '',
+                          menuType: SelectionMenuType.askAi,
                           onDismiss: () => Navigator.pop(context),
+                          floatingChatKey: _floatingChatKey,
                         ),
                       ],
                     ),
                   );
-                  break;
-              }
-            },
-            onDismiss: _removeFloatingMenu,
-            onExpand: () {
-              _removeFloatingMenu();
-              showDialog(
-                context: context,
-                barrierColor: Colors.transparent,
-                barrierDismissible: false,
-                builder: (context) => Stack(
+                },
+              ),
+            ),
+          ),
+
+          // Quick action buttons near text selection
+          Positioned(
+            left: max(16, anchor.dx - 120),
+            top: isInUpperHalf ? quickActionsTop : quickActionsBottom,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFF352A3B)
+                      : Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    )
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Positioned.fill(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.translucent,
-                        onTapDown: (_) {},
+                    // Highlight button
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: const BorderRadius.horizontal(
+                          left: Radius.circular(20),
+                        ),
+                        onTap: () {
+                          _removeFloatingMenu();
+                          _addCurrentSelectionToMarkers(Colors.yellow);
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.highlight,
+                                size: 20,
+                                color: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? const Color(0xFFAA96B6)
+                                    : Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Highlight',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? const Color(0xFFAA96B6)
+                                      : Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                    FullSelectionMenu(
-                      selectedText: _selectedText ?? '',
-                      menuType: SelectionMenuType.askAi,
-                      onDismiss: () => Navigator.pop(context),
+
+                    // Divider
+                    Container(
+                      width: 1,
+                      height: 24,
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF4A4A4A)
+                          : const Color(0xFFE0E0E0),
+                    ),
+
+                    // Audio button
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: const BorderRadius.horizontal(
+                          right: Radius.circular(20),
+                        ),
+                        onTap: () {
+                          // Handle audio functionality
+                          _removeFloatingMenu();
+                          // Audio playback functionality would go here
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.volume_up_outlined,
+                                size: 20,
+                                color: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? const Color(0xFFAA96B6)
+                                    : Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Audio',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? const Color(0xFFAA96B6)
+                                      : Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
-              );
-            },
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
 
