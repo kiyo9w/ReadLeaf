@@ -8,6 +8,7 @@ import 'package:read_leaf/blocs/AuthBloc/auth_event.dart';
 import 'package:read_leaf/screens/nav_screen.dart';
 import 'package:read_leaf/screens/pdf_viewer.dart';
 import 'package:read_leaf/screens/epub_viewer.dart';
+import 'package:read_leaf/screens/reader_loading_screen_route.dart';
 import 'package:provider/provider.dart';
 import 'package:read_leaf/providers/theme_provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -97,6 +98,14 @@ class MyApp extends StatelessWidget {
             routes: {
               '/pdf_viewer': (context) => const PDFViewerScreen(),
               '/epub_viewer': (context) => const EPUBViewerScreen(),
+              '/reader_loading': (context) {
+                final args = ModalRoute.of(context)!.settings.arguments
+                    as Map<String, dynamic>;
+                return ReaderLoadingScreenRoute(
+                  filePath: args['filePath'],
+                  targetRoute: args['targetRoute'],
+                );
+              },
             },
             theme: themeProvider.theme,
             home: NavScreen(key: NavScreen.globalKey),

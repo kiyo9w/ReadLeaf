@@ -418,7 +418,8 @@ class _SearchScreenState extends State<SearchScreen>
                                 contentPadding: EdgeInsets.symmetric(
                                   vertical: isTablet ? 18 : 15,
                                 ),
-                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
                                 hintText: "Find some books...",
                                 hintStyle: TextStyle(
                                   color: isDark ? Colors.white54 : Colors.grey,

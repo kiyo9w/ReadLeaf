@@ -197,23 +197,6 @@ class HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Widget _buildAIMessage(ThemeData theme) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    if (!themeProvider.showReadingReminders) return const SizedBox.shrink();
-
-    return AIMessageCard(
-      message: _aiMessage ?? '',
-      onContinue: () {},
-      onRemove: () {
-        themeProvider.setShowReadingReminders(false);
-      },
-      onUpdatePrompt: (newPrompt) async {
-        await _geminiService.setCustomEncouragementPrompt(newPrompt);
-        generateNewAIMessage();
-      },
-    );
-  }
-
   Widget _buildCharacterSlider() {
     if (!_isCharacterSliderMinimized) {
       return AiCharacterSlider(
@@ -392,7 +375,20 @@ class HomeScreenState extends State<HomeScreen> {
                                   hasBeenCompleted:
                                       lastReadBook.hasBeenCompleted,
                                 ),
-                                _buildAIMessage(Theme.of(context)),
+                                AIMessageCard(
+                                  message: _aiMessage ?? '',
+                                  onContinue: () {
+                                    context.read<FileBloc>().add(
+                                      ViewFile(lastReadBook!.filePath));
+                                  },
+                                  onRemove: () {
+                                    Provider.of<ThemeProvider>(context).setShowReadingReminders(false);
+                                  },
+                                  onUpdatePrompt: (newPrompt) async {
+                                    await _geminiService.setCustomEncouragementPrompt(newPrompt);
+                                    generateNewAIMessage();
+                                  },
+                                ),
                               ],
                             ),
                           ),

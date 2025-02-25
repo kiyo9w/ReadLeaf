@@ -51,12 +51,14 @@ class _NavScreenState extends State<NavScreen> {
 
           // Determine file type and route to appropriate viewer
           final fileExtension = file.path.toLowerCase().split('.').last;
+          String targetRoute;
+
           switch (fileExtension) {
             case 'pdf':
-              Navigator.pushNamed(context, '/pdf_viewer');
+              targetRoute = '/pdf_viewer';
               break;
             case 'epub':
-              Navigator.pushNamed(context, '/epub_viewer');
+              targetRoute = '/epub_viewer';
               break;
             default:
               ScaffoldMessenger.of(context).showSnackBar(
@@ -64,7 +66,18 @@ class _NavScreenState extends State<NavScreen> {
                   content: Text('Unsupported file type'),
                 ),
               );
+              return;
           }
+
+          // Navigate to loading screen first
+          Navigator.pushNamed(
+            context,
+            '/reader_loading',
+            arguments: {
+              'filePath': state.filePath,
+              'targetRoute': targetRoute,
+            },
+          );
         }
       },
       child: Scaffold(

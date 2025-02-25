@@ -204,36 +204,38 @@ class ThumbnailService {
 
   Future<Uint8List> _generatePdfThumbnail(
       String filePath, PdfDocument document) async {
-    final widget = Directionality(
-      textDirection: TextDirection.ltr,
-      child: MediaQuery(
-        data: const MediaQueryData(),
-        child: Container(
-          width: thumbnailWidth * 2,
-          height: thumbnailHeight * 2,
-          color: Colors.white,
-          child: PdfPageView(
-            document: document,
-            pageNumber: 1,
-            alignment: Alignment.center,
-            maximumDpi: 600,
-            decorationBuilder: (context, pageSize, page, pageImage) {
-              if (pageImage == null) return const SizedBox.shrink();
-              return pageImage;
-            },
+    try {
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      final widget = Directionality(
+        textDirection: TextDirection.ltr,
+        child: MediaQuery(
+          data: const MediaQueryData(),
+          child: Container(
+            width: thumbnailWidth * 2,
+            height: thumbnailHeight * 2,
+            color: Colors.white,
+            child: PdfPageView(
+              document: document,
+              pageNumber: 1,
+              alignment: Alignment.center,
+              maximumDpi: 300,
+              decorationBuilder: (context, pageSize, page, pageImage) {
+                if (pageImage == null) return const SizedBox.shrink();
+                return pageImage;
+              },
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    try {
-      await Future.delayed(const Duration(milliseconds: 1000));
+      await Future.delayed(const Duration(milliseconds: 300));
 
       final bytes = await _screenshotController.captureFromWidget(
         widget,
-        delay: const Duration(milliseconds: 500),
-        pixelRatio: 4.0,
-        targetSize: Size(thumbnailWidth * 3, thumbnailHeight * 3),
+        delay: const Duration(milliseconds: 300),
+        pixelRatio: 2.0, // Reduced for faster rendering
+        targetSize: Size(thumbnailWidth * 2, thumbnailHeight * 2),
       );
 
       if (bytes.isEmpty) {
@@ -242,7 +244,7 @@ class ThumbnailService {
 
       return bytes;
     } catch (e) {
-      print('Error generating thumbnail: $e');
+      print('Error generating PDF thumbnail: $e');
       return _generateDefaultThumbnail();
     }
   }
@@ -291,5 +293,29 @@ class ThumbnailService {
 
   void clearCache() {
     _memoryCache.clear();
+  }
+
+  Future<File?> getThumbnail(String filePath) async {
+    final thumbnailPath = await _getThumbnailPath(filePath);
+    final thumbnailFile = File(thumbnailPath);
+
+    if (await thumbnailFile.exists()) {
+      return thumbnailFile;
+    }
+
+    try {
+      final imageProvider = await getFileThumbnail(filePath);
+
+      // If it's a FileImage, return the file
+      if (imageProvider is FileImage) {
+        return File(imageProvider.file.path);
+      }
+
+      // For other types, we can't directly return a File
+      return null;
+    } catch (e) {
+      print('Error getting thumbnail: $e');
+      return null;
+    }
   }
 }
