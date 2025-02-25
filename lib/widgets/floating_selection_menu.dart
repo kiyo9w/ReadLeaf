@@ -33,7 +33,8 @@ class FloatingSelectionMenu extends StatefulWidget {
 }
 
 class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
-  final PageController _pageController = PageController(viewportFraction: 0.9);
+  final PageController _pageController = PageController(viewportFraction: 0.95);
+  int _currentPageIndex = 0;
 
   late final List<SelectionMenuType> _availableMenus;
 
@@ -56,19 +57,28 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
     final allMenus = [
       SelectionMenuType.askAi,
       SelectionMenuType.translate,
-      SelectionMenuType.highlight,
       SelectionMenuType.dictionary,
       SelectionMenuType.wikipedia,
-      SelectionMenuType.audio,
       SelectionMenuType.generateImage,
     ];
 
-    // If more than 4 words, remove dictionary & wikipedia
+    // Highlight and audio are now outside the floating menu
+    // Filter menus based on word count
     if (wordCount > 4) {
       allMenus.remove(SelectionMenuType.dictionary);
       allMenus.remove(SelectionMenuType.wikipedia);
     }
     _availableMenus = allMenus;
+
+    // Set up page change listener
+    _pageController.addListener(() {
+      final page = (_pageController.page ?? 0).round();
+      if (_currentPageIndex != page) {
+        setState(() {
+          _currentPageIndex = page;
+        });
+      }
+    });
 
     if (_availableMenus.contains(SelectionMenuType.dictionary)) {
       _fetchDictionaryData(widget.selectedText);
@@ -77,6 +87,12 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
     if (_availableMenus.contains(SelectionMenuType.wikipedia)) {
       _fetchWikipediaData(widget.selectedText);
     }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 
   // ---------------------------------------------------------------------------
@@ -196,6 +212,47 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
   }
 
   // ---------------------------------------------------------------------------
+  // UI Helper Methods
+  // ---------------------------------------------------------------------------
+  String _getMenuTitle(SelectionMenuType type) {
+    switch (type) {
+      case SelectionMenuType.askAi:
+        return 'Ask AI';
+      case SelectionMenuType.translate:
+        return 'Translate';
+      case SelectionMenuType.highlight:
+        return 'Highlight';
+      case SelectionMenuType.dictionary:
+        return 'Dictionary';
+      case SelectionMenuType.wikipedia:
+        return 'Wikipedia';
+      case SelectionMenuType.audio:
+        return 'Audio';
+      case SelectionMenuType.generateImage:
+        return 'Images';
+    }
+  }
+
+  IconData _getMenuIcon(SelectionMenuType type) {
+    switch (type) {
+      case SelectionMenuType.askAi:
+        return Icons.chat_bubble_outline;
+      case SelectionMenuType.translate:
+        return Icons.translate;
+      case SelectionMenuType.highlight:
+        return Icons.highlight;
+      case SelectionMenuType.dictionary:
+        return Icons.book_outlined;
+      case SelectionMenuType.wikipedia:
+        return Icons.menu_book_outlined;
+      case SelectionMenuType.audio:
+        return Icons.volume_up_outlined;
+      case SelectionMenuType.generateImage:
+        return Icons.image_outlined;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // BUILD
   // ---------------------------------------------------------------------------
   @override
@@ -223,10 +280,97 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
                     ? 0
                     : MediaQuery.of(context).padding.bottom + 16,
               ),
-              height: 355,
-              child: PageView(
-                controller: _pageController,
-                children: _availableMenus.map(_buildMenuCard).toList(),
+              height: 385, // Increased height to accommodate tabs
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Tab-like navigation
+                  SizedBox(
+                    height: 50,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _availableMenus.length,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      itemBuilder: (context, index) {
+                        final isSelected = index == _currentPageIndex;
+                        final menuType = _availableMenus[index];
+                        return GestureDetector(
+                          onTap: () {
+                            _pageController.animateToPage(
+                              index,
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            margin: const EdgeInsets.symmetric(
+                                horizontal: 4, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? Theme.of(context)
+                                      .colorScheme
+                                      .primary
+                                      .withOpacity(0.9)
+                                  : Theme.of(context)
+                                      .colorScheme
+                                      .surface
+                                      .withOpacity(0.7),
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: isSelected
+                                  ? [
+                                      BoxShadow(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary
+                                            .withOpacity(0.3),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      )
+                                    ]
+                                  : null,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _getMenuIcon(menuType),
+                                  size: 18,
+                                  color: isSelected
+                                      ? Theme.of(context).colorScheme.onPrimary
+                                      : Theme.of(context).colorScheme.onSurface,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  _getMenuTitle(menuType),
+                                  style: TextStyle(
+                                    color: isSelected
+                                        ? Theme.of(context)
+                                            .colorScheme
+                                            .onPrimary
+                                        : Theme.of(context)
+                                            .colorScheme
+                                            .onSurface,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  Expanded(
+                    child: PageView(
+                      controller: _pageController,
+                      children: _availableMenus.map(_buildMenuCard).toList(),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -575,17 +719,25 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
     required List<Widget> bottomRow,
   }) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Center(
       child: Card(
-        color: theme.cardColor,
+        color: isDark
+            ? const Color(0xFF352A3B) // Dark theme card color
+            : Colors.white,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: isDark ? const Color(0xFF4A4A4A) : const Color(0xFFE0E0E0),
+            width: 0.5,
+          ),
         ),
-        elevation: 6,
+        elevation: 8,
+        shadowColor: Colors.black38,
         margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(16),
           width: double.infinity,
           child: Column(
             mainAxisSize: MainAxisSize.max,
@@ -597,37 +749,49 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
                     title,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.primary,
+                      color: isDark
+                          ? const Color(0xFFAA96B6)
+                          : theme.colorScheme.primary,
                     ),
                   ),
                   const Spacer(),
                   topRightWidget,
                 ],
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Divider(
                 height: 1,
-                color: theme.dividerColor,
+                color:
+                    isDark ? const Color(0xFF4A4A4A) : const Color(0xFFE0E0E0),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Expanded(
                 child: SingleChildScrollView(
                   child: Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.primary.withOpacity(0.6),
-                      borderRadius: BorderRadius.circular(8),
+                      color: isDark
+                          ? const Color(0xFF251B2F).withOpacity(0.5)
+                          : theme.colorScheme.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isDark
+                            ? const Color(0xFF4A4A4A)
+                            : theme.colorScheme.primary.withOpacity(0.2),
+                        width: 0.5,
+                      ),
                     ),
                     child: body,
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Divider(
                 height: 1,
-                color: theme.dividerColor,
+                color:
+                    isDark ? const Color(0xFF4A4A4A) : const Color(0xFFE0E0E0),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Row(
                 children: bottomRow,
               ),
@@ -646,17 +810,30 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
     required VoidCallback onTap,
   }) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.only(right: 16),
       child: InkWell(
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(8),
         onTap: onTap,
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            color: theme.colorScheme.secondary,
-            fontWeight: FontWeight.w500,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color:
+                  isDark ? const Color(0xFFAA96B6) : theme.colorScheme.primary,
+              width: 1,
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              color:
+                  isDark ? const Color(0xFFAA96B6) : theme.colorScheme.primary,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
       ),

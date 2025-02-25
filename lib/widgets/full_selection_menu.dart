@@ -1,16 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:read_leaf/widgets/floating_selection_menu.dart';
+import 'package:read_leaf/services/gemini_service.dart';
+import 'package:read_leaf/services/text_selection_service.dart';
+import 'package:get_it/get_it.dart';
+import 'package:read_leaf/widgets/CompanionChat/floating_chat_widget.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:read_leaf/blocs/ReaderBloc/reader_bloc.dart';
+import 'package:path/path.dart' as path;
 
 class FullSelectionMenu extends StatefulWidget {
   final String selectedText;
   final SelectionMenuType menuType;
   final VoidCallback? onDismiss;
+  final GlobalKey<FloatingChatWidgetState>? floatingChatKey;
 
   const FullSelectionMenu({
     super.key,
     required this.selectedText,
     required this.menuType,
     this.onDismiss,
+    this.floatingChatKey,
   });
 
   @override
@@ -23,6 +32,12 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
   bool _isExpanded = false;
   final TextEditingController _customInstructionsController =
       TextEditingController();
+  bool _isLoading = false;
+  String? _selectedOption;
+
+  // Service instances
+  late final _geminiService = GetIt.I<GeminiService>();
+  late final _textSelectionService = GetIt.I<TextSelectionService>();
 
   @override
   void initState() {
@@ -40,6 +55,7 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
     switch (widget.menuType) {
       case SelectionMenuType.translate:
         _customInstructionsController.text = 'Translate to Spanish';
+        _selectedOption = 'Spanish';
         break;
       case SelectionMenuType.dictionary:
         _customInstructionsController.text = 'Define this word';
@@ -49,6 +65,10 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
         break;
       case SelectionMenuType.generateImage:
         _customInstructionsController.text = 'Generate an image of this';
+        _selectedOption = 'Realistic';
+        break;
+      case SelectionMenuType.askAi:
+        _customInstructionsController.text = '';
         break;
       default:
         _customInstructionsController.text = '';
@@ -199,6 +219,12 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
                           ],
                         ),
                         const SizedBox(height: 16),
+
+                        // Book info if in reader
+                        if (context.read<ReaderBloc>().state is ReaderLoaded)
+                          _buildBookInfoSection(context, isDark),
+                        if (context.read<ReaderBloc>().state is ReaderLoaded)
+                          const SizedBox(height: 16),
 
                         // Scrollable content
                         Expanded(
@@ -376,7 +402,7 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
                             ),
                             const SizedBox(width: 12),
                             ElevatedButton(
-                              onPressed: _handleAction,
+                              onPressed: _isLoading ? null : _handleAction,
                               style: ElevatedButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 24,
@@ -391,14 +417,26 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(_getActionIcon(), size: 18),
-                                  const SizedBox(width: 8),
-                                  Text(_getActionButtonText()),
-                                ],
-                              ),
+                              child: _isLoading
+                                  ? SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                          Colors.white,
+                                        ),
+                                      ),
+                                    )
+                                  : Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(_getActionIcon(), size: 18),
+                                        const SizedBox(width: 8),
+                                        Text(_getActionButtonText()),
+                                      ],
+                                    ),
                             ),
                           ],
                         ),
@@ -411,6 +449,56 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildBookInfoSection(BuildContext context, bool isDark) {
+    final state = context.read<ReaderBloc>().state;
+    if (state is! ReaderLoaded) return const SizedBox();
+
+    final bookTitle = path.basename(state.file.path);
+    final currentPage = state.currentPage;
+    final totalPages = state.totalPages;
+
+    return Row(
+      children: [
+        Icon(
+          Icons.description_outlined,
+          size: 16,
+          color: isDark ? Colors.grey[400] : Colors.grey[600],
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            bookTitle.length > 30
+                ? '${bookTitle.substring(0, 27)}...'
+                : bookTitle,
+            style: TextStyle(
+              color: isDark ? Colors.grey[400] : Colors.grey[600],
+              fontSize: 13,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: isDark
+                ? const Color(0xFF352A3B).withOpacity(0.5)
+                : Colors.grey[100],
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            '$currentPage/$totalPages',
+            style: TextStyle(
+              color: isDark ? Colors.grey[400] : Colors.grey[600],
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -450,7 +538,8 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
 
   bool _shouldShowOptions() {
     return widget.menuType == SelectionMenuType.translate ||
-        widget.menuType == SelectionMenuType.generateImage;
+        widget.menuType == SelectionMenuType.generateImage ||
+        widget.menuType == SelectionMenuType.dictionary;
   }
 
   Widget _buildOptionsContent() {
@@ -458,6 +547,8 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
       return _buildLanguageOptions();
     } else if (widget.menuType == SelectionMenuType.generateImage) {
       return _buildImageStyleOptions();
+    } else if (widget.menuType == SelectionMenuType.dictionary) {
+      return _buildDictionaryOptions();
     }
     return const SizedBox();
   }
@@ -469,14 +560,134 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
       spacing: 8,
       runSpacing: 8,
       children: [
-        _buildOptionChip('English', isDark, true),
-        _buildOptionChip('Spanish', isDark, false),
-        _buildOptionChip('French', isDark, false),
-        _buildOptionChip('German', isDark, false),
-        _buildOptionChip('Chinese', isDark, false),
-        _buildOptionChip('Japanese', isDark, false),
-        _buildOptionChip('Russian', isDark, false),
-        _buildOptionChip('Arabic', isDark, false),
+        _buildOptionChip('English', isDark, _selectedOption == 'English',
+            (value) {
+          setState(() {
+            _selectedOption = value ? 'English' : null;
+            if (value) {
+              _customInstructionsController.text = 'Translate to English';
+            }
+          });
+        }),
+        _buildOptionChip('Spanish', isDark, _selectedOption == 'Spanish',
+            (value) {
+          setState(() {
+            _selectedOption = value ? 'Spanish' : null;
+            if (value) {
+              _customInstructionsController.text = 'Translate to Spanish';
+            }
+          });
+        }),
+        _buildOptionChip('French', isDark, _selectedOption == 'French',
+            (value) {
+          setState(() {
+            _selectedOption = value ? 'French' : null;
+            if (value) {
+              _customInstructionsController.text = 'Translate to French';
+            }
+          });
+        }),
+        _buildOptionChip('German', isDark, _selectedOption == 'German',
+            (value) {
+          setState(() {
+            _selectedOption = value ? 'German' : null;
+            if (value) {
+              _customInstructionsController.text = 'Translate to German';
+            }
+          });
+        }),
+        _buildOptionChip('Chinese', isDark, _selectedOption == 'Chinese',
+            (value) {
+          setState(() {
+            _selectedOption = value ? 'Chinese' : null;
+            if (value) {
+              _customInstructionsController.text = 'Translate to Chinese';
+            }
+          });
+        }),
+        _buildOptionChip('Japanese', isDark, _selectedOption == 'Japanese',
+            (value) {
+          setState(() {
+            _selectedOption = value ? 'Japanese' : null;
+            if (value) {
+              _customInstructionsController.text = 'Translate to Japanese';
+            }
+          });
+        }),
+        _buildOptionChip('Russian', isDark, _selectedOption == 'Russian',
+            (value) {
+          setState(() {
+            _selectedOption = value ? 'Russian' : null;
+            if (value) {
+              _customInstructionsController.text = 'Translate to Russian';
+            }
+          });
+        }),
+        _buildOptionChip('Arabic', isDark, _selectedOption == 'Arabic',
+            (value) {
+          setState(() {
+            _selectedOption = value ? 'Arabic' : null;
+            if (value) {
+              _customInstructionsController.text = 'Translate to Arabic';
+            }
+          });
+        }),
+      ],
+    );
+  }
+
+  Widget _buildDictionaryOptions() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _buildOptionChip('English', isDark, _selectedOption == 'English',
+            (value) {
+          setState(() {
+            _selectedOption = value ? 'English' : null;
+            if (value) {
+              _customInstructionsController.text = 'Define in English';
+            }
+          });
+        }),
+        _buildOptionChip('Spanish', isDark, _selectedOption == 'Spanish',
+            (value) {
+          setState(() {
+            _selectedOption = value ? 'Spanish' : null;
+            if (value) {
+              _customInstructionsController.text = 'Define in Spanish';
+            }
+          });
+        }),
+        _buildOptionChip('French', isDark, _selectedOption == 'French',
+            (value) {
+          setState(() {
+            _selectedOption = value ? 'French' : null;
+            if (value) {
+              _customInstructionsController.text = 'Define in French';
+            }
+          });
+        }),
+        _buildOptionChip('Etymology', isDark, _selectedOption == 'Etymology',
+            (value) {
+          setState(() {
+            _selectedOption = value ? 'Etymology' : null;
+            if (value) {
+              _customInstructionsController.text = 'Show word etymology';
+            }
+          });
+        }),
+        _buildOptionChip(
+            'Example Uses', isDark, _selectedOption == 'Example Uses', (value) {
+          setState(() {
+            _selectedOption = value ? 'Example Uses' : null;
+            if (value) {
+              _customInstructionsController.text = 'Show example uses';
+            }
+          });
+        }),
       ],
     );
   }
@@ -488,19 +699,90 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
       spacing: 8,
       runSpacing: 8,
       children: [
-        _buildOptionChip('Realistic', isDark, true),
-        _buildOptionChip('Cartoon', isDark, false),
-        _buildOptionChip('Anime', isDark, false),
-        _buildOptionChip('Watercolor', isDark, false),
-        _buildOptionChip('3D Render', isDark, false),
-        _buildOptionChip('Sketch', isDark, false),
-        _buildOptionChip('Pop Art', isDark, false),
-        _buildOptionChip('Cyberpunk', isDark, false),
+        _buildOptionChip('Realistic', isDark, _selectedOption == 'Realistic',
+            (value) {
+          setState(() {
+            _selectedOption = value ? 'Realistic' : null;
+            if (value) {
+              _customInstructionsController.text =
+                  'Generate a realistic image of this';
+            }
+          });
+        }),
+        _buildOptionChip('Cartoon', isDark, _selectedOption == 'Cartoon',
+            (value) {
+          setState(() {
+            _selectedOption = value ? 'Cartoon' : null;
+            if (value) {
+              _customInstructionsController.text =
+                  'Generate a cartoon-style image of this';
+            }
+          });
+        }),
+        _buildOptionChip('Anime', isDark, _selectedOption == 'Anime', (value) {
+          setState(() {
+            _selectedOption = value ? 'Anime' : null;
+            if (value) {
+              _customInstructionsController.text =
+                  'Generate an anime-style image of this';
+            }
+          });
+        }),
+        _buildOptionChip('Watercolor', isDark, _selectedOption == 'Watercolor',
+            (value) {
+          setState(() {
+            _selectedOption = value ? 'Watercolor' : null;
+            if (value) {
+              _customInstructionsController.text =
+                  'Generate a watercolor painting of this';
+            }
+          });
+        }),
+        _buildOptionChip('3D Render', isDark, _selectedOption == '3D Render',
+            (value) {
+          setState(() {
+            _selectedOption = value ? '3D Render' : null;
+            if (value) {
+              _customInstructionsController.text =
+                  'Generate a 3D render of this';
+            }
+          });
+        }),
+        _buildOptionChip('Sketch', isDark, _selectedOption == 'Sketch',
+            (value) {
+          setState(() {
+            _selectedOption = value ? 'Sketch' : null;
+            if (value) {
+              _customInstructionsController.text = 'Generate a sketch of this';
+            }
+          });
+        }),
+        _buildOptionChip('Pop Art', isDark, _selectedOption == 'Pop Art',
+            (value) {
+          setState(() {
+            _selectedOption = value ? 'Pop Art' : null;
+            if (value) {
+              _customInstructionsController.text =
+                  'Generate a pop art image of this';
+            }
+          });
+        }),
+        _buildOptionChip('Cyberpunk', isDark, _selectedOption == 'Cyberpunk',
+            (value) {
+          setState(() {
+            _selectedOption = value ? 'Cyberpunk' : null;
+            if (value) {
+              _customInstructionsController.text =
+                  'Generate a cyberpunk-style image of this';
+            }
+          });
+        }),
       ],
     );
   }
 
-  Widget _buildOptionChip(String label, bool isDark, bool isSelected) {
+  Widget _buildOptionChip(
+      String label, bool isDark, bool isSelected, Function(bool) onSelected) {
     return FilterChip(
       label: Text(label),
       selected: isSelected,
@@ -531,9 +813,7 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
           width: 1,
         ),
       ),
-      onSelected: (bool selected) {
-        // Handle selection
-      },
+      onSelected: onSelected,
     );
   }
 
@@ -571,8 +851,332 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
     }
   }
 
-  void _handleAction() {
-    // Process the action and then dismiss
-    widget.onDismiss?.call();
+  Future<void> _handleAction() async {
+    if (_isLoading) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      switch (widget.menuType) {
+        case SelectionMenuType.askAi:
+          await _handleAskAi();
+          break;
+        case SelectionMenuType.translate:
+          await _handleTranslate();
+          break;
+        case SelectionMenuType.dictionary:
+          await _handleDictionary();
+          break;
+        case SelectionMenuType.wikipedia:
+          await _handleWikipedia();
+          break;
+        case SelectionMenuType.generateImage:
+          await _handleGenerateImage();
+          break;
+        default:
+          break;
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+      widget.onDismiss?.call();
+    }
+  }
+
+  Future<void> _handleAskAi() async {
+    if (widget.selectedText.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Selected text appears to be empty. Please try selecting again.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final state = context.read<ReaderBloc>().state;
+    if (state is! ReaderLoaded) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please wait for the document to load completely.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final bookTitle = path.basename(state.file.path);
+    final currentPage = state.currentPage;
+    final totalPages = state.totalPages;
+
+    Navigator.of(context).pop(); // Close this dialog
+
+    // Show the floating chat if a key was provided
+    if (widget.floatingChatKey?.currentState != null) {
+      widget.floatingChatKey!.currentState!.showChat();
+
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      if (mounted) {
+        // Add user message to chat
+        widget.floatingChatKey!.currentState!
+            .addUserMessage('Imported Text: """${widget.selectedText}"""');
+
+        if (_customInstructionsController.text.isNotEmpty) {
+          widget.floatingChatKey!.currentState!
+              .addUserMessage(_customInstructionsController.text);
+        }
+      }
+
+      try {
+        final response = await _geminiService.askAboutText(
+          widget.selectedText,
+          customPrompt: _customInstructionsController.text.isNotEmpty
+              ? _customInstructionsController.text
+              : 'Can you explain what the text is about? After that share your thoughts in a single open ended question in the same paragraph, make the question short and concise.',
+          bookTitle: bookTitle,
+          currentPage: currentPage,
+          totalPages: totalPages,
+          task: _customInstructionsController.text.isNotEmpty
+              ? 'custom_request'
+              : 'encouragement',
+        );
+
+        if (widget.floatingChatKey?.currentState != null) {
+          widget.floatingChatKey!.currentState!.addAiResponse(response);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _handleTranslate() async {
+    try {
+      final language = _selectedOption ?? 'Spanish';
+      final languageCode = _getLanguageCode(language);
+
+      final result = await _textSelectionService.translateText(
+        widget.selectedText,
+        language,
+      );
+
+      if (result['success']) {
+        _showResponseInChat(
+          'Translation to $language',
+          result['translation'],
+          'Translated from: "${widget.selectedText}"',
+        );
+      } else {
+        _showError('Translation failed: ${result['error']}');
+      }
+    } catch (e) {
+      _showError('Translation error: $e');
+    }
+  }
+
+  Future<void> _handleDictionary() async {
+    try {
+      final language = _selectedOption ?? 'English';
+      final languageCode = _getLanguageCode(language);
+
+      final result = await _textSelectionService.getDictionaryDefinition(
+        widget.selectedText,
+        language: languageCode,
+      );
+
+      if (result['success']) {
+        final String displayData;
+
+        if (result['source'] == 'gemini') {
+          displayData = result['data'] as String;
+        } else {
+          // Format the API response
+          final List<dynamic> data = result['data'];
+          final buffer = StringBuffer();
+
+          for (var entry in data) {
+            buffer.writeln('## ${entry['word']}');
+
+            if (entry['phonetics'] != null && entry['phonetics'].isNotEmpty) {
+              for (var phonetic in entry['phonetics']) {
+                if (phonetic['text'] != null && phonetic['text'].isNotEmpty) {
+                  buffer.writeln('**Pronunciation:** ${phonetic['text']}');
+                  break;
+                }
+              }
+            }
+
+            if (entry['meanings'] != null) {
+              for (var meaning in entry['meanings']) {
+                buffer.writeln('\n### ${meaning['partOfSpeech']}');
+
+                if (meaning['definitions'] != null) {
+                  for (var i = 0; i < meaning['definitions'].length; i++) {
+                    final def = meaning['definitions'][i];
+                    buffer.writeln('${i + 1}. ${def['definition']}');
+
+                    if (def['example'] != null) {
+                      buffer.writeln('   *Example:* "${def['example']}"');
+                    }
+                  }
+                }
+
+                if (meaning['synonyms'] != null &&
+                    meaning['synonyms'].isNotEmpty) {
+                  buffer.writeln(
+                      '\n**Synonyms:** ${meaning['synonyms'].join(', ')}');
+                }
+              }
+            }
+
+            buffer.writeln('\n---\n');
+          }
+
+          displayData = buffer.toString();
+        }
+
+        _showResponseInChat(
+          'Dictionary Lookup',
+          displayData,
+          'Looked up: "${widget.selectedText}"',
+        );
+      } else {
+        _showError('Dictionary lookup failed: ${result['error']}');
+      }
+    } catch (e) {
+      _showError('Dictionary error: $e');
+    }
+  }
+
+  Future<void> _handleWikipedia() async {
+    try {
+      final language = _selectedOption ?? 'English';
+      final languageCode = _getLanguageCode(language);
+
+      final result = await _textSelectionService.getWikipediaInformation(
+        widget.selectedText,
+        language: languageCode,
+      );
+
+      if (result['success']) {
+        final String displayData;
+
+        if (result['source'] == 'gemini') {
+          displayData = result['data'] as String;
+        } else {
+          // Format the API response
+          final data = result['data'];
+          final buffer = StringBuffer();
+
+          if (data['title'] != null) {
+            buffer.writeln('# ${data['title']}');
+          }
+
+          if (data['description'] != null) {
+            buffer.writeln('\n*${data['description']}*\n');
+          }
+
+          if (data['extract'] != null) {
+            buffer.writeln(data['extract']);
+          }
+
+          displayData = buffer.toString();
+        }
+
+        _showResponseInChat(
+          'Wikipedia Information',
+          displayData,
+          'Searched for: "${widget.selectedText}"',
+        );
+      } else {
+        _showError('Wikipedia search failed: ${result['error']}');
+      }
+    } catch (e) {
+      _showError('Wikipedia error: $e');
+    }
+  }
+
+  Future<void> _handleGenerateImage() async {
+    try {
+      final style = _selectedOption ?? 'Realistic';
+      final customInstruction = _customInstructionsController.text.isNotEmpty
+          ? _customInstructionsController.text
+          : 'Generate a $style image of: ${widget.selectedText}';
+
+      final response = await _geminiService.askAboutText(
+        widget.selectedText,
+        customPrompt: customInstruction,
+        bookTitle: 'Image Generation',
+        currentPage: 1,
+        totalPages: 1,
+        task: 'generate_image',
+      );
+
+      _showResponseInChat(
+        'Image Generation',
+        response,
+        'Generated image of: "${widget.selectedText}" in $style style',
+      );
+    } catch (e) {
+      _showError('Image generation error: $e');
+    }
+  }
+
+  void _showResponseInChat(String title, String content, String query) {
+    if (widget.floatingChatKey?.currentState == null) return;
+
+    // Show the floating chat
+    widget.floatingChatKey!.currentState!.showChat();
+
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted && widget.floatingChatKey?.currentState != null) {
+        // Add user message to chat
+        widget.floatingChatKey!.currentState!.addUserMessage(query);
+        widget.floatingChatKey!.currentState!
+            .addAiResponse("**$title**\n\n$content");
+      }
+    });
+  }
+
+  void _showError(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  String _getLanguageCode(String language) {
+    final codeMap = {
+      'English': 'en',
+      'Spanish': 'es',
+      'French': 'fr',
+      'German': 'de',
+      'Italian': 'it',
+      'Portuguese': 'pt',
+      'Russian': 'ru',
+      'Chinese': 'zh',
+      'Japanese': 'ja',
+      'Arabic': 'ar',
+    };
+
+    return codeMap[language] ?? 'en';
   }
 }
