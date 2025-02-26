@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:read_leaf/blocs/FileBloc/file_bloc.dart';
-import 'package:read_leaf/blocs/SearchBloc/search_bloc.dart';
-import 'package:read_leaf/blocs/ReaderBloc/reader_bloc.dart';
-import 'package:read_leaf/blocs/AuthBloc/auth_bloc.dart';
-import 'package:read_leaf/blocs/AuthBloc/auth_event.dart';
-import 'package:read_leaf/screens/nav_screen.dart';
-import 'package:read_leaf/screens/pdf_viewer.dart';
-import 'package:read_leaf/screens/epub_viewer.dart';
-import 'package:read_leaf/screens/reader_loading_screen_route.dart';
+import 'package:read_leaf/features/library/presentation/blocs/file_bloc.dart';
+import 'package:read_leaf/features/search/presentation/blocs/search_bloc.dart';
+import 'package:read_leaf/features/reader/presentation/blocs/reader_bloc.dart';
+import 'package:read_leaf/features/auth/presentation/blocs/auth_bloc.dart';
+import 'package:read_leaf/features/auth/presentation/blocs/auth_event.dart';
+import 'package:read_leaf/nav_screen.dart';
+import 'package:read_leaf/features/reader/presentation/screens/pdf_viewer.dart';
+import 'package:read_leaf/features/reader/presentation/screens/epub_viewer.dart';
+import 'package:read_leaf/features/reader/presentation/screens/reader_loading_screen_route.dart';
 import 'package:provider/provider.dart';
-import 'package:read_leaf/providers/theme_provider.dart';
+import 'package:read_leaf/core/providers/theme_provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:read_leaf/screens/splash_screen.dart';
-import 'injection.dart';
-import 'package:read_leaf/screens/home_screen.dart';
-import 'package:read_leaf/services/character_suggestion_service.dart';
+import 'package:read_leaf/features/library/presentation/screens/splash_screen.dart';
+import 'injection/injection.dart';
+import 'package:read_leaf/features/library/presentation/screens/home_screen.dart';
+import 'package:read_leaf/features/characters/data/character_suggestion_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

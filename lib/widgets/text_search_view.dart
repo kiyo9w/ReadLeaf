@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:synchronized/extension.dart';
-import 'package:read_leaf/constants/responsive_constants.dart';
+import 'package:read_leaf/core/constants/responsive_constants.dart';
 
 class TextSearchView extends StatefulWidget {
   const TextSearchView({
