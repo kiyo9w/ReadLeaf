@@ -1,6 +1,6 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:injectable/injectable.dart';
-import 'package:read_leaf/features/settings/domain/models/user_preferences.dart';
+import 'package:read_leaf/features/settings/domain/models/sync/user_preferences.dart';
 import 'package:read_leaf/features/settings/data/sync/sync_manager.dart';
 import 'package:read_leaf/features/settings/data/sync/sync_types.dart';
 import 'package:uuid/uuid.dart';

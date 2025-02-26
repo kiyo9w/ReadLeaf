@@ -115,8 +115,8 @@ flutter:
 
     # default ai characters
     - assets/images/ai_characters/
-    - lib/data/default_characters.json
-    - lib/data/personality_traits.json
+    - lib/features/characters/data/image_service.dart
+    - lib/features/characters/data/personality_traits.json
 
     # default books
     - assets/pdfs/atomic_habits.pdf
