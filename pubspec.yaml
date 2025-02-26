@@ -88,6 +88,7 @@ dependencies:
   logging: ^1.2.0
   cached_network_image: ^3.4.1
   path_drawing: ^1.0.1
+  material_symbols_icons: ^4.2805.1
 
 dev_dependencies:
   flutter_test:

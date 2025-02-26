@@ -16,9 +16,9 @@ import 'package:read_leaf/features/companion_chat/presentation/widgets/floating_
 import 'package:read_leaf/features/characters/data/ai_character_service.dart';
 import 'package:read_leaf/features/characters/domain/models/ai_character.dart';
 import 'package:read_leaf/core/utils/utils.dart';
-import 'package:read_leaf/features/reader/presentation/widgets/pdf_viewer/markers_view.dart';
-import 'package:read_leaf/features/reader/presentation/widgets/pdf_viewer/outline_view.dart';
-import 'package:read_leaf/features/reader/presentation/widgets/pdf_viewer/thumbnails_view.dart';
+import 'package:read_leaf/features/reader/presentation/widgets/side_menu/markers_view.dart';
+import 'package:read_leaf/features/reader/presentation/widgets/side_menu/outline_view.dart';
+import 'package:read_leaf/features/reader/presentation/widgets/side_menu/thumbnails_view.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:read_leaf/core/constants/responsive_constants.dart';
 import 'package:read_leaf/features/reader/presentation/widgets/reader/floating_selection_menu.dart';
@@ -26,6 +26,7 @@ import 'package:read_leaf/features/reader/presentation/widgets/reader/full_selec
 import 'package:read_leaf/features/reader/presentation/widgets/reader/reader_settings_menu.dart';
 import 'package:read_leaf/features/reader/presentation/widgets/reader/reader_loading_screen.dart';
 import 'dart:async';
+import 'package:material_symbols_icons/material_symbols_icons.dart';
 
 enum PdfLayoutMode { vertical, horizontal, facing }
 
@@ -1090,7 +1091,23 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                             ),
                             IconButton(
                               icon: Icon(
-                                Icons.menu,
+                                Symbols.thumbnail_bar,
+                                color: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? const Color(0xFFF2F2F7)
+                                    : const Color(0xFF1C1C1E),
+                                size: ResponsiveConstants.getIconSize(context),
+                                fill: 0.25
+                              ),
+                              padding: EdgeInsets.all(
+                                  ResponsiveConstants.isTablet(context)
+                                      ? 12
+                                      : 8),
+                              onPressed: _toggleSideNav,
+                            ),
+                            IconButton(
+                              icon: Icon(
+                                Icons.settings,
                                 color: Theme.of(context).brightness ==
                                         Brightness.dark
                                     ? const Color(0xFFF2F2F7)
