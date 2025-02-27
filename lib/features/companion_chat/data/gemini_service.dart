@@ -98,7 +98,7 @@ ROLEPLAY RULES:
 
       const config = AiGenerationConfig();
       _model = GenerativeModel(
-        model: 'gemini-pro',
+        model: 'gemini-1.5-pro-latest',
         apiKey: apiKey,
         generationConfig: config.toGeminiConfig(),
       );

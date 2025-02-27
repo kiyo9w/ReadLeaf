@@ -217,7 +217,7 @@ class EpubPageManager {
       _wordsPerChapter[chapterIndex] = wordCount;
 
       print(
-          'Chapter $chapterIndex loaded in ${_stopwatch.elapsedMilliseconds}ms (${wordCount} words)');
+          'Chapter $chapterIndex loaded in ${_stopwatch.elapsedMilliseconds}ms ($wordCount words)');
     } catch (e) {
       print('Error loading chapter $chapterIndex: $e');
       // Cache empty content to avoid repeated failures

@@ -86,7 +86,7 @@ class _CreateCharacterScreenState extends State<CreateCharacterScreen> {
   Future<void> _loadTraitData() async {
     try {
       final jsonString = await DefaultAssetBundle.of(context)
-          .loadString('lib/data/personality_traits.json');
+          .loadString('lib/features/characters/data/personality_traits.json');
       final data = json.decode(jsonString);
 
       // Using the "trait_categories" field

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:read_leaf/features/reader/presentation/widgets/epub_viewer/epub_page_content.dart';
-import 'package:read_leaf/features/reader/presentation/widgets/reader/reader_settings_menu.dart';
 
 /// Enum defining the different layout modes for the EPUB reader
 enum EpubLayoutMode { longStrip, vertical, horizontal, facing }

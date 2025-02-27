@@ -153,7 +153,7 @@ class EpubStateManager extends ChangeNotifier {
 
   /// Load the book's metadata
   Future<void> _loadMetadata() async {
-    final metadata = await _metadataRepository.getMetadata(_file.path);
+    final metadata = _metadataRepository.getMetadata(_file.path);
 
     if (metadata != null) {
       _metadata = metadata;

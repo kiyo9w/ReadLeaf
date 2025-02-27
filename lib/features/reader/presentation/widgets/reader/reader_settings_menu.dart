@@ -18,14 +18,14 @@ class ReaderSettingsMenu extends StatelessWidget {
   final bool showLongStripOption;
 
   const ReaderSettingsMenu({
-    Key? key,
+    super.key,
     required this.filePath,
     required this.currentLayoutMode,
     required this.onLayoutModeChanged,
     required this.onClose,
     this.showFacingOption = false,
     this.showLongStripOption = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

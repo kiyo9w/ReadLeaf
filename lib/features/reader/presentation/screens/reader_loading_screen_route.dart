@@ -11,10 +11,10 @@ class ReaderLoadingScreenRoute extends StatefulWidget {
   final String targetRoute;
 
   const ReaderLoadingScreenRoute({
-    Key? key,
+    super.key,
     required this.filePath,
     required this.targetRoute,
-  }) : super(key: key);
+  });
 
   @override
   State<ReaderLoadingScreenRoute> createState() =>

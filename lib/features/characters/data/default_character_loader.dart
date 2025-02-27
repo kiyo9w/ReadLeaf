@@ -5,7 +5,7 @@ import 'package:logging/logging.dart';
 
 class DefaultCharacterLoader {
   static final _log = Logger('DefaultCharacterLoader');
-  static const _defaultCharactersPath = 'lib/data/default_characters.json';
+  static const _defaultCharactersPath = 'lib/features/characters/data/default_characters.json';
   static List<AiCharacter>? _cachedCharacters;
 
   /// Load default character templates from the JSON file

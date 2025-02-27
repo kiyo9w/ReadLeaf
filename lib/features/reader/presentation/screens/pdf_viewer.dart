@@ -66,8 +66,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   PdfLayoutMode _layoutMode = PdfLayoutMode.vertical;
   final bool _isRightToLeftReadingOrder = false;
   final bool _needCoverPage = true;
-  bool _isInitialLoading = true;
-  double _loadingProgress = 0.0;
+  final bool _isInitialLoading = true;
+  final double _loadingProgress = 0.0;
 
   String get _currentTitle {
     switch (_tabController.index) {

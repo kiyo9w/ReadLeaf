@@ -13,12 +13,12 @@ class ReaderLoadingScreen extends StatefulWidget {
   final VoidCallback? onCompleted;
 
   const ReaderLoadingScreen({
-    Key? key,
+    super.key,
     required this.filePath,
     this.loadingProgress = 0.0,
     this.isCompleted = false,
     this.onCompleted,
-  }) : super(key: key);
+  });
 
   @override
   State<ReaderLoadingScreen> createState() => _ReaderLoadingScreenState();
@@ -256,14 +256,27 @@ class _ReaderLoadingScreenState extends State<ReaderLoadingScreen>
                           overflow: TextOverflow.ellipsis,
                         ),
 
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 32),
 
                         // Loading indicator
                         SizedBox(
-                          width: isTablet ? 240 : 200,
-                          child: widget.isCompleted
-                              ? _buildCompletedIndicator(context)
-                              : _buildProgressIndicator(context),
+                          width: isTablet ? 220 : 180,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: LinearProgressIndicator(
+                              value: widget.loadingProgress,
+                              backgroundColor: Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? const Color(0xFF352A3B)
+                                  : const Color(0xFFEEE5E5),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Theme.of(context).brightness == Brightness.dark
+                                    ? const Color(0xFFE4B4C4)
+                                    : const Color(0xFFDD6F87),
+                              ),
+                              minHeight: isTablet ? 8 : 6,
+                            ),
+                          ),
                         ),
 
                         const SizedBox(height: 16),
@@ -281,6 +294,23 @@ class _ReaderLoadingScreenState extends State<ReaderLoadingScreen>
                                     : const Color(0xFF9E7B80),
                           ),
                         ),
+
+                        const SizedBox(height: 32),
+
+                        // Message about disabling loading screen
+                        Opacity(
+                          opacity: 0.7,
+                          child: Text(
+                            "This loading screen can be disabled in Settings",
+                            style: TextStyle(
+                              fontSize: isTablet ? 14 : 12,
+                              color:
+                                  Theme.of(context).textTheme.bodySmall?.color,
+                              fontStyle: FontStyle.italic,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -290,84 +320,6 @@ class _ReaderLoadingScreenState extends State<ReaderLoadingScreen>
           );
         },
       ),
-    );
-  }
-
-  Widget _buildProgressIndicator(BuildContext context) {
-    final primaryColor = Theme.of(context).brightness == Brightness.dark
-        ? const Color(0xFFAA96B6)
-        : const Color(0xFF9E7B80);
-
-    final backgroundColor = Theme.of(context).brightness == Brightness.dark
-        ? const Color(0xFF352A3B)
-        : const Color(0xFFF8F1F1);
-
-    return Column(
-      children: [
-        LinearProgressIndicator(
-          value: widget.loadingProgress > 0 ? widget.loadingProgress : null,
-          backgroundColor: backgroundColor,
-          valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
-          borderRadius: BorderRadius.circular(8),
-          minHeight: 8,
-        ),
-        if (widget.loadingProgress > 0) ...[
-          const SizedBox(height: 8),
-          Text(
-            '${(widget.loadingProgress * 100).toInt()}%',
-            style: TextStyle(
-              fontSize: 14,
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? const Color(0xFFF2F2F7).withOpacity(0.7)
-                  : const Color(0xFF1C1C1E).withOpacity(0.7),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildCompletedIndicator(BuildContext context) {
-    final primaryColor = Theme.of(context).brightness == Brightness.dark
-        ? const Color(0xFFAA96B6)
-        : const Color(0xFF9E7B80);
-
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 500),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return Column(
-          children: [
-            LinearProgressIndicator(
-              value: 1.0,
-              backgroundColor: Theme.of(context).brightness == Brightness.dark
-                  ? const Color(0xFF352A3B)
-                  : const Color(0xFFF8F1F1),
-              valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
-              borderRadius: BorderRadius.circular(8),
-              minHeight: 8,
-            ),
-            const SizedBox(height: 16),
-            Transform.scale(
-              scale: value,
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: primaryColor,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.check,
-                  color: Colors.white,
-                  size: 24,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
     );
   }
 }

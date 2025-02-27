@@ -15,6 +15,7 @@ import 'package:read_leaf/features/companion_chat/data/chat_service.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:read_leaf/features/companion_chat/domain/models/chat_message.dart';
 import 'package:read_leaf/core/providers/theme_provider.dart';
+import 'package:read_leaf/core/providers/settings_provider.dart';
 import 'package:read_leaf/features/companion_chat/data/rag_service.dart';
 import 'package:read_leaf/features/auth/presentation/blocs/auth_bloc.dart';
 import 'package:read_leaf/features/settings/data/sync/supabase_service.dart';
@@ -99,6 +100,9 @@ Future<void> configureDependencies() async {
   getIt.registerSingleton<FileRepository>(fileRepository);
   getIt.registerSingleton<BookMetadataRepository>(bookMetadataRepository);
   getIt.registerSingleton<ThemeProvider>(themeProvider);
+
+  // Register settings provider
+  getIt.registerSingleton<SettingsProvider>(SettingsProvider());
 
   // Register non-critical services lazily
   getIt.registerLazySingleton<StorageScannerService>(
@@ -189,10 +193,6 @@ abstract class RegisterModule {
 
   @lazySingleton
   BookMetadataRepository get bookMetadataRepository => BookMetadataRepository();
-
-  @lazySingleton
-  ThemeProvider get themeProvider =>
-      ThemeProvider(getIt<UserPreferencesService>());
 
   @lazySingleton
   FileRepository get fileRepository => FileRepository();
