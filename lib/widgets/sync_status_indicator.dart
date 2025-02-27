@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../blocs/SyncBloc/sync_bloc.dart';
+import '../features/settings/presentation/blocs/sync_bloc.dart';
 
 class SyncStatusIndicator extends StatelessWidget {
   const SyncStatusIndicator({super.key});

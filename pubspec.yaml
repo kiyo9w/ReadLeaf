@@ -88,6 +88,7 @@ dependencies:
   logging: ^1.2.0
   cached_network_image: ^3.4.1
   path_drawing: ^1.0.1
+  material_symbols_icons: ^4.2805.1
 
 dev_dependencies:
   flutter_test:
@@ -115,8 +116,8 @@ flutter:
 
     # default ai characters
     - assets/images/ai_characters/
-    - lib/data/default_characters.json
-    - lib/data/personality_traits.json
+    - lib/features/characters/data/image_service.dart
+    - lib/features/characters/data/personality_traits.json
 
     # default books
     - assets/pdfs/atomic_habits.pdf
