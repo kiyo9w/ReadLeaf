@@ -9,6 +9,9 @@ class EpubPageContent {
   final int wordCount;
   final int absolutePageNumber;
 
+  /// The plain text content (without HTML tags)
+  final String? plainText;
+
   const EpubPageContent({
     required this.content,
     required this.chapterIndex,
@@ -16,6 +19,7 @@ class EpubPageContent {
     required this.chapterTitle,
     this.wordCount = 0,
     this.absolutePageNumber = 0,
+    this.plainText,
   });
 
   /// Create from a map (for deserialization from isolate)
@@ -27,6 +31,7 @@ class EpubPageContent {
       chapterTitle: map['chapterTitle'] as String,
       wordCount: map['wordCount'] as int? ?? 0,
       absolutePageNumber: map['absolutePageNumber'] as int? ?? 0,
+      plainText: map['plainText'] as String?,
     );
   }
 
@@ -39,6 +44,7 @@ class EpubPageContent {
       'chapterTitle': chapterTitle,
       'wordCount': wordCount,
       'absolutePageNumber': absolutePageNumber,
+      'plainText': plainText,
     };
   }
 
@@ -50,6 +56,7 @@ class EpubPageContent {
     String? chapterTitle,
     int? wordCount,
     int? absolutePageNumber,
+    String? plainText,
   }) {
     return EpubPageContent(
       content: content ?? this.content,
@@ -58,6 +65,7 @@ class EpubPageContent {
       chapterTitle: chapterTitle ?? this.chapterTitle,
       wordCount: wordCount ?? this.wordCount,
       absolutePageNumber: absolutePageNumber ?? this.absolutePageNumber,
+      plainText: plainText ?? this.plainText,
     );
   }
 }

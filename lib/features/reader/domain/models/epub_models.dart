@@ -29,6 +29,9 @@ class EpubPage {
   /// The HTML content of the page
   final String content;
 
+  /// The plain text content (for direct rendering if HTML fails)
+  final String plainText;
+
   /// The index of the chapter this page belongs to
   final int chapterIndex;
 
@@ -44,11 +47,17 @@ class EpubPage {
 
   EpubPage({
     required this.content,
+    String? plainText,
     required this.chapterIndex,
     required this.pageNumberInChapter,
     required this.chapterTitle,
     required this.absolutePageNumber,
-  });
+  }) : this.plainText = plainText ?? _stripHtmlTags(content);
+
+  // Static helper to strip HTML tags
+  static String _stripHtmlTags(String html) {
+    return html.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+  }
 }
 
 /// Represents parsed HTML content blocks with styles
@@ -67,18 +76,48 @@ class ParsedContent {
 
 /// Represents a block of content (paragraph, header, etc.)
 class ContentBlock {
-  /// The styled text span
-  final TextSpan textSpan;
+  /// The text content
+  final String text;
 
-  /// The raw HTML content
-  final String rawHtml;
-
-  /// Additional style information
-  final Map<String, String> styles;
+  /// The HTML tag (p, h1, h2, etc.)
+  final String tag;
 
   ContentBlock({
-    required this.textSpan,
-    required this.rawHtml,
-    required this.styles,
+    required this.text,
+    required this.tag,
+  });
+}
+
+// OutlineItem represents a chapter or section in the EPUB outline
+class OutlineItem {
+  final String title;
+  final String subtitle;
+  final int pageNumber;
+  final int level;
+
+  OutlineItem({
+    required this.title,
+    this.subtitle = '',
+    required this.pageNumber,
+    this.level = 0,
+  });
+}
+
+// MarkerItem represents a bookmark or highlight in the EPUB
+class MarkerItem {
+  final String id;
+  final String text;
+  final int pageNumber;
+  final Color color;
+  final DateTime createdAt;
+  final String? note;
+
+  MarkerItem({
+    required this.id,
+    required this.text,
+    required this.pageNumber,
+    required this.color,
+    required this.createdAt,
+    this.note,
   });
 }

@@ -16,9 +16,9 @@ import 'package:read_leaf/features/companion_chat/presentation/widgets/floating_
 import 'package:read_leaf/features/characters/data/ai_character_service.dart';
 import 'package:read_leaf/features/characters/domain/models/ai_character.dart';
 import 'package:read_leaf/core/utils/utils.dart';
-import 'package:read_leaf/features/reader/presentation/widgets/side_menu/markers_view.dart';
-import 'package:read_leaf/features/reader/presentation/widgets/side_menu/outline_view.dart';
-import 'package:read_leaf/features/reader/presentation/widgets/side_menu/thumbnails_view.dart';
+import 'package:read_leaf/features/reader/presentation/widgets/side_menu/pdf/markers_view.dart';
+import 'package:read_leaf/features/reader/presentation/widgets/side_menu/pdf/outline_view.dart';
+import 'package:read_leaf/features/reader/presentation/widgets/side_menu/pdf/thumbnails_view.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:read_leaf/core/constants/responsive_constants.dart';
 import 'package:read_leaf/features/reader/presentation/widgets/reader/floating_selection_menu.dart';

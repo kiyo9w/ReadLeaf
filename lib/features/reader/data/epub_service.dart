@@ -111,7 +111,7 @@ class EpubService {
         fontSize: fontSize,
       );
 
-      // Calculate pages
+      // Calculate pages using the new TextPainter-based approach
       final pages = await calculator.calculatePages(
         content,
         chapterIndex,
@@ -131,6 +131,7 @@ class EpubService {
       return [
         EpubPage(
           content: '<p>Error loading chapter content: $e</p>',
+          plainText: 'Error loading chapter content: $e',
           chapterIndex: chapterIndex,
           pageNumberInChapter: 1,
           chapterTitle: processingResult.chapters[chapterIndex].Title ??
@@ -273,48 +274,28 @@ class EpubService {
   }
 }
 
+/// Represents a content block extracted from HTML
+class ContentBlock {
+  final String text;
+  final String tag; // p, h1, h2, etc.
+
+  ContentBlock({required this.text, required this.tag});
+}
+
 /// A class to calculate and paginate EPUB content
 class EpubPageCalculator {
   static const double DEFAULT_FONT_SIZE = 23.0;
   static const double LINE_HEIGHT_MULTIPLIER = 1.5;
-  static const double PAGE_PADDING = 32.0;
-  static const double PAGE_HEIGHT_FRACTION = 0.95;
-
-  // Font metrics constants
-  static const double AVERAGE_CHAR_WIDTH_RATIO = 0.6;
-  static const double WORD_SPACING_RATIO = 0.3;
-  static const double AVERAGE_WORD_LENGTH = 5.5;
-
-  // Cache structures
-  final Map<int, List<EpubPage>> _pageCache = {};
-  final Map<String, TextStyle> _styleCache = {};
-  // Improved width measurement cache with capacity limit
-  final LRUCache<String, double> _textWidthCache =
-      LRUCache<String, double>(5000);
-
-  // Paragraph height cache
-  final Map<String, double> _paragraphHeightCache = {};
-
-  // Reusable text painter pool
-  final List<TextPainter> _textPainterPool =
-      List.generate(5, (_) => TextPainter(textDirection: TextDirection.ltr));
-
-  // Stopwatch for performance monitoring
-  final Stopwatch _stopwatch = Stopwatch();
+  static const double PAGE_PADDING = 20.0;
+  static const double PAGE_HEIGHT_FRACTION = 0.92;
+  static const double SAFETY_MARGIN = 15.0;
+  static const double LINE_BREAK_FACTOR = 0.98;
 
   // Make these non-late final fields regular fields since we'll update them
   final double _viewportWidth;
   final double _viewportHeight;
   double _fontSize;
   final double _effectiveViewportHeight;
-  int _wordsPerLine = 0;
-  int _linesPerPage = 0;
-  int _wordsPerPage = 0;
-
-  // Performance statistics
-  int _totalBlocksProcessed = 0;
-  int _cacheHits = 0;
-
   // Debug flag for tracking page calculations
   final bool _debugMode = false;
 
@@ -325,356 +306,329 @@ class EpubPageCalculator {
   })  : _viewportWidth = viewportWidth - (PAGE_PADDING * 2),
         _viewportHeight = viewportHeight * PAGE_HEIGHT_FRACTION,
         _fontSize = fontSize,
-        _effectiveViewportHeight =
-            (viewportHeight * PAGE_HEIGHT_FRACTION) - (PAGE_PADDING * 2) {
-    _calculateMetrics();
-  }
-
-  void _calculateMetrics() {
-    // Calculate available space with exact padding
-    final availableWidth = _viewportWidth;
-    final availableHeight = _effectiveViewportHeight;
-
-    // Calculate line metrics with exact measurements
-    final charWidth = _fontSize * AVERAGE_CHAR_WIDTH_RATIO;
-    final wordSpacing = _fontSize * WORD_SPACING_RATIO;
-    final averageWordWidth = (charWidth * AVERAGE_WORD_LENGTH) + wordSpacing;
-    final lineHeight = _fontSize * LINE_HEIGHT_MULTIPLIER;
-
-    // Calculate maximum words per line
-    _wordsPerLine = ((availableWidth / averageWordWidth) * 0.95).floor();
-
-    // Calculate maximum lines per page - use 0.9 to provide some safety margin
-    _linesPerPage = ((availableHeight / lineHeight) * 0.9).floor();
-
-    // Calculate total words per page
-    _wordsPerPage = _wordsPerLine * _linesPerPage;
-
-    // Apply device-specific maximum (moderate limits to prevent both overflow and underfill)
-    final deviceConstraints = _getDeviceSpecificConstraints();
-    _wordsPerPage = math.min(_wordsPerPage, deviceConstraints);
-
-    if (_debugMode) {
-      print('Calculated metrics:');
-      print('- Viewport: ${_viewportWidth}x${_viewportHeight}');
-      print('- Available: ${availableWidth}x${availableHeight}');
-      print('- Words per line: $_wordsPerLine');
-      print('- Lines per page: $_linesPerPage');
-      print('- Words per page: $_wordsPerPage');
-    }
-  }
-
-  int _getDeviceSpecificConstraints() {
-    // Base maximum on viewport size with balanced limits
-    final viewportArea = _viewportWidth * _viewportHeight;
-    final baseMaxWords = (viewportArea / (_fontSize * _fontSize * 1.35))
-        .floor(); // Balanced multiplier
-
-    // Moderate limits for each device category
-    if (_viewportWidth < 400) {
-      // Small phones
-      return math.min(baseMaxWords, 250);
-    } else if (_viewportWidth < 600) {
-      // Regular phones
-      return math.min(baseMaxWords, 320);
-    } else if (_viewportWidth < 800) {
-      // Large phones
-      return math.min(baseMaxWords, 400);
-    } else {
-      // Tablets and larger
-      return math.min(baseMaxWords, 450);
-    }
-  }
+        _effectiveViewportHeight = (viewportHeight * PAGE_HEIGHT_FRACTION) -
+            (PAGE_PADDING * 2) -
+            SAFETY_MARGIN;
 
   void updateFontSize(double newFontSize) {
     _fontSize = newFontSize;
-    _calculateMetrics();
-    _pageCache.clear();
-    _styleCache.clear();
-    _textWidthCache.clear(); // Clear width cache when font size changes
-    _paragraphHeightCache.clear();
   }
 
-  // Calculate pages for a chapter with balanced content
+  // Calculate pages for a chapter with more accurate text measurement
   Future<List<EpubPage>> calculatePages(
     String htmlContent,
     int chapterIndex,
     String chapterTitle,
   ) async {
-    _stopwatch.reset();
-    _stopwatch.start();
+    final Stopwatch stopwatch = Stopwatch()..start();
 
-    // Check cache first
-    if (_pageCache.containsKey(chapterIndex)) {
-      return _pageCache[chapterIndex]!;
-    }
+    // 1. Extract text content from HTML - keep it simple
+    final plainText = _extractTextFromHtml(htmlContent);
 
-    // Reset performance counters
-    _totalBlocksProcessed = 0;
-    _cacheHits = 0;
+    // 2. Create a TextStyle for measuring
+    final TextStyle defaultStyle = TextStyle(
+      fontSize: _fontSize,
+      height: LINE_HEIGHT_MULTIPLIER,
+    );
 
-    // Parse HTML content
-    final parsedContent = await _parseHtmlContent(htmlContent);
-    final parsingTime = _stopwatch.elapsedMilliseconds;
-    _stopwatch.reset();
-    _stopwatch.start();
-
-    // Calculate page breaks
-    final pages =
-        _calculatePageBreaks(parsedContent, chapterIndex, chapterTitle);
-
-    // Perform post-processing to balance pages if needed
-    final balancedPages = _balancePages(pages, chapterIndex, chapterTitle);
-
-    final paginationTime = _stopwatch.elapsedMilliseconds;
-
-    // Cache results
-    _pageCache[chapterIndex] = balancedPages;
-
-    // Debug timing
-    if (balancedPages.isNotEmpty) {
-      final cacheHitRate = _totalBlocksProcessed > 0
-          ? (_cacheHits / _totalBlocksProcessed * 100).toStringAsFixed(1)
-          : '0';
-
-      print(
-          'Chapter $chapterIndex: parsing ${parsingTime}ms, pagination ${paginationTime}ms, ' +
-              '${balancedPages.length} pages, cache hit rate: $cacheHitRate%');
-    }
-
-    return balancedPages;
-  }
-
-  // Balance pages to ensure even content distribution
-  List<EpubPage> _balancePages(
-      List<EpubPage> originalPages, int chapterIndex, String chapterTitle) {
-    if (originalPages.length <= 1) {
-      return originalPages; // Nothing to balance with just one page
-    }
-
-    // Check for first page overflow by analyzing content
-    final firstPageContent = originalPages.first.content;
-    final firstPageHeight = _estimateContentHeight(firstPageContent);
-
-    // If first page looks fine, return original pages
-    if (firstPageHeight <= _effectiveViewportHeight * 0.95) {
-      return originalPages;
-    }
+    // 3. Paginate using the direct method
+    final List<EpubPage> pages = await _paginateText(plainText, defaultStyle,
+        _viewportWidth, _effectiveViewportHeight, chapterIndex, chapterTitle);
 
     if (_debugMode) {
       print(
-          'First page might overflow with height $firstPageHeight, attempting to rebalance');
+          'Chapter $chapterIndex paginated in ${stopwatch.elapsedMilliseconds}ms, created ${pages.length} pages');
     }
 
-    // Extract content from first page for reprocessing
-    final firstPageText = _extractTextContent(firstPageContent);
-
-    // If less than 3 pages, perform simple rebalancing
-    if (originalPages.length < 3) {
-      return _simpleRebalance(
-          firstPageText, originalPages, chapterIndex, chapterTitle);
-    }
-
-    // For longer content, keep original pages but fix the first page
-    return _rebalanceFirstPage(
-        firstPageText, originalPages, chapterIndex, chapterTitle);
+    return pages;
   }
 
-  // Extract text content from HTML
-  String _extractTextContent(String html) {
-    // Simple extraction by removing HTML tags
-    return html
-        .replaceAll(RegExp(r'<[^>]*>'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-  }
+  // Paginate text using the TextPainter approach
+  Future<List<EpubPage>> _paginateText(
+      String text,
+      TextStyle style,
+      double maxWidth,
+      double maxHeight,
+      int chapterIndex,
+      String chapterTitle) async {
+    final TextPainter textPainter = TextPainter(
+      textDirection: TextDirection.ltr,
+      maxLines: null,
+    );
 
-  // Simple rebalancing for short chapters
-  List<EpubPage> _simpleRebalance(String firstPageText,
-      List<EpubPage> originalPages, int chapterIndex, String chapterTitle) {
-    final result = <EpubPage>[];
+    final List<EpubPage> pages = [];
+    String remainingText = text;
+    int pageNumber = 1;
 
-    // Create a more balanced first page with 75% of the height
-    final firstPageWords = firstPageText.split(RegExp(r'\s+'));
-    final totalWords = firstPageWords.length;
+    // If first portion of text appears to be a chapter heading, handle it specially
+    if (chapterTitle.isNotEmpty &&
+        remainingText.trim().startsWith(chapterTitle)) {
+      // Create a special page just for the chapter title
+      // This helps with chapter headings that need special formatting
+      String chapterHeading =
+          '<h1 style="text-align: center; font-weight: bold;">$chapterTitle</h1>';
 
-    // Determine a better split point - aim for 70% of content on first page
-    final firstPageWordCount = (totalWords * 0.7).floor();
+      // Skip the title in the remaining text if it's at the beginning
+      if (remainingText.trim().startsWith(chapterTitle)) {
+        remainingText = remainingText.substring(chapterTitle.length).trim();
+      }
 
-    // Split the content
-    final firstPageContent =
-        '<p>${firstPageWords.sublist(0, firstPageWordCount).join(' ')}</p>';
-    final secondPageContent =
-        '<p>${firstPageWords.sublist(firstPageWordCount).join(' ')}</p>';
-
-    // Create rebalanced pages
-    result.add(EpubPage(
-      content: firstPageContent,
-      chapterIndex: chapterIndex,
-      pageNumberInChapter: 1,
-      chapterTitle: chapterTitle,
-      absolutePageNumber: 0,
-    ));
-
-    if (secondPageContent.length > 10) {
-      result.add(EpubPage(
-        content: secondPageContent,
-        chapterIndex: chapterIndex,
-        pageNumberInChapter: 2,
-        chapterTitle: chapterTitle,
-        absolutePageNumber: 0,
-      ));
-    }
-
-    // If there were more pages, add them
-    if (originalPages.length > 2) {
-      for (int i = 2; i < originalPages.length; i++) {
-        final page = originalPages[i];
-        result.add(EpubPage(
-          content: page.content,
+      if (remainingText.isNotEmpty) {
+        pages.add(EpubPage(
+          content: chapterHeading,
+          plainText: chapterTitle,
           chapterIndex: chapterIndex,
-          pageNumberInChapter: result.length + 1,
+          pageNumberInChapter: pageNumber++,
           chapterTitle: chapterTitle,
           absolutePageNumber: 0,
         ));
       }
     }
 
-    return result;
-  }
+    while (remainingText.isNotEmpty) {
+      textPainter.text = TextSpan(text: remainingText, style: style);
+      textPainter.layout(maxWidth: maxWidth);
 
-  // Rebalance just the first page for longer chapters
-  List<EpubPage> _rebalanceFirstPage(String firstPageText,
-      List<EpubPage> originalPages, int chapterIndex, String chapterTitle) {
-    final result = <EpubPage>[];
+      // Use slightly less than the max height to ensure we don't overflow
+      double adjustedMaxHeight = maxHeight * LINE_BREAK_FACTOR;
+      int endIndex = textPainter
+          .getPositionForOffset(Offset(maxWidth, adjustedMaxHeight))
+          .offset;
 
-    // For long text, cut off at 80% of the way through
-    final firstPageWords = firstPageText.split(RegExp(r'\s+'));
-    final cutPoint = (firstPageWords.length * 0.8).floor();
+      // Handle edge cases
+      if (endIndex <= 0 || endIndex >= remainingText.length) {
+        // We can either fit nothing or everything
+        final pageText = remainingText;
+        final htmlContent = _formatTextWithStyles(pageText);
 
-    // Create a shorter first page
-    final firstPageContent =
-        '<p>${firstPageWords.sublist(0, cutPoint).join(' ')}</p>';
-
-    // Create a new second page with remaining content
-    final secondPageContent =
-        '<p>${firstPageWords.sublist(cutPoint).join(' ')}</p>';
-
-    // Add first page
-    result.add(EpubPage(
-      content: firstPageContent,
+        pages.add(EpubPage(
+          content: htmlContent,
+          plainText: pageText,
       chapterIndex: chapterIndex,
-      pageNumberInChapter: 1,
+          pageNumberInChapter: pageNumber++,
       chapterTitle: chapterTitle,
       absolutePageNumber: 0,
     ));
+        break;
+      }
 
-    // Add new second page
-    result.add(EpubPage(
-      content: secondPageContent,
-      chapterIndex: chapterIndex,
-      pageNumberInChapter: 2,
-      chapterTitle: chapterTitle,
-      absolutePageNumber: 0,
-    ));
+      // Find optimal breaking point - preferring sentence endings
+      int breakIndex = _findOptimalBreakPoint(remainingText, endIndex);
 
-    // Add all remaining pages except the original second page
-    // (since we've moved content from page 1 to page 2)
-    for (int i = 2; i < originalPages.length; i++) {
-      final page = originalPages[i];
-      result.add(EpubPage(
-        content: page.content,
+      String pageText = remainingText.substring(0, breakIndex + 1);
+      remainingText = remainingText.substring(breakIndex + 1).trimLeft();
+
+      // Format with proper HTML to preserve styles
+      String htmlContent = _formatTextWithStyles(pageText);
+
+      pages.add(EpubPage(
+        content: htmlContent,
+        plainText: pageText,
         chapterIndex: chapterIndex,
-        pageNumberInChapter: result.length + 1,
+        pageNumberInChapter: pageNumber++,
         chapterTitle: chapterTitle,
         absolutePageNumber: 0,
       ));
     }
 
-    if (_debugMode) {
-      print(
-          'Rebalanced: Original pages: ${originalPages.length}, New pages: ${result.length}');
-    }
-
-    return result;
+    return pages;
   }
 
-  // Parse HTML content and apply styles (optimized version)
-  Future<ParsedContent> _parseHtmlContent(String html) async {
-    // Create style cache if not already there
-    if (_styleCache.isEmpty) {
-      _styleCache['p'] = TextStyle(
-        fontSize: _fontSize,
-        height: LINE_HEIGHT_MULTIPLIER,
-      );
-      _styleCache['h1'] = TextStyle(
-        fontSize: _fontSize * 2.0,
-        height: LINE_HEIGHT_MULTIPLIER,
-        fontWeight: FontWeight.bold,
-      );
-      _styleCache['h2'] = TextStyle(
-        fontSize: _fontSize * 1.5,
-        height: LINE_HEIGHT_MULTIPLIER,
-        fontWeight: FontWeight.bold,
-      );
-      _styleCache['h3'] = TextStyle(
-        fontSize: _fontSize * 1.3,
-        height: LINE_HEIGHT_MULTIPLIER,
-        fontWeight: FontWeight.bold,
-      );
-      _styleCache['h4'] = TextStyle(
-        fontSize: _fontSize * 1.2,
-        height: LINE_HEIGHT_MULTIPLIER,
-        fontWeight: FontWeight.bold,
-      );
-      _styleCache['h5'] = TextStyle(
-        fontSize: _fontSize * 1.1,
-        height: LINE_HEIGHT_MULTIPLIER,
-        fontWeight: FontWeight.bold,
-      );
-      _styleCache['h6'] = TextStyle(
-        fontSize: _fontSize * 1.0,
-        height: LINE_HEIGHT_MULTIPLIER,
-        fontWeight: FontWeight.bold,
-      );
+  // Find the optimal break point for text to avoid cutting words
+  // and prefer breaking at sentence endings
+  int _findOptimalBreakPoint(String text, int endIndex) {
+    if (endIndex >= text.length) return text.length - 1;
+
+    // First try to find a sentence ending (period, question mark, exclamation)
+    for (int i = endIndex; i >= endIndex - 50 && i >= 0; i--) {
+      if (i < text.length - 1 &&
+          (text[i] == '.' || text[i] == '?' || text[i] == '!') &&
+          (i == text.length - 1 || text[i + 1] == ' ')) {
+        return i + 1; // Include the space after punctuation
+      }
     }
 
-    final blocks = <ContentBlock>[];
+    // Next try paragraph breaks
+    int lastParagraphBreak = text.substring(0, endIndex).lastIndexOf('\n\n');
+    if (lastParagraphBreak > endIndex - 200 && lastParagraphBreak > 0) {
+      return lastParagraphBreak;
+    }
 
-    // OPTIMIZATION: Use pre-compiled regex for paragraph/header extraction
-    final paragraphRegex = RegExp(
-      r'<(p|h[1-6])[^>]*>(.*?)</\1>',
+    // Next try line breaks
+    int lastLineBreak = text.substring(0, endIndex).lastIndexOf('\n');
+    if (lastLineBreak > endIndex - 100 && lastLineBreak > 0) {
+      return lastLineBreak;
+    }
+
+    // Finally, fall back to word boundaries
+    int lastSpace = text.substring(0, endIndex).lastIndexOf(' ');
+    if (lastSpace > 0) {
+      return lastSpace;
+    }
+
+    // If all else fails, just break at endIndex-1
+    return endIndex - 1;
+  }
+
+  // Format text with proper HTML styling
+  String _formatTextWithStyles(String text) {
+    // Simple approach to identify headings and apply formatting
+    if (text.trim().startsWith('#') && text.contains('\n')) {
+      // Markdown-style heading
+      String firstLine = text.substring(0, text.indexOf('\n')).trim();
+      String restOfText = text.substring(text.indexOf('\n')).trim();
+
+      int headerLevel = 1;
+      while (firstLine.startsWith('#')) {
+        headerLevel = math.min(6, headerLevel + 1);
+        firstLine = firstLine.substring(1).trim();
+      }
+
+      return '<h$headerLevel style="text-align: center; font-weight: bold;">$firstLine</h$headerLevel>\n<p>$restOfText</p>';
+    } else if (text.length < 100 &&
+        !text.contains('.') &&
+        !text.contains('?') &&
+        !text.contains('!')) {
+      // Short line with no sentence endings - might be a heading
+      return '<h3 style="font-weight: bold;">$text</h3>';
+    } else {
+      // Regular paragraph
+      return '<p>$text</p>';
+    }
+  }
+
+  // Extract text content from HTML
+  String _extractTextFromHtml(String html) {
+    // Simple implementation to extract text by removing tags
+    return html
+        .replaceAll(RegExp(r'<[^>]*>'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  // Extract content blocks (paragraphs, headers) from HTML with improved formatting
+  List<ContentBlock> _extractContentBlocks(String html) {
+    final List<ContentBlock> blocks = [];
+
+    // Extract paragraphs and headers with a more robust regex
+    // Include more HTML elements that contain text
+    final blockRegex = RegExp(
+      r'<(p|h[1-6]|div|span|li|blockquote|pre|td|th|figcaption)[^>]*>(.*?)</\1>',
       dotAll: true,
       caseSensitive: false,
     );
 
-    // Extract paragraphs with a single regex pass
-    final matches = paragraphRegex.allMatches(html);
+    final matches = blockRegex.allMatches(html);
 
-    for (final match in matches) {
-      final tag = match.group(1) ?? 'p';
-      String content = match.group(2) ?? '';
-
-      // More efficient text extraction (avoiding multiple regex operations)
-      if (content.contains('<')) {
-        // Faster implementation for stripping HTML tags
-        content = _stripHtmlTags(content);
+    if (matches.isEmpty) {
+      // If no blocks were found, treat the entire content as a single paragraph
+      final cleanedText = _extractFormattedText(html);
+      if (cleanedText.isNotEmpty) {
+        blocks.add(ContentBlock(text: cleanedText, tag: 'p'));
       }
-
-      blocks.add(ContentBlock(
-        textSpan: TextSpan(
-          text: content,
-          style: _styleCache[tag] ?? _styleCache['p'],
-        ),
-        rawHtml: match.group(0) ?? '',
-        styles: {'tag': tag},
-      ));
+      return blocks;
     }
 
-    return ParsedContent(blocks: blocks, styles: _styleCache);
+    for (final match in matches) {
+      final tag = match.group(1)?.toLowerCase() ?? 'p';
+      String content = match.group(2) ?? '';
+
+      // Handle nested tags with formatting preserved
+      content = _extractFormattedText(content);
+
+      // Skip empty blocks
+      if (content.isEmpty) {
+        continue;
+      }
+
+      // Normalize tag types for simpler rendering
+      final String normalizedTag;
+      if (tag.startsWith('h')) {
+        // Keep header tags as they are for proper styling
+        normalizedTag = tag;
+      } else {
+        // Convert other block-level tags to paragraphs but keep inline formatting
+        normalizedTag = 'p';
+      }
+
+      blocks.add(ContentBlock(text: content, tag: normalizedTag));
+    }
+
+    // If we somehow didn't extract any blocks but there is content,
+    // use a fallback approach to get the content
+    if (blocks.isEmpty) {
+      final bodyRegex = RegExp(
+        r'<body[^>]*>(.*?)</body>',
+        dotAll: true,
+        caseSensitive: false,
+      );
+
+      final bodyMatch = bodyRegex.firstMatch(html);
+      if (bodyMatch != null) {
+        final bodyContent = bodyMatch.group(1) ?? '';
+        final cleanedText = _extractFormattedText(bodyContent);
+
+        if (cleanedText.isNotEmpty) {
+          // Split by double newlines to create paragraph blocks
+          final paragraphs = cleanedText.split(RegExp(r'\n\s*\n'));
+          for (final paragraph in paragraphs) {
+            final trimmed = paragraph.trim();
+            if (trimmed.isNotEmpty) {
+              blocks.add(ContentBlock(text: trimmed, tag: 'p'));
+            }
+          }
+        }
+      }
+    }
+
+    return blocks;
   }
 
-  // Faster implementation of HTML tag stripping
+  // Extract text from HTML while preserving certain formatting
+  String _extractFormattedText(String html) {
+    // Replace common formatting tags with markers we can restore later
+    String processedHtml = html;
+
+    // Map of tags to replacement markers
+    final Map<String, String> formattingMarkers = {
+      'b': '**',
+      'strong': '**',
+      'i': '_',
+      'em': '_',
+      'u': '__',
+      'h1': '# ',
+      'h2': '## ',
+      'h3': '### ',
+      'h4': '#### ',
+      'h5': '##### ',
+      'h6': '###### ',
+    };
+
+    // Process each formatting tag
+    formattingMarkers.forEach((tag, marker) {
+      final pattern =
+          RegExp('<$tag>(.*?)</$tag>', dotAll: true, caseSensitive: false);
+      processedHtml = processedHtml.replaceAllMapped(
+        pattern,
+        (match) => '$marker${match.group(1)}$marker',
+      );
+    });
+
+    // Replace line breaks
+    processedHtml = processedHtml.replaceAll('<br>', '\n');
+    processedHtml = processedHtml.replaceAll('<br/>', '\n');
+    processedHtml = processedHtml.replaceAll('<br />', '\n');
+
+    // Now remove all remaining HTML tags
+    String plainText = _stripHtmlTags(processedHtml);
+
+    // Clean up whitespace
+    plainText = plainText.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    return plainText;
+  }
+
+  // Strip HTML tags from content
   String _stripHtmlTags(String html) {
     final buffer = StringBuffer();
     bool inTag = false;
@@ -689,7 +643,7 @@ class EpubPageCalculator {
 
       if (char == '>') {
         inTag = false;
-        continue;
+          continue;
       }
 
       if (!inTag) {
@@ -700,552 +654,137 @@ class EpubPageCalculator {
     return buffer.toString().trim();
   }
 
-  // Get a TextPainter from the pool or create a new one
-  TextPainter _getTextPainter() {
-    if (_textPainterPool.isNotEmpty) {
-      return _textPainterPool.removeLast();
-    }
-    return TextPainter(textDirection: TextDirection.ltr);
-  }
-
-  // Return a TextPainter to the pool for reuse
-  void _recycleTextPainter(TextPainter painter) {
-    painter.text = null;
-    if (_textPainterPool.length < 10) {
-      // Expanded pool size
-      _textPainterPool.add(painter);
-    }
-  }
-
-  // Measure the height of a block using its TextSpan and available width
-  double _measureBlockHeight(ContentBlock block) {
-    _totalBlocksProcessed++;
-
-    // Generate cache key (hash of text and style characteristics)
-    final String text = block.textSpan.text ?? '';
-    final TextStyle style = block.textSpan.style ?? _styleCache['p']!;
-    final cacheKey = '${text.length}_${style.fontSize}_${_viewportWidth}';
-
-    // First check the paragraph height cache
-    if (_paragraphHeightCache.containsKey(cacheKey)) {
-      _cacheHits++;
-      return _paragraphHeightCache[cacheKey]!;
-    }
-
-    // OPTIMIZATION: For very short text (e.g., headers), use a more accurate calculation
-    if (text.length < 100) {
-      // More accurate line calculation for short text
-      final words = text.split(RegExp(r'\s+'));
-      final approximateLines =
-          math.max(1, (words.length / _wordsPerLine).ceil());
-      final height = approximateLines *
-          style.fontSize! *
-          (style.height ?? LINE_HEIGHT_MULTIPLIER);
-
-      // Cache the result
-      _paragraphHeightCache[cacheKey] = height;
-      return height;
-    }
-
-    // For longer text, use TextPainter for more accurate measurement
-    final textPainter = _getTextPainter();
-    textPainter.text = block.textSpan;
-    textPainter.layout(maxWidth: _viewportWidth);
-    final height = textPainter.height;
-    _recycleTextPainter(textPainter);
-
-    // Cache the result (limit cache size to prevent memory issues)
-    if (_paragraphHeightCache.length < 1000) {
-      _paragraphHeightCache[cacheKey] = height;
-    }
-
-    return height;
-  }
-
-  // Optimized _measureTextWidth with caching
-  double _measureTextWidth(String text, TextStyle style) {
-    // Generate cache key
-    final fontSize = style.fontSize ?? DEFAULT_FONT_SIZE;
-    final cacheKey = '${text.hashCode}_$fontSize';
-
-    // Check cache first
-    final cachedValue = _textWidthCache.get(cacheKey);
-    if (cachedValue != null) {
-      _cacheHits++;
-      return cachedValue;
-    }
-
-    // OPTIMIZATION: For short words, use more accurate approximation
-    if (text.length <= 10) {
-      // Improved character width approximation based on character type
-      double approxWidth = 0;
-      for (var i = 0; i < text.length; i++) {
-        final char = text[i];
-        // Wide characters (like 'w', 'm') vs narrow characters (like 'i', 'l')
-        final charWidthRatio = _isWideCharacter(char)
-            ? AVERAGE_CHAR_WIDTH_RATIO * 1.5
-            : AVERAGE_CHAR_WIDTH_RATIO * 0.8;
-        approxWidth += fontSize * charWidthRatio;
-      }
-      _textWidthCache.put(cacheKey, approxWidth);
-      return approxWidth;
-    }
-
-    // Fall back to measurement if not cached
-    final textPainter = _getTextPainter();
-    textPainter.text = TextSpan(text: text, style: style);
-    textPainter.layout();
-    final width = textPainter.width;
-    _recycleTextPainter(textPainter);
-
-    // Cache result
-    _textWidthCache.put(cacheKey, width);
-    return width;
-  }
-
-  // Helper method to identify wide vs narrow characters for better width estimation
-  bool _isWideCharacter(String char) {
-    if (char.isEmpty) return false;
-
-    // Wide characters typically include:
-    final wideChars = 'mwWM@QOÄÜÖ';
-
-    // Narrow characters:
-    final narrowChars = 'il1t\',.|!';
-
-    if (wideChars.contains(char)) {
-      return true;
-    } else if (narrowChars.contains(char)) {
-      return false;
-    }
-
-    // Default to average width for other characters
-    return false;
-  }
-
-  // Helper: if a word is too wide, split it into segments that each fit
-  List<String> _splitLongWord(
-      String word, TextStyle style, double availableWidth) {
-    // Words that are too long will be hyphenated for better page utilization
-    final segments = <String>[];
-    String currentSegment = "";
-
-    // Try to find natural break points for hyphenation
-    final preferredBreakPoints = ['-', '_', '.'];
-
-    int lastBreakPoint = -1;
-    for (int i = 0; i < word.length; i++) {
-      final char = word[i];
-      final candidate = currentSegment + char;
-
-      // If we found a natural break point, remember it
-      if (preferredBreakPoints.contains(char)) {
-        lastBreakPoint = i;
-      }
-
-      if (_measureTextWidth(candidate, style) <= availableWidth) {
-        currentSegment = candidate;
-      } else {
-        // If we're at a preferred break point, break there
-        if (lastBreakPoint >= 0 && lastBreakPoint > currentSegment.length - 3) {
-          // +1 to include the break character
-          segments.add(word.substring(0, lastBreakPoint + 1));
-          // Continue with the rest of the word
-          return segments +
-              _splitLongWord(
-                  word.substring(lastBreakPoint + 1), style, availableWidth);
-        } else if (currentSegment.length > 3) {
-          // If segment is long enough, add a hyphen
-          segments.add(
-              '${currentSegment.substring(0, currentSegment.length - 1)}-');
-          // Continue with the rest of the word
-          return segments +
-              _splitLongWord(word.substring(currentSegment.length - 1), style,
-                  availableWidth);
-        } else if (currentSegment.isEmpty) {
-          // Worst case: split the character
-          segments.add(char);
-        } else {
-          segments.add(currentSegment);
-          currentSegment = char;
-        }
-      }
-    }
-
-    if (currentSegment.isNotEmpty) {
-      segments.add(currentSegment);
-    }
-
-    return segments;
-  }
-
-  // Create a page with optimized HTML structure
-  EpubPage _createPage(
-      String content, int chapterIndex, int pageNumber, String chapterTitle) {
-    // Ensure the content has proper HTML structure for better rendering
-    final formattedContent = _formatPageContent(content);
-
-    // Detect potential overflow content by measuring approximate height
-    final approxContentHeight = _estimateContentHeight(formattedContent);
-    final bool potentialOverflow =
-        approxContentHeight > _effectiveViewportHeight;
-
-    if (potentialOverflow && _debugMode) {
-      print(
-          'WARNING: Page $pageNumber may overflow with approx height $approxContentHeight');
-    }
-
-    return EpubPage(
-      content: formattedContent,
-      chapterIndex: chapterIndex,
-      pageNumberInChapter: pageNumber,
-      chapterTitle: chapterTitle,
-      absolutePageNumber: 0, // Default value, will be updated later if needed
-    );
-  }
-
-  // Helper method to estimate content height for overflow detection
-  double _estimateContentHeight(String content) {
-    // Count paragraphs
-    final paragraphCount = '<p>'.allMatches(content).length;
-
-    // Estimate lines based on content length and average line length
-    final estimatedChars = content.replaceAll(RegExp(r'<[^>]*>'), '').length;
-    final estimatedCharsPerLine =
-        _wordsPerLine * 5; // Assuming 5 chars per word average
-    final estimatedLines = math.max(
-        paragraphCount, // Minimum one line per paragraph
-        estimatedChars / estimatedCharsPerLine // Or estimate by content length
+  // Get the appropriate style for a content block
+  TextStyle _getStyleForBlock(ContentBlock block) {
+    switch (block.tag) {
+      case 'h1':
+        return TextStyle(
+          fontSize: _fontSize * 2.0,
+          height: LINE_HEIGHT_MULTIPLIER,
+          fontWeight: FontWeight.bold,
         );
-
-    return estimatedLines * (_fontSize * LINE_HEIGHT_MULTIPLIER);
+      case 'h2':
+        return TextStyle(
+          fontSize: _fontSize * 1.5,
+          height: LINE_HEIGHT_MULTIPLIER,
+          fontWeight: FontWeight.bold,
+        );
+      case 'h3':
+        return TextStyle(
+          fontSize: _fontSize * 1.3,
+          height: LINE_HEIGHT_MULTIPLIER,
+          fontWeight: FontWeight.bold,
+        );
+      case 'h4':
+        return TextStyle(
+          fontSize: _fontSize * 1.2,
+          height: LINE_HEIGHT_MULTIPLIER,
+          fontWeight: FontWeight.bold,
+        );
+      case 'h5':
+        return TextStyle(
+          fontSize: _fontSize * 1.1,
+          height: LINE_HEIGHT_MULTIPLIER,
+          fontWeight: FontWeight.bold,
+        );
+      case 'h6':
+        return TextStyle(
+          fontSize: _fontSize * 1.0,
+          height: LINE_HEIGHT_MULTIPLIER,
+          fontWeight: FontWeight.bold,
+        );
+      case 'p':
+      default:
+        return TextStyle(
+          fontSize: _fontSize,
+          height: LINE_HEIGHT_MULTIPLIER,
+        );
+    }
   }
 
-  // Format the page content with proper HTML structure
-  String _formatPageContent(String content) {
-    // If content already has proper structure, return as is
-    if (content.trim().startsWith('<') &&
-        (content.contains('<p>') || content.contains('<h'))) {
-      return content;
-    }
+  // Paginate a text block using TextPainter - simplified approach like the example
+  List<EpubPage> _paginateBlock(String text, TextStyle style, double maxWidth,
+      double maxHeight, int chapterIndex, String chapterTitle,
+      {required int blockPages}) {
+    // Create a TextPainter for measuring
+    final TextPainter textPainter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+      maxLines: null,
+    );
 
-    // Otherwise, wrap in paragraph tags for proper rendering
-    return '<p>${content.trim()}</p>';
-  }
+    final List<EpubPage> pages = [];
+    String remainingText = text;
+    int pageNumberInChapter = blockPages;
 
-  // Optimized page breaking algorithm - improved to use more page space
-  List<EpubPage> _calculatePageBreaks(
-      ParsedContent content, int chapterIndex, String chapterTitle) {
-    final pages = <EpubPage>[];
+    // Check if this is a heading block that should be treated specially
+    bool isHeading = (style.fontSize ?? DEFAULT_FONT_SIZE) > _fontSize ||
+        (style.fontWeight == FontWeight.bold && text.length < 200);
 
-    // We work with a buffer (for the page's HTML) and a counter for the filled height.
-    final StringBuffer currentPageBuffer = StringBuffer();
-    double currentPageHeight = 0.0;
+    while (remainingText.isNotEmpty) {
+      // Measure the text
+      textPainter.text = TextSpan(text: remainingText, style: style);
+      textPainter.layout(maxWidth: maxWidth);
 
-    // Use a safe page height limit to prevent overflow
-    final double pageHeightLimit = _effectiveViewportHeight * 0.9;
+      // Use the line break factor to ensure we don't get too close to the edge
+      double adjustedMaxHeight = maxHeight * LINE_BREAK_FACTOR;
 
-    // We assume a uniform line height (this could be measured more precisely if needed)
-    final double lineHeight = _fontSize * LINE_HEIGHT_MULTIPLIER;
+      // Find where the text would be cut off at maxHeight
+      int endIndex = textPainter
+          .getPositionForOffset(Offset(maxWidth, adjustedMaxHeight))
+          .offset;
 
-    // Default style for paragraphs:
-    final TextStyle defaultStyle = _styleCache['p'] ??
-        TextStyle(fontSize: _fontSize, height: LINE_HEIGHT_MULTIPLIER);
+      // If we can't fit any text or we can fit all text
+      if (endIndex == 0 || endIndex >= remainingText.length) {
+        // Create a page with the remaining text
+        String tag = isHeading ? 'h1' : 'p';
+        String styleAttribute =
+            isHeading ? ' style="text-align: center; font-weight: bold;"' : '';
+        String pageContent = '<$tag$styleAttribute>${remainingText}</$tag>';
 
-    // Track current page for debug purposes
-    int currentPageNumber = 1;
-
-    if (_debugMode) {
-      print('Starting pagination with height limit: $pageHeightLimit');
-    }
-
-    // Process each block (a block might be a paragraph or header)
-    for (final block in content.blocks) {
-      // Determine the tag and style (if not set, default to paragraph)
-      final String tag = block.styles['tag'] ?? 'p';
-      // Use a header style if available; otherwise, use the default style.
-      final TextStyle style = content.styles[tag] ?? defaultStyle;
-
-      // For headers, we force a page break if it won't fit
-      if (tag.startsWith('h')) {
-        // Use a slightly smaller multiplier for header height calculation
-        final headerHeight = style.fontSize! * LINE_HEIGHT_MULTIPLIER * 1.1;
-
-        // If adding the header would exceed the page limit, start a new page
-        if (currentPageHeight + headerHeight > pageHeightLimit &&
-            currentPageBuffer.isNotEmpty) {
-          pages.add(_createPage(currentPageBuffer.toString(), chapterIndex,
-              pages.length + 1, chapterTitle));
-
-          if (_debugMode) {
-            print(
-                'Page $currentPageNumber complete at height $currentPageHeight (max: $pageHeightLimit)');
-            currentPageNumber++;
-          }
-
-          currentPageBuffer.clear();
-          currentPageHeight = 0.0;
-        }
-
-        // Write the header
-        currentPageBuffer.writeln('<$tag>${block.textSpan.text}</$tag>');
-        currentPageHeight += headerHeight;
-
-        if (_debugMode) {
-          print(
-              'Added header with height $headerHeight, current height: $currentPageHeight');
-        }
-
-        continue;
+        pages.add(EpubPage(
+          content: pageContent,
+          plainText: remainingText,
+          chapterIndex: chapterIndex,
+          pageNumberInChapter: pageNumberInChapter++,
+          chapterTitle: chapterTitle,
+          absolutePageNumber: 0, // Will be updated later
+        ));
+        break;
       }
 
-      // For a normal paragraph:
-      final String plainText = block.textSpan.text ?? '';
-      if (plainText.isEmpty) continue;
+      // Find optimal breaking point using the same logic as _paginateText
+      int breakIndex = _findOptimalBreakPoint(remainingText, endIndex);
 
-      // Calculate paragraph height more accurately
-      final approximateWordCount = plainText.split(RegExp(r'\s+')).length;
-      final approximateLines = (approximateWordCount / _wordsPerLine).ceil();
-      final estimatedParagraphHeight = approximateLines * lineHeight;
+      // Get the text for this page
+      String pageText = remainingText.substring(0, breakIndex + 1);
+      remainingText = remainingText.substring(breakIndex + 1).trimLeft();
 
-      // Add a small spacing between paragraphs
-      final paragraphSpacing = lineHeight * 0.2;
-      final totalParagraphHeight = estimatedParagraphHeight + paragraphSpacing;
+      // Create a page with this text, applying appropriate styling
+      String tag = isHeading ? 'h1' : 'p';
+      String styleAttribute =
+          isHeading ? ' style="text-align: center; font-weight: bold;"' : '';
+      String pageContent = '<$tag$styleAttribute>${pageText.trim()}</$tag>';
 
-      if (_debugMode) {
-        print(
-            'Paragraph: $approximateWordCount words, ~$approximateLines lines, estimated height: $estimatedParagraphHeight');
-      }
-
-      // Check if this paragraph would overflow the page
-      if (currentPageHeight + totalParagraphHeight > pageHeightLimit) {
-        // If we already have content and this paragraph would overflow,
-        // create a new page first
-        if (currentPageBuffer.isNotEmpty) {
-          pages.add(_createPage(currentPageBuffer.toString(), chapterIndex,
-              pages.length + 1, chapterTitle));
-
-          if (_debugMode) {
-            print(
-                'Page $currentPageNumber complete at height $currentPageHeight (max: $pageHeightLimit)');
-            currentPageNumber++;
-          }
-
-          currentPageBuffer.clear();
-          currentPageHeight = 0.0;
-        }
-
-        // If the paragraph is very long (would fill more than 80% of a page),
-        // process it specially to break across pages
-        if (estimatedParagraphHeight > pageHeightLimit * 0.8) {
-          _processLongParagraph(
-              plainText,
-              currentPageBuffer,
-              pages,
-              lineHeight,
-              pageHeightLimit,
-              _viewportWidth,
-              style,
-              currentPageHeight,
-              chapterIndex,
-              chapterTitle,
-              currentPageNumber);
-
-          // After processing a long paragraph that spans pages, we need to
-          // reset our tracking variables
-          if (currentPageBuffer.isNotEmpty) {
-            currentPageHeight = _estimateCurrentBufferHeight(
-                currentPageBuffer.toString(), lineHeight);
-          } else {
-            currentPageHeight = 0.0;
-          }
-
-          // Update page number for debugging
-          currentPageNumber = pages.length + 1;
-
-          continue;
-        }
-      }
-
-      // For paragraphs that fit on the current page
-      currentPageBuffer.writeln('<p>${plainText}</p>');
-      currentPageHeight += totalParagraphHeight;
-
-      if (_debugMode) {
-        print('Added paragraph, new height: $currentPageHeight');
-      }
-    }
-
-    // Flush any remaining content into a final page
-    if (currentPageBuffer.isNotEmpty) {
-      pages.add(_createPage(currentPageBuffer.toString(), chapterIndex,
-          pages.length + 1, chapterTitle));
-
-      if (_debugMode) {
-        print(
-            'Final page $currentPageNumber complete at height $currentPageHeight');
-      }
+      pages.add(EpubPage(
+        content: pageContent,
+        plainText: pageText.trim(),
+        chapterIndex: chapterIndex,
+        pageNumberInChapter: pageNumberInChapter++,
+        chapterTitle: chapterTitle,
+        absolutePageNumber: 0, // Will be updated later
+      ));
     }
 
     return pages;
   }
 
-  // Helper method to estimate the height of current buffer content
-  double _estimateCurrentBufferHeight(String content, double lineHeight) {
-    // Count number of paragraph tags as a basic estimation
-    final paragraphCount = '<p>'.allMatches(content).length;
-    // Count estimated number of lines based on content length
-    final estimatedLines = content.length / 40; // rough average chars per line
-
-    return math.max(
-        paragraphCount * lineHeight, // minimum one line per paragraph
-        estimatedLines * lineHeight // or estimated by content length
-        );
-  }
-
-  // Process a long paragraph that might span multiple pages
-  void _processLongParagraph(
-      String plainText,
-      StringBuffer currentPageBuffer,
-      List<EpubPage> pages,
-      double lineHeight,
-      double pageHeightLimit,
-      double availableWidth,
-      TextStyle style,
-      double currentPageHeight,
-      int chapterIndex,
-      String chapterTitle,
-      int currentPageNumber) {
-    if (_debugMode) {
-      print('Processing long paragraph that may span pages');
+  // Format a page with HTML structure
+  String _formatPageContent(String content) {
+    if (content.trim().startsWith('<') && content.trim().endsWith('>')) {
+      return content; // Already has HTML tags
     }
-
-    // Split the text into words
-    final List<String> words = plainText.split(RegExp(r'\s+'));
-
-    // Check if we're starting a paragraph on a new page or continuing on current page
-    bool isStartOfParagraph = true;
-
-    // Begin paragraph tag if we're starting fresh on the current page
-    if (currentPageBuffer.isNotEmpty) {
-      currentPageBuffer.write('<p>');
-    }
-
-    String currentLine = "";
-    double lineWidthSoFar = 0;
-
-    // Track if this is the first page of content
-    final bool isFirstPage = pages.isEmpty;
-    // Use a more conservative limit for the first page to prevent overflow
-    final double effectiveHeightLimit =
-        isFirstPage ? pageHeightLimit * 0.85 : pageHeightLimit;
-
-    for (int i = 0; i < words.length; i++) {
-      final word = words[i];
-      final wordWidth = _measureTextWidth(word, style);
-
-      // Check if this word starts a new line
-      if (currentLine.isEmpty) {
-        currentLine = word;
-        lineWidthSoFar = wordWidth;
-      } else {
-        // Check if adding this word would exceed line width
-        final spaceWidth = _measureTextWidth(' ', style);
-        if (lineWidthSoFar + spaceWidth + wordWidth <= availableWidth) {
-          // Word fits on current line
-          currentLine = '$currentLine $word';
-          lineWidthSoFar += spaceWidth + wordWidth;
-        } else {
-          // Word doesn't fit, start a new line
-          currentPageBuffer.write('$currentLine ');
-          currentPageHeight += lineHeight;
-
-          // Check if we need a page break - use a slightly lower threshold for first page
-          if (currentPageHeight + lineHeight > effectiveHeightLimit) {
-            // Close paragraph tag before ending the page
-            currentPageBuffer.write('</p>');
-
-            // Create a page
-            pages.add(_createPage(currentPageBuffer.toString(), chapterIndex,
-                pages.length + 1, chapterTitle));
-
-            if (_debugMode) {
-              print(
-                  'Page $currentPageNumber complete at height $currentPageHeight (max: $effectiveHeightLimit)');
-              currentPageNumber++;
-            }
-
-            // Clear the buffer and reset height
-            currentPageBuffer.clear();
-            currentPageHeight = 0;
-
-            // Mark that we're continuing a paragraph on the next page
-            isStartOfParagraph = false;
-
-            // Start a new paragraph tag on new page with continuation indicator
-            currentPageBuffer.write('<p>');
-          }
-
-          // Start a new line with this word
-          currentLine = word;
-          lineWidthSoFar = wordWidth;
-        }
-      }
-
-      // Special handling for the last few words on the first page
-      // This helps prevent overflow by being extra cautious near page end
-      if (isFirstPage &&
-          i > words.length * 0.8 &&
-          currentPageHeight > effectiveHeightLimit * 0.9) {
-        // Force a page break if we're getting close to the end of the first page
-        // and still have significant content remaining
-        currentPageBuffer.write('$currentLine </p>');
-
-        // Create the first page
-        pages.add(_createPage(currentPageBuffer.toString(), chapterIndex,
-            pages.length + 1, chapterTitle));
-
-        if (_debugMode) {
-          print(
-              'First page forced break at height $currentPageHeight (max: $effectiveHeightLimit)');
-          currentPageNumber++;
-        }
-
-        // Clear buffer and set up for next page
-        currentPageBuffer.clear();
-        currentPageHeight = 0;
-
-        // Mark that we're continuing the paragraph
-        isStartOfParagraph = false;
-
-        // Set up the continuation on the next page
-        currentPageBuffer.write('<p>');
-        currentLine = "";
-        lineWidthSoFar = 0;
-      }
-    }
-
-    // Add the last line if there is one
-    if (currentLine.isNotEmpty) {
-      currentPageBuffer.write(currentLine);
-      currentPageHeight += lineHeight;
-    }
-
-    // Close the paragraph tag
-    currentPageBuffer.write('</p>');
-
-    if (_debugMode) {
-      print(
-          'Long paragraph processing complete, final height: $currentPageHeight');
-    }
-  }
-
-  // Clear the cache
-  void clearCache() {
-    _pageCache.clear();
-    _styleCache.clear();
-    _textWidthCache.clear();
-    _paragraphHeightCache.clear();
+    return '<p>${content.trim()}</p>';
   }
 }
 
