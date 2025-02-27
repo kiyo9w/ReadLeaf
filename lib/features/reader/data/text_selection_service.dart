@@ -321,7 +321,7 @@ Text:
       throw Exception('Word not found in dictionary');
     } catch (e) {
       _logger.info('Dictionary API error: $e');
-      throw e; // Let the caller handle fallback
+      rethrow; // Let the caller handle fallback
     }
   }
 
@@ -362,7 +362,7 @@ Provide a dictionary definition for the word or phrase "$word" in $languageName.
       };
     } catch (e, stackTrace) {
       _logger.severe('Error getting Gemini definition', e, stackTrace);
-      throw e;
+      rethrow;
     }
   }
 
@@ -403,7 +403,7 @@ Format the response as if it were a Wikipedia entry with clear sections.
       };
     } catch (e, stackTrace) {
       _logger.severe('Error getting Gemini Wikipedia info', e, stackTrace);
-      throw e;
+      rethrow;
     }
   }
 

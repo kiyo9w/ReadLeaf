@@ -87,37 +87,3 @@ class ContentBlock {
     required this.tag,
   });
 }
-
-// OutlineItem represents a chapter or section in the EPUB outline
-class OutlineItem {
-  final String title;
-  final String subtitle;
-  final int pageNumber;
-  final int level;
-
-  OutlineItem({
-    required this.title,
-    this.subtitle = '',
-    required this.pageNumber,
-    this.level = 0,
-  });
-}
-
-// MarkerItem represents a bookmark or highlight in the EPUB
-class MarkerItem {
-  final String id;
-  final String text;
-  final int pageNumber;
-  final Color color;
-  final DateTime createdAt;
-  final String? note;
-
-  MarkerItem({
-    required this.id,
-    required this.text,
-    required this.pageNumber,
-    required this.color,
-    required this.createdAt,
-    this.note,
-  });
-}
