@@ -25,6 +25,10 @@ AiCharacter _$AiCharacterFromJson(Map<String, dynamic> json) => AiCharacter(
       creator: json['creator'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
+      generationParams: json['generationParams'] == null
+          ? const AiGenerationParams()
+          : AiGenerationParams.fromJson(
+              json['generationParams'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$AiCharacterToJson(AiCharacter instance) =>
@@ -42,4 +46,5 @@ Map<String, dynamic> _$AiCharacterToJson(AiCharacter instance) =>
       'creator': instance.creator,
       'created_at': instance.createdAt.toIso8601String(),
       'updated_at': instance.updatedAt.toIso8601String(),
+      'generationParams': instance.generationParams.toJson(),
     };

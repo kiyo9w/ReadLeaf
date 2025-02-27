@@ -11,11 +11,11 @@ import 'package:read_leaf/features/reader/presentation/screens/epub_viewer.dart'
 import 'package:read_leaf/features/reader/presentation/screens/reader_loading_screen_route.dart';
 import 'package:provider/provider.dart';
 import 'package:read_leaf/core/providers/theme_provider.dart';
+import 'package:read_leaf/core/providers/settings_provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:read_leaf/features/library/presentation/screens/splash_screen.dart';
 import 'injection/injection.dart';
-import 'package:read_leaf/features/library/presentation/screens/home_screen.dart';
 import 'package:read_leaf/features/characters/data/character_suggestion_service.dart';
 
 void main() async {
@@ -34,8 +34,20 @@ void main() async {
     await configureDependencies();
     await CharacterSuggestionService.initialize();
     runApp(
-      ChangeNotifierProvider(
-        create: (_) => getIt<ThemeProvider>(),
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(
+            create: (_) => getIt<ThemeProvider>(),
+          ),
+          ChangeNotifierProvider(
+            create: (_) {
+              final settingsProvider = getIt<SettingsProvider>();
+              // Load settings immediately after creating the provider
+              settingsProvider.loadSettings();
+              return settingsProvider;
+            },
+          ),
+        ],
         child: const MyApp(),
       ),
     );
@@ -91,8 +103,8 @@ class MyApp extends StatelessWidget {
           create: (context) => getIt<AuthBloc>()..add(AuthCheckRequested()),
         ),
       ],
-      child: Consumer<ThemeProvider>(
-        builder: (context, themeProvider, child) {
+      child: Consumer2<ThemeProvider, SettingsProvider>(
+        builder: (context, themeProvider, settingsProvider, child) {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
             routes: {
@@ -101,6 +113,23 @@ class MyApp extends StatelessWidget {
               '/reader_loading': (context) {
                 final args = ModalRoute.of(context)!.settings.arguments
                     as Map<String, dynamic>;
+
+                // If loading screen is disabled, navigate directly to the target route
+                if (!settingsProvider.showLoadingScreen) {
+                  // We need to use a post-frame callback to navigate
+                  // after this build cycle completes
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    Navigator.pushReplacementNamed(
+                      context,
+                      args['targetRoute'],
+                      arguments: {'filePath': args['filePath']},
+                    );
+                  });
+                  // Return an empty container while we're transitioning
+                  return Container(
+                      color: themeProvider.theme.scaffoldBackgroundColor);
+                }
+
                 return ReaderLoadingScreenRoute(
                   filePath: args['filePath'],
                   targetRoute: args['targetRoute'],

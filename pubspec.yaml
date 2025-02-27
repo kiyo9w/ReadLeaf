@@ -115,6 +115,7 @@ flutter:
     - assets/images/app_logo/logo_nobg.png
 
     # default ai characters
+    - lib/features/characters/data/default_characters.json
     - assets/images/ai_characters/
     - lib/features/characters/data/image_service.dart
     - lib/features/characters/data/personality_traits.json

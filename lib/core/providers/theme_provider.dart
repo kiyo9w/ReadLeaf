@@ -1478,12 +1478,13 @@ class ThemeProvider extends ChangeNotifier {
     //
     // Primary (lighter purple) so text/icons using "primary" stand out clearly
     //
-    primaryColor: const Color(0xFF9F6CD2), // Lighter purple accent
+    primaryColor:
+        const Color.fromARGB(255, 38, 33, 44), // Lighter purple accent
 
     //
     // Most widget backgrounds revolve around #15032C (Sapphire)
     //
-    scaffoldBackgroundColor: const Color(0xFF15032C),
+    scaffoldBackgroundColor: const Color(0xFF673AB7),
     cardColor:
         const Color(0xFF1E062E), // Slightly lighter than #15032C for contrast
     dividerColor: const Color(0xFF321246),

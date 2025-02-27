@@ -6,8 +6,8 @@ class CharacterSuggestionService {
   static final Map<String, List<String>> _cachedRelatedTraits = {};
 
   static Future<void> initialize() async {
-    final jsonString =
-        await rootBundle.loadString('lib/data/personality_traits.json');
+    final jsonString = await rootBundle
+        .loadString('lib/features/characters/data/personality_traits.json');
     _personalityData = json.decode(jsonString);
   }
 
