@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:epubx/epubx.dart';
-import 'package:flutter/material.dart';
 import 'package:read_leaf/features/reader/data/epub_service.dart';
 import 'package:read_leaf/features/reader/domain/models/epub_models.dart';
 import 'package:read_leaf/features/reader/presentation/widgets/epub_viewer/epub_page_content.dart';

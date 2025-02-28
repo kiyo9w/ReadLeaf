@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:math';
 import 'dart:developer' as dev;
 import 'package:path/path.dart' as path;
@@ -19,12 +18,10 @@ import 'package:read_leaf/core/utils/utils.dart';
 import 'package:read_leaf/features/reader/presentation/widgets/side_menu/pdf/markers_view.dart';
 import 'package:read_leaf/features/reader/presentation/widgets/side_menu/pdf/outline_view.dart';
 import 'package:read_leaf/features/reader/presentation/widgets/side_menu/pdf/thumbnails_view.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:read_leaf/core/constants/responsive_constants.dart';
 import 'package:read_leaf/features/reader/presentation/widgets/reader/floating_selection_menu.dart';
 import 'package:read_leaf/features/reader/presentation/widgets/reader/full_selection_menu.dart';
 import 'package:read_leaf/features/reader/presentation/widgets/reader/reader_settings_menu.dart';
-import 'package:read_leaf/features/reader/presentation/widgets/reader/reader_loading_screen.dart';
 import 'dart:async';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 

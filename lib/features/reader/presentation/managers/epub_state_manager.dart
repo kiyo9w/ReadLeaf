@@ -10,7 +10,6 @@ import 'package:read_leaf/features/library/domain/models/book_metadata.dart';
 import 'package:read_leaf/features/reader/presentation/controllers/epub_layout_controller.dart';
 import 'package:read_leaf/features/reader/presentation/managers/epub_highlight_manager.dart';
 import 'package:read_leaf/features/reader/presentation/managers/epub_page_manager.dart';
-import 'package:read_leaf/features/reader/presentation/widgets/epub_viewer/epub_page_content.dart';
 
 /// Manages the overall state of the EPUB reader
 class EpubStateManager extends ChangeNotifier {
