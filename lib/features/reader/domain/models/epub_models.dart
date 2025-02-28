@@ -52,7 +52,7 @@ class EpubPage {
     required this.pageNumberInChapter,
     required this.chapterTitle,
     required this.absolutePageNumber,
-  }) : this.plainText = plainText ?? _stripHtmlTags(content);
+  }) : plainText = plainText ?? _stripHtmlTags(content);
 
   // Static helper to strip HTML tags
   static String _stripHtmlTags(String html) {

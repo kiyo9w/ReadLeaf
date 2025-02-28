@@ -1,7 +1,4 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:read_leaf/features/reader/presentation/blocs/reader_bloc.dart';
 import 'package:read_leaf/features/reader/presentation/widgets/reader/reader_loading_screen.dart';
 import 'package:read_leaf/features/library/data/thumbnail_service.dart';
 import 'package:get_it/get_it.dart';

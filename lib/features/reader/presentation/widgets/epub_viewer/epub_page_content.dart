@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 
 /// Model representing a single page of content in an EPUB book
 class EpubPageContent {

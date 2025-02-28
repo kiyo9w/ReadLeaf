@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:flutter/foundation.dart';
 import 'package:read_leaf/features/companion_chat/data/gemini_service.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
