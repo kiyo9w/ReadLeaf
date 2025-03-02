@@ -430,7 +430,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
         }
 
         // Find metadata or create new entry
-        final metadata = await _metadataRepository.getMetadata(filePath);
+        final metadata = _metadataRepository.getMetadata(filePath);
 
         if (metadata == null) {
           final bookTitle = _epubBook!.Title ?? path.basename(filePath);
@@ -644,7 +644,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       // For long strip mode, each "page" is essentially a chapter
       // So we use the flattened pages count which combines all chapters
       _safeSetState(() {
-        _totalPages = _flattenedPages.length > 0
+        _totalPages = _flattenedPages.isNotEmpty
             ? _flattenedPages.length
             : _flatChapters.length;
       });
@@ -666,8 +666,9 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   }
 
   Future<void> _preloadChapter(int index) async {
-    if (index < 0 || index >= _flatChapters.length || _processingResult == null)
+    if (index < 0 || index >= _flatChapters.length || _processingResult == null) {
       return;
+    }
 
     try {
       // We can't call private methods directly, so we'll use calculatePages which loads content internally
@@ -802,7 +803,9 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
   Future<void> _splitChapterIntoPages(int chapterIndex) async {
     if (_chapterPagesCache.containsKey(chapterIndex) ||
-        _processingResult == null) return;
+        _processingResult == null) {
+      return;
+    }
 
     try {
       // Use the EpubService to calculate pages
@@ -2671,12 +2674,12 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   Widget _buildLongStripLayout() {
     return Container(
       child: ScrollablePositionedList.builder(
-        itemCount: _flattenedPages.length > 0
+        itemCount: _flattenedPages.isNotEmpty
             ? _flattenedPages.length
             : _flatChapters.length,
         itemBuilder: (context, index) {
           // If we have pages, use them
-          if (_flattenedPages.length > 0) {
+          if (_flattenedPages.isNotEmpty) {
             if (index < _flattenedPages.length) {
               final page = _flattenedPages[index];
               return _buildPage(page);
@@ -2832,7 +2835,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
     // Limit length
     if (text.length > 100) {
-      text = text.substring(0, 97) + '...';
+      text = '${text.substring(0, 97)}...';
     }
 
     return text;
@@ -2883,12 +2886,12 @@ class OutlineView extends StatelessWidget {
   final Function(OutlineItem) onItemTap;
 
   const OutlineView({
-    Key? key,
+    super.key,
     required this.outlines,
     required this.currentPage,
     required this.totalPages,
     required this.onItemTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -3054,13 +3057,13 @@ class MarkersView extends StatelessWidget {
   final Function(MarkerItem) onDeleteMarker;
 
   const MarkersView({
-    Key? key,
+    super.key,
     required this.markers,
     required this.currentPage,
     required this.totalPages,
     required this.onItemTap,
     required this.onDeleteMarker,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -3252,12 +3255,12 @@ class ThumbnailsView extends StatelessWidget {
   final Widget Function(int) getThumbnail;
 
   const ThumbnailsView({
-    Key? key,
+    super.key,
     required this.totalPages,
     required this.currentPage,
     required this.onPageSelected,
     required this.getThumbnail,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
