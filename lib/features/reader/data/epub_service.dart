@@ -338,6 +338,8 @@ class EpubPageCalculator {
   static const double DEFAULT_FONT_SIZE = 23.0;
   static const double LINE_HEIGHT_MULTIPLIER = 1.1;
   static const double PAGE_PADDING = 20.0;
+  static const double PAGE_TOP_PADDING =
+      35.0; // Added specific top padding for app bar
   static const double PAGE_HEIGHT_FRACTION =
       0.98; // Increased from 0.95 to use more of the page height
   static const double SAFETY_MARGIN =
@@ -363,7 +365,7 @@ class EpubPageCalculator {
         _viewportHeight = viewportHeight * PAGE_HEIGHT_FRACTION,
         _fontSize = fontSize,
         _effectiveViewportHeight = (viewportHeight * PAGE_HEIGHT_FRACTION) -
-            (PAGE_PADDING * 2) -
+            (PAGE_PADDING + PAGE_TOP_PADDING) -
             SAFETY_MARGIN {
     // Initialize text measurer
     _textMeasurer = HtmlTextMeasurer(
@@ -401,12 +403,16 @@ class EpubPageCalculator {
     final List<EpubPage> pages = _paginateHtmlBlocks(blocks, chapterIndex,
         chapterTitle, _viewportWidth, _effectiveViewportHeight);
 
+    // 3. Post-process pages to merge very short pages with the next page when possible
+    final List<EpubPage> optimizedPages =
+        _mergeShortPages(pages, chapterIndex, chapterTitle);
+
     if (_debugMode) {
       print(
-          'Chapter $chapterIndex paginated in ${stopwatch.elapsedMilliseconds}ms, created ${pages.length} pages');
+          'Chapter $chapterIndex paginated in ${stopwatch.elapsedMilliseconds}ms, created ${optimizedPages.length} pages');
     }
 
-    return pages;
+    return optimizedPages;
   }
 
   /// Extract content blocks from HTML - improved version
@@ -515,9 +521,8 @@ class EpubPageCalculator {
     double maxWidth,
     double maxHeight,
   ) {
-    // Constants for simplified pagination
-    const double TARGET_FILL_RATIO =
-        1; // Target to fill at least 85% of available height
+    // Constants for simplified pagination - slightly more conservative
+    const double TARGET_FILL_RATIO = 1;
     final double targetHeight = maxHeight * TARGET_FILL_RATIO;
 
     final List<EpubPage> pages = [];
@@ -527,149 +532,204 @@ class EpubPageCalculator {
 
     // Always add our own chapter title and set hasChapterTitle flag
     // Since we've removed all headings from the HTML in _extractContentBlocks
-    currentPageBlocks.add(ContentBlock(
+    final chapterTitleBlock = ContentBlock(
         text:
             '<h1 style="text-align: center; font-weight: bold; font-size: 105%; margin-bottom: 0; margin-top: 0;">${chapterTitle.trim()}</h1>',
         tag: 'h1',
-        isHtml: true));
+        isHtml: true);
 
     // Estimate the height of the title with zero margins
-    currentPageHeight +=
+    final titleHeight =
         _estimateBlockHeight('<h1>${chapterTitle.trim()}</h1>', maxWidth) * 0.7;
-    bool hasChapterTitle = true;
 
-    // Process all blocks
-    for (int i = 0; i < blocks.length; i++) {
-      var block = blocks[i];
+    // Don't add the title yet - check if we can fit title + first block together
+    bool hasChapterTitle = false;
 
-      // Skip empty paragraphs that might create unwanted gaps
-      if (block.tag == 'p') {
-        final trimmedText = _stripHtmlTags(block.text).trim();
-        if (trimmedText.isEmpty || trimmedText == "&nbsp;") {
-          continue;
-        }
-      }
+    // Only add blocks if there are blocks to process
+    if (blocks.isNotEmpty) {
+      // Check if we can fit the title and first block together
+      final firstBlock = blocks[0];
+      final firstBlockHeight = _estimateBlockHeight(firstBlock.text, maxWidth);
 
-      // Extract plain text for simple content analysis
-      final plainText = _stripHtmlTags(block.text);
-
-      // Simple content type detection (minimal special casing)
-      bool isDialog =
-          plainText.trim().startsWith('"') || plainText.trim().startsWith('"');
-      bool isChapterNumber = plainText.trim().length <= 3 &&
-          RegExp(r'^\d+$').hasMatch(plainText.trim());
-
-      // Apply minimal styling for dialog paragraphs
-      if (isDialog && block.tag == 'p' && !block.text.contains('margin-top')) {
-        final dialogWithSpace =
-            '<p style="text-indent: 1.5em; margin-top: 0.8em; margin-bottom: 0; text-align: justify; text-justify: inter-word; line-height: 1.3;">$plainText</p>';
-        block = ContentBlock(text: dialogWithSpace, tag: 'p', isHtml: true);
-      }
-
-      // Apply minimal styling for chapter numbers
-      if (isChapterNumber && !block.text.contains('text-align: center')) {
-        final chapterNumberBlock = ContentBlock(
-            text:
-                '<h1 style="text-align: center; font-weight: bold; margin-top: 1.5em; margin-bottom: 1.5em;">${plainText.trim()}</h1>',
-            tag: 'h1',
-            isHtml: true);
-        block = chapterNumberBlock;
-      }
-
-      // Force chapter numbers to start on a new page if there's already content
-      if (isChapterNumber && currentPageBlocks.isNotEmpty) {
+      // If title + first block fit with a slight overage allowance (5% extra),
+      // add both at once to prevent a lonely title page
+      if (titleHeight + firstBlockHeight <= targetHeight * 1.05) {
+        currentPageBlocks.add(chapterTitleBlock);
+        currentPageBlocks.add(firstBlock);
+        currentPageHeight = titleHeight + firstBlockHeight;
+        hasChapterTitle = true;
+      } else if (firstBlockHeight > targetHeight * 0.75) {
+        // If the first block is very large (>75% of page), add title alone
+        // This avoids pushing large first blocks to a second page
+        currentPageBlocks.add(chapterTitleBlock);
+        currentPageHeight = titleHeight;
+        hasChapterTitle = true;
+      } else {
+        // In this case, we'll put both title and block on next page
+        // First create an empty page, then start with title+block
         pages.add(_createPageFromBlocks(
             currentPageBlocks, chapterIndex, pageNumber++, chapterTitle));
         currentPageBlocks.clear();
-        currentPageBlocks.add(block);
-        currentPageHeight = _estimateBlockHeight(block.text, maxWidth);
-        continue;
+        currentPageBlocks.add(chapterTitleBlock);
+        currentPageBlocks.add(firstBlock);
+        currentPageHeight = titleHeight + firstBlockHeight;
+        hasChapterTitle = true;
       }
 
-      // Estimate block height (simple, without complex adjustments)
-      final blockHeight = _estimateBlockHeight(block.text, maxWidth);
+      // Start processing from the second block
+      for (int i = 1; i < blocks.length; i++) {
+        var block = blocks[i];
 
-      // Check if block is too large for a single page
-      if (blockHeight > maxHeight * 0.95) {
-        // Split very large blocks across multiple pages
-        if (currentPageBlocks.isNotEmpty) {
-          // Create a page with current blocks first
-          pages.add(_createPageFromBlocks(
-              currentPageBlocks, chapterIndex, pageNumber++, chapterTitle));
-          currentPageBlocks.clear();
-          currentPageHeight = 0;
+        // Skip empty paragraphs that might create unwanted gaps
+        if (block.tag == 'p') {
+          final trimmedText = _stripHtmlTags(block.text).trim();
+          if (trimmedText.isEmpty || trimmedText == "&nbsp;") {
+            continue;
+          }
         }
 
-        // Split the large block
-        _splitAndAddLargeBlock(block, maxWidth, maxHeight, chapterIndex,
-            chapterTitle, pageNumber, pages);
+        // Extract plain text for simple content analysis
+        final plainText = _stripHtmlTags(block.text);
 
-        // Update page number
-        pageNumber += (blockHeight / maxHeight).ceil();
-        continue;
-      }
+        // Simple content type detection (minimal special casing)
+        bool isDialog = plainText.trim().startsWith('"') ||
+            plainText.trim().startsWith('"');
+        bool isChapterNumber = plainText.trim().length <= 3 &&
+            RegExp(r'^\d+$').hasMatch(plainText.trim());
 
-      // Standard case: check if this block fits on the current page
-      if (currentPageHeight + blockHeight <= targetHeight) {
-        // Block fits within our target height
-        currentPageBlocks.add(block);
-        currentPageHeight += blockHeight;
-      } else if (block.tag == 'p' &&
-          !block.text.contains('<img') &&
-          currentPageHeight >= targetHeight * 0.5) {
-        // Current page is at least 50% filled and this paragraph would overflow
-        // Try to split the paragraph to better fill the page
-        final remainingHeight = targetHeight - currentPageHeight;
+        // Apply minimal styling for dialog paragraphs
+        if (isDialog &&
+            block.tag == 'p' &&
+            !block.text.contains('margin-top')) {
+          final dialogWithSpace =
+              '<p style="text-indent: 1.5em; margin-top: 0.8em; margin-bottom: 0; text-align: justify; text-justify: inter-word; line-height: 1.3;">$plainText</p>';
+          block = ContentBlock(text: dialogWithSpace, tag: 'p', isHtml: true);
+        }
 
-        // Use a consistent target fill ratio for splitting
-        const double SPLIT_FILL_RATIO = 1.1;
+        // Apply minimal styling for chapter numbers
+        if (isChapterNumber && !block.text.contains('text-align: center')) {
+          final chapterNumberBlock = ContentBlock(
+              text:
+                  '<h1 style="text-align: center; font-weight: bold; margin-top: 1.5em; margin-bottom: 1.5em;">${plainText.trim()}</h1>',
+              tag: 'h1',
+              isHtml: true);
+          block = chapterNumberBlock;
+        }
 
-        final splitResult = _splitParagraphBlock(
-            block, maxWidth, remainingHeight, SPLIT_FILL_RATIO);
-
-        if (splitResult.firstPart.isNotEmpty) {
-          // Add the first part to the current page
-          currentPageBlocks.add(ContentBlock(
-              text: splitResult.firstPart, tag: 'p', isHtml: true));
-
-          // Create the page
+        // Force chapter numbers to start on a new page if there's already content
+        if (isChapterNumber && currentPageBlocks.isNotEmpty) {
           pages.add(_createPageFromBlocks(
               currentPageBlocks, chapterIndex, pageNumber++, chapterTitle));
-
-          // Start new page with the second part
           currentPageBlocks.clear();
-          currentPageHeight = 0;
+          currentPageBlocks.add(block);
+          currentPageHeight = _estimateBlockHeight(block.text, maxWidth);
+          continue;
+        }
 
-          if (splitResult.secondPart.isNotEmpty) {
-            // Add second part to new page
-            currentPageBlocks.add(ContentBlock(
-                text: splitResult.secondPart, tag: 'p', isHtml: true));
-            currentPageHeight =
+        // Estimate block height (simple, without complex adjustments)
+        final blockHeight = _estimateBlockHeight(block.text, maxWidth);
+
+        // Check if block is too large for a single page
+        if (blockHeight > maxHeight * 0.95) {
+          // Split very large blocks across multiple pages
+          if (currentPageBlocks.isNotEmpty) {
+            // Create a page with current blocks first
+            pages.add(_createPageFromBlocks(
+                currentPageBlocks, chapterIndex, pageNumber++, chapterTitle));
+            currentPageBlocks.clear();
+            currentPageHeight = 0;
+          }
+
+          // Split the large block
+          _splitAndAddLargeBlock(block, maxWidth, maxHeight, chapterIndex,
+              chapterTitle, pageNumber, pages);
+
+          // Update page number
+          pageNumber += (blockHeight / maxHeight).ceil();
+          continue;
+        }
+
+        // Standard case: check if this block fits on the current page
+        if (currentPageHeight + blockHeight <= targetHeight) {
+          // Block fits within our target height
+          currentPageBlocks.add(block);
+          currentPageHeight += blockHeight;
+        } else if (block.tag == 'p' &&
+            !block.text.contains('<img') &&
+            currentPageHeight >= targetHeight * 0.5) {
+          // Current page is at least 50% filled and this paragraph would overflow
+          // Try to split the paragraph to better fill the page
+          final remainingHeight = targetHeight - currentPageHeight;
+
+          // Use a more conservative fill ratio for splitting - REDUCED from 0.95
+          const double SPLIT_FILL_RATIO = 0.95;
+
+          final splitResult = _splitParagraphBlock(
+              block, maxWidth, remainingHeight, SPLIT_FILL_RATIO);
+
+          if (splitResult.firstPart.isNotEmpty) {
+            // Check if second part is too short - don't split if it would create a tiny second part
+            final secondPartHeight =
                 _estimateBlockHeight(splitResult.secondPart, maxWidth);
+
+            // If second part would create a very short page (<20% of page height), don't split
+            if (secondPartHeight < maxHeight * 0.2) {
+              // Just put the whole paragraph on the next page
+              pages.add(_createPageFromBlocks(
+                  currentPageBlocks, chapterIndex, pageNumber++, chapterTitle));
+              currentPageBlocks.clear();
+              currentPageBlocks.add(block);
+              currentPageHeight = blockHeight;
+            } else {
+              // Add the first part to the current page
+              currentPageBlocks.add(ContentBlock(
+                  text: splitResult.firstPart, tag: 'p', isHtml: true));
+
+              // Create the page
+              pages.add(_createPageFromBlocks(
+                  currentPageBlocks, chapterIndex, pageNumber++, chapterTitle));
+
+              // Start new page with the second part
+              currentPageBlocks.clear();
+              currentPageHeight = 0;
+
+              if (splitResult.secondPart.isNotEmpty) {
+                // Add second part to new page
+                currentPageBlocks.add(ContentBlock(
+                    text: splitResult.secondPart, tag: 'p', isHtml: true));
+                currentPageHeight =
+                    _estimateBlockHeight(splitResult.secondPart, maxWidth);
+              }
+            }
+          } else {
+            // Could not split effectively - create page with current blocks
+            pages.add(_createPageFromBlocks(
+                currentPageBlocks, chapterIndex, pageNumber++, chapterTitle));
+
+            // Start a new page with this block
+            currentPageBlocks.clear();
+            currentPageBlocks.add(block);
+            currentPageHeight = blockHeight;
           }
         } else {
-          // Could not split effectively - create page with current blocks
-          pages.add(_createPageFromBlocks(
-              currentPageBlocks, chapterIndex, pageNumber++, chapterTitle));
+          // Block doesn't fit and we can't/shouldn't split it
+          // Create a page with current blocks if there are any
+          if (currentPageBlocks.isNotEmpty) {
+            pages.add(_createPageFromBlocks(
+                currentPageBlocks, chapterIndex, pageNumber++, chapterTitle));
+          }
 
           // Start a new page with this block
           currentPageBlocks.clear();
           currentPageBlocks.add(block);
           currentPageHeight = blockHeight;
         }
-      } else {
-        // Block doesn't fit and we can't/shouldn't split it
-        // Create a page with current blocks if there are any
-        if (currentPageBlocks.isNotEmpty) {
-          pages.add(_createPageFromBlocks(
-              currentPageBlocks, chapterIndex, pageNumber++, chapterTitle));
-        }
-
-        // Start a new page with this block
-        currentPageBlocks.clear();
-        currentPageBlocks.add(block);
-        currentPageHeight = blockHeight;
       }
+    } else {
+      // No blocks to process, just add the title
+      currentPageBlocks.add(chapterTitleBlock);
+      currentPageHeight = titleHeight;
+      hasChapterTitle = true;
     }
 
     // Add the last page if there are remaining blocks
@@ -1044,12 +1104,32 @@ class EpubPageCalculator {
     // Ensure at least one line
     numLines = math.max(1, numLines);
 
-    // Apply a simple content-based safety factor
+    // Apply a content-based safety factor with more conservative values
     double safetyFactor = 1.0;
 
-    // Slightly higher safety factor for complex content
-    if (text.length > 500 || text.contains('"') || text.contains('"')) {
-      safetyFactor = 1.05;
+    // Check for specific patterns that might cause overflow
+    bool hasComplexFormatting = html.contains('style=') && html.contains(';');
+    bool containsQuotes = text.contains('"') || text.contains('"');
+    bool isDialog =
+        containsQuotes && (text.contains('said') || text.contains('asked'));
+    bool hasSpecialChars = text.contains('—') || text.contains('–');
+    bool hasNumbers = RegExp(r'\d+').hasMatch(text);
+
+    // Adjust safety factors based on content characteristics
+    if (isDialog) {
+      safetyFactor = 1.15;
+    } else if (hasComplexFormatting) {
+      safetyFactor = 1.12; // Complex formatting needs more room
+    } else if (containsQuotes) {
+      safetyFactor = 1.08; // Just quotes
+    } else if (hasSpecialChars) {
+      safetyFactor = 1.07; // Special characters
+    } else if (hasNumbers) {
+      safetyFactor = 1.05; // Numbers might need slightly more space
+    } else if (text.length > 500) {
+      safetyFactor = 1.05; // Long paragraphs
+    } else {
+      safetyFactor = 1.02; // Default safety factor is slightly increased
     }
 
     // Calculate final height
@@ -1530,6 +1610,82 @@ class EpubPageCalculator {
     }
 
     return false;
+  }
+
+  // Post-process pages to merge very short pages with the next page
+  List<EpubPage> _mergeShortPages(
+      List<EpubPage> pages, int chapterIndex, String chapterTitle) {
+    // If there are fewer than 2 pages, no merging needed
+    if (pages.length < 2) return pages;
+
+    final List<EpubPage> result = [];
+    int i = 0;
+
+    while (i < pages.length) {
+      // Get current page
+      final currentPage = pages[i];
+
+      // Check if this is a short page (less than 25% of viewport height)
+      final double currentPageHeight =
+          _estimateBlockHeight(currentPage.content, _viewportWidth);
+      final bool isShortPage =
+          currentPageHeight < (_effectiveViewportHeight * 0.25);
+
+      // Skip merging if this is the last page or if it's not a short page
+      if (!isShortPage || i == pages.length - 1) {
+        result.add(currentPage);
+        i++;
+        continue;
+      }
+
+      // Check if merging with next page would fit
+      final nextPage = pages[i + 1];
+      final double nextPageHeight =
+          _estimateBlockHeight(nextPage.content, _viewportWidth);
+
+      // If combined height is acceptable (with a small buffer), merge the pages
+      if (currentPageHeight + nextPageHeight <=
+          _effectiveViewportHeight * 1.05) {
+        // Merge the content
+        final mergedContent = currentPage.content + nextPage.content;
+        final mergedPlainText =
+            currentPage.plainText + ' ' + nextPage.plainText;
+
+        // Create merged page
+        final mergedPage = EpubPage(
+          content: mergedContent,
+          plainText: mergedPlainText,
+          chapterIndex: chapterIndex,
+          pageNumberInChapter: currentPage.pageNumberInChapter,
+          chapterTitle: chapterTitle,
+          absolutePageNumber: currentPage.absolutePageNumber,
+        );
+
+        // Add merged page to result
+        result.add(mergedPage);
+
+        // Skip the next page since we merged it
+        i += 2;
+      } else {
+        // Couldn't merge, add current page as-is
+        result.add(currentPage);
+        i++;
+      }
+    }
+
+    // Recalculate page numbers in chapter
+    for (int j = 0; j < result.length; j++) {
+      result[j] = EpubPage(
+        content: result[j].content,
+        plainText: result[j].plainText,
+        chapterIndex: chapterIndex,
+        pageNumberInChapter: j + 1,
+        chapterTitle: chapterTitle,
+        absolutePageNumber: result[j].absolutePageNumber,
+      );
+    }
+
+    return result;
   }
 }
 
