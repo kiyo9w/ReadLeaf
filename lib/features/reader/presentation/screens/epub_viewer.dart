@@ -1620,7 +1620,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   Widget _buildHorizontalLayout() {
     return Container(
       padding: EdgeInsets.only(
-        top: ResponsiveConstants.getBottomBarHeight(context) + 10,
+        top: ResponsiveConstants.getReaderPageTopPadding(context),
         bottom: ResponsiveConstants.getBottomBarHeight(context),
       ),
       child: PageView.builder(
@@ -1673,7 +1673,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   Widget _buildVerticalPagedLayout() {
     return Container(
       padding: EdgeInsets.only(
-        top: ResponsiveConstants.getBottomBarHeight(context) + 10,
+        top: ResponsiveConstants.getReaderPageTopPadding(context),
         bottom: ResponsiveConstants.getBottomBarHeight(context),
       ),
       child: PageView.builder(

@@ -49,6 +49,32 @@ class ResponsiveConstants {
     return height * 0.75;
   }
 
+  // EPUB reader page top padding
+  static double getReaderPageTopPadding(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final screenArea = size.width * size.height;
+
+    // Small phones (iPhone SE size)
+    if (screenArea < 250000) return 18.0 + 85.0;
+
+    // iPhone 13/14 Mini
+    if (screenArea < 320000) return 20.0 + 85.0;
+
+    // Standard phones (iPhone 12/13/14/16)
+    if (screenArea < 450000) return 22.0 + 85.0;
+
+    // Large phones (iPhone Pro Max, etc)
+    if (screenArea < 600000) return 25.0 + 85.0;
+
+    // Small tablets (iPad Mini)
+    if (isTablet(context) && !isLargeTablet(context)) return 35.0 + 85.0;
+
+    // Large tablets (iPad Pro, etc)
+    if (isLargeTablet(context)) return 45.0 + 85.0;
+
+    return 22.0 + 85.0; // Default for standard phones
+  }
+
   // Content padding
   static EdgeInsets getContentPadding(BuildContext context) {
     if (isLargeTablet(context)) {

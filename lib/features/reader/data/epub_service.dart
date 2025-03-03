@@ -1629,7 +1629,7 @@ class EpubPageCalculator {
       final double currentPageHeight =
           _estimateBlockHeight(currentPage.content, _viewportWidth);
       final bool isShortPage =
-          currentPageHeight < (_effectiveViewportHeight * 0.25);
+          currentPageHeight < (_effectiveViewportHeight * 0.35);
 
       // Skip merging if this is the last page or if it's not a short page
       if (!isShortPage || i == pages.length - 1) {
