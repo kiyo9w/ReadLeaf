@@ -174,9 +174,19 @@ class EpubService {
     // First fix any HTML issues that might cause rendering problems
     String content = html;
 
+    // NUCLEAR OPTION: Remove all headings from the HTML
+    // This prevents duplicate headings completely - we'll add our own chapter title
+    content = content.replaceAll(
+        RegExp(r'<h[1-6][^>]*>.*?</h[1-6]>', dotAll: true), '');
+
+    // Remove empty paragraphs that might create spacing
+    content = content.replaceAll(
+        RegExp(r'<p[^>]*>(\s|&nbsp;)*</p>', dotAll: true), '');
+
     // Preserve line breaks before converting to standardized form
-    content = content.replaceAll('<br>', '<br/>');
-    content = content.replaceAll('<BR>', '<br/>');
+    content = content.replaceAll('<br>', ''); // Remove br tags entirely
+    content = content.replaceAll('<BR>', '');
+    content = content.replaceAll('<br/>', '');
 
     // Remove excess whitespace but preserve intentional whitespace in pre tags
     // First protect <pre> tag content
@@ -328,9 +338,14 @@ class EpubPageCalculator {
   static const double DEFAULT_FONT_SIZE = 23.0;
   static const double LINE_HEIGHT_MULTIPLIER = 1.1;
   static const double PAGE_PADDING = 20.0;
-  static const double PAGE_HEIGHT_FRACTION = 0.92;
-  static const double SAFETY_MARGIN = 15.0;
+  static const double PAGE_TOP_PADDING =
+      35.0; // Added specific top padding for app bar
+  static const double PAGE_HEIGHT_FRACTION =
+      0.98; // Increased from 0.95 to use more of the page height
+  static const double SAFETY_MARGIN =
+      5.0; // Reduced from 10.0 to allow more content
   static const double LINE_BREAK_FACTOR = 0.98;
+  static const double ADDITIONAL_SAFETY_MARGIN = 5.0; // Reduced from 10.0
 
   // Make these non-late final fields regular fields since we'll update them
   final double _viewportWidth;
@@ -339,6 +354,8 @@ class EpubPageCalculator {
   final double _effectiveViewportHeight;
   // Debug flag for tracking page calculations
   final bool _debugMode = false;
+  // Text measurer for accurate height calculations
+  late final HtmlTextMeasurer _textMeasurer;
 
   EpubPageCalculator({
     required double viewportWidth,
@@ -348,8 +365,15 @@ class EpubPageCalculator {
         _viewportHeight = viewportHeight * PAGE_HEIGHT_FRACTION,
         _fontSize = fontSize,
         _effectiveViewportHeight = (viewportHeight * PAGE_HEIGHT_FRACTION) -
-            (PAGE_PADDING * 2) -
-            SAFETY_MARGIN;
+            (PAGE_PADDING + PAGE_TOP_PADDING) -
+            SAFETY_MARGIN {
+    // Initialize text measurer
+    _textMeasurer = HtmlTextMeasurer(
+        fontSize: _fontSize,
+        maxWidth: _viewportWidth,
+        maxHeight: _effectiveViewportHeight,
+        lineHeight: LINE_HEIGHT_MULTIPLIER);
+  }
 
   void updateFontSize(double newFontSize) {
     _fontSize = newFontSize;
@@ -373,19 +397,25 @@ class EpubPageCalculator {
       print('Chapter $chapterIndex extracted ${blocks.length} content blocks');
     }
 
-    // 2. Calculate pages with HTML formatting preserved
+    // 2. Calculate pages using a simplified algorithm with consistent target height
+    // The revised pagination algorithm uses a consistent target fill ratio
+    // and fewer special case adjustments, providing more predictable pagination
     final List<EpubPage> pages = _paginateHtmlBlocks(blocks, chapterIndex,
         chapterTitle, _viewportWidth, _effectiveViewportHeight);
 
+    // 3. Post-process pages to merge very short pages with the next page when possible
+    final List<EpubPage> optimizedPages =
+        _mergeShortPages(pages, chapterIndex, chapterTitle);
+
     if (_debugMode) {
       print(
-          'Chapter $chapterIndex paginated in ${stopwatch.elapsedMilliseconds}ms, created ${pages.length} pages');
+          'Chapter $chapterIndex paginated in ${stopwatch.elapsedMilliseconds}ms, created ${optimizedPages.length} pages');
     }
 
-    return pages;
+    return optimizedPages;
   }
 
-  // Extract content blocks from HTML - improved version
+  /// Extract content blocks from HTML - improved version
   List<ContentBlock> _extractContentBlocks(String html) {
     final List<ContentBlock> blocks = [];
 
@@ -399,9 +429,23 @@ class EpubPageCalculator {
         bodyContent = bodyMatch.group(1) ?? html;
       }
 
+      // NUCLEAR OPTION: Remove all headings from the HTML
+      // This prevents duplicate headings completely - we'll add our own chapter title
+      bodyContent = bodyContent.replaceAll(
+          RegExp(r'<h[1-6][^>]*>.*?</h[1-6]>', dotAll: true), '');
+
+      // Also remove empty paragraphs that might create spacing
+      bodyContent = bodyContent.replaceAll(
+          RegExp(r'<p[^>]*>(\s|&nbsp;)*</p>', dotAll: true), '');
+
+      // Remove unnecessary line breaks that might cause spacing issues
+      bodyContent = bodyContent.replaceAll('<br>', '');
+      bodyContent = bodyContent.replaceAll('<br/>', '');
+      bodyContent = bodyContent.replaceAll('<BR>', '');
+
       // Find all block-level elements
       final blockRegex = RegExp(
-        r'<(p|h[1-6]|div|blockquote|pre|ul|ol|table|figure)[^>]*>(.*?)</\1>',
+        r'<(p|div|blockquote|pre|ul|ol|table|figure)[^>]*>(.*?)</\1>',
         dotAll: true,
         caseSensitive: false,
       );
@@ -477,371 +521,215 @@ class EpubPageCalculator {
     double maxWidth,
     double maxHeight,
   ) {
+    // Constants for simplified pagination - slightly more conservative
+    const double TARGET_FILL_RATIO = 1;
+    final double targetHeight = maxHeight * TARGET_FILL_RATIO;
+
     final List<EpubPage> pages = [];
     final List<ContentBlock> currentPageBlocks = [];
     double currentPageHeight = 0;
     int pageNumber = 1;
+
+    // Always add our own chapter title and set hasChapterTitle flag
+    // Since we've removed all headings from the HTML in _extractContentBlocks
+    final chapterTitleBlock = ContentBlock(
+        text:
+            '<h1 style="text-align: center; font-weight: bold; font-size: 105%; margin-bottom: 0; margin-top: 0;">${chapterTitle.trim()}</h1>',
+        tag: 'h1',
+        isHtml: true);
+
+    // Estimate the height of the title with zero margins
+    final titleHeight =
+        _estimateBlockHeight('<h1>${chapterTitle.trim()}</h1>', maxWidth) * 0.7;
+
+    // Don't add the title yet - check if we can fit title + first block together
     bool hasChapterTitle = false;
 
-    // Use a more conservative safety margin - 92% of maxHeight to prevent overflow
-    // This is reduced from 94% since we're still seeing overflow issues in dialog-heavy content
-    final safeMaxHeight = maxHeight * 0.92;
+    // Only add blocks if there are blocks to process
+    if (blocks.isNotEmpty) {
+      // Check if we can fit the title and first block together
+      final firstBlock = blocks[0];
+      final firstBlockHeight = _estimateBlockHeight(firstBlock.text, maxWidth);
 
-    // Track metrics to adapt the algorithm as we go
-    double lastPageFullnessRatio = 0.0;
-    double overflowFrequency = 0.0;
-    int pagesCreated = 0;
-
-    // Dialog detection - track consecutive dialog paragraphs to apply more conservative spacing
-    int consecutiveDialogCount = 0;
-    bool lastWasDialog = false;
-
-    // First, check if we need to add chapter title at the top
-    if (chapterTitle.isNotEmpty && blocks.isNotEmpty) {
-      if (blocks[0].tag.startsWith('h') &&
-          blocks[0].text.contains(chapterTitle)) {
+      // If title + first block fit with a slight overage allowance (5% extra),
+      // add both at once to prevent a lonely title page
+      if (titleHeight + firstBlockHeight <= targetHeight * 1.05) {
+        currentPageBlocks.add(chapterTitleBlock);
+        currentPageBlocks.add(firstBlock);
+        currentPageHeight = titleHeight + firstBlockHeight;
+        hasChapterTitle = true;
+      } else if (firstBlockHeight > targetHeight * 0.75) {
+        // If the first block is very large (>75% of page), add title alone
+        // This avoids pushing large first blocks to a second page
+        currentPageBlocks.add(chapterTitleBlock);
+        currentPageHeight = titleHeight;
         hasChapterTitle = true;
       } else {
-        // Add a nicely formatted chapter title at the top
-        currentPageBlocks.add(ContentBlock(
-            text:
-                '<h1 style="text-align: center; font-weight: bold; margin-bottom: 1.2em; margin-top: 0.8em;">$chapterTitle</h1>',
-            tag: 'h1',
-            isHtml: true));
-        currentPageHeight +=
-            _estimateBlockHeight('<h1>$chapterTitle</h1>', maxWidth) *
-                1.15; // Add 15% extra for titles
-        hasChapterTitle = true;
-      }
-    }
-
-    // Process all blocks
-    for (int i = 0; i < blocks.length; i++) {
-      var block = blocks[i];
-
-      // Skip if this is a heading that matches the chapter title and we already added the title
-      if (hasChapterTitle &&
-          block.tag.startsWith('h') &&
-          _stripHtmlTags(block.text).trim() == chapterTitle.trim()) {
-        continue;
-      }
-
-      // Check if this is a dialog (starts with a quotation mark)
-      final plainText = _stripHtmlTags(block.text);
-      bool isDialog = plainText.trim().startsWith('"') ||
-          plainText.trim().startsWith('"') ||
-          plainText.contains("said") ||
-          plainText.contains("asked") ||
-          (plainText.contains('"') && plainText.contains('"'));
-
-      // Special handling for dialog paragraphs
-      if (isDialog) {
-        if (lastWasDialog) {
-          consecutiveDialogCount++;
-        } else {
-          consecutiveDialogCount = 1;
-        }
-        lastWasDialog = true;
-
-        // Add proper spacing between dialog paragraphs
-        if (currentPageBlocks.isNotEmpty && block.tag == 'p') {
-          // Add dialog-specific styling if needed
-          if (!block.text.contains('margin-top')) {
-            final plainDialog = _stripHtmlTags(block.text);
-            final dialogWithSpace =
-                '<p style="text-indent: 1.5em; margin-top: 0.8em; margin-bottom: 0; text-align: justify; text-justify: inter-word; line-height: 1.3;">${plainDialog}</p>';
-            block = ContentBlock(text: dialogWithSpace, tag: 'p', isHtml: true);
-          }
-        }
-      } else {
-        consecutiveDialogCount = 0;
-        lastWasDialog = false;
-      }
-
-      // Special handling for chapter number blocks (e.g., centered "1")
-      bool isChapterNumber = false;
-      if (block.tag == 'h1' || block.tag == 'h2') {
-        // Check if block is just a number or few characters, likely a chapter number
-        final trimmedText = plainText.trim();
-        if (trimmedText.length <= 3 && RegExp(r'^\d+$').hasMatch(trimmedText)) {
-          isChapterNumber = true;
-          // Style chapter numbers to match the shown format
-          if (!block.text.contains('text-align: center')) {
-            // Replace original block with properly styled chapter number
-            final newBlock = ContentBlock(
-                text:
-                    '<h1 style="text-align: center; font-weight: bold; margin-top: 1.5em; margin-bottom: 1.5em;">$trimmedText</h1>',
-                tag: 'h1',
-                isHtml: true);
-            // This is a shallow replacement that doesn't modify the original list
-            block = newBlock;
-          }
-        }
-      }
-
-      // Estimate height of this block with a dialog-specific safety factor if needed
-      double dialogFactor = 1.0;
-      if (consecutiveDialogCount > 1) {
-        // Apply increasingly conservative estimates for consecutive dialog blocks
-        dialogFactor = 1.0 + (math.min(consecutiveDialogCount, 5) * 0.035);
-      }
-
-      // Add extra height for chapter numbers and other special blocks
-      if (isChapterNumber) {
-        dialogFactor = 1.2; // Chapter numbers need extra vertical space
-      }
-
-      final blockHeight =
-          _estimateBlockHeight(block.text, maxWidth) * dialogFactor;
-
-      // Apply dynamic safety adjustment based on previous metrics
-      double adjustedMaxHeight = safeMaxHeight;
-
-      if (pagesCreated > 0) {
-        // Dynamically adjust based on previous pages
-        if (overflowFrequency > 0.12) {
-          // We're experiencing overflow frequently, be more conservative
-          adjustedMaxHeight =
-              safeMaxHeight * (0.96 - (overflowFrequency * 0.08));
-        } else if (lastPageFullnessRatio < 0.65 && overflowFrequency < 0.1) {
-          // Pages aren't very full and we rarely have overflow, be more aggressive
-          adjustedMaxHeight = math.min(safeMaxHeight * 1.01, safeMaxHeight);
-        }
-
-        // Check based on content type
-        if (block.tag == 'p' && plainText.length > 700) {
-          // Long paragraphs need more caution - reduced from 800 to 700 chars
-          adjustedMaxHeight = math.min(adjustedMaxHeight, safeMaxHeight * 0.94);
-        } else if (isDialog) {
-          // Dialog needs extra caution especially multi-line dialog
-          adjustedMaxHeight = math.min(adjustedMaxHeight, safeMaxHeight * 0.92);
-        } else if (isChapterNumber) {
-          // Chapter numbers can be more aggressively packed
-          adjustedMaxHeight = math.min(adjustedMaxHeight * 1.05, safeMaxHeight);
-        } else if (block.tag.startsWith('h')) {
-          // Headings need special handling
-          adjustedMaxHeight = math.min(adjustedMaxHeight, safeMaxHeight * 0.96);
-        }
-      }
-
-      // Special case for TOC pages
-      if (block.text.contains('Table of Contents') ||
-          (plainText.contains('Contents') && block.tag.startsWith('h'))) {
-        // Table of contents pages need different handling
-        adjustedMaxHeight = safeMaxHeight * 0.98; // Give TOC more space
-      }
-
-      // Ensure our adjustment stays within safe bounds
-      adjustedMaxHeight = math.min(adjustedMaxHeight, safeMaxHeight);
-      adjustedMaxHeight = math.max(adjustedMaxHeight, safeMaxHeight * 0.88);
-
-      // Special handling for large blocks that might exceed page height
-      if (blockHeight > adjustedMaxHeight) {
-        // This block is too large for a single page and needs to be split
-        if (currentPageBlocks.isNotEmpty) {
-          // First, create a page with current blocks
-          pages.add(_createPageFromBlocks(
-              currentPageBlocks, chapterIndex, pageNumber++, chapterTitle));
-          pagesCreated++;
-          lastPageFullnessRatio = currentPageHeight / adjustedMaxHeight;
-          currentPageBlocks.clear();
-          currentPageHeight = 0;
-        }
-
-        // Now handle the large block by splitting it
-        _splitAndAddLargeBlock(
-            block,
-            maxWidth,
-            adjustedMaxHeight *
-                0.92, // Even more conservative split target for large blocks
-            chapterIndex,
-            chapterTitle,
-            pageNumber,
-            pages);
-
-        // Update metrics
-        pageNumber += (blockHeight / adjustedMaxHeight).ceil();
-        pagesCreated += (blockHeight / adjustedMaxHeight).ceil();
-        lastPageFullnessRatio = 0.9; // Lower assumption for split pages
-        continue;
-      }
-
-      // When we're approaching page capacity, be more conservative for dialog
-      // This helps prevent dialog overflow which is common in novels
-      if (currentPageHeight > (adjustedMaxHeight * 0.7) && isDialog) {
-        adjustedMaxHeight = adjustedMaxHeight * 0.96;
-      }
-
-      // When a page already has content and the next block is a chapter number,
-      // force it to start on a new page
-      if (isChapterNumber && currentPageBlocks.isNotEmpty) {
-        // Start a new page for chapter numbers
+        // In this case, we'll put both title and block on next page
+        // First create an empty page, then start with title+block
         pages.add(_createPageFromBlocks(
             currentPageBlocks, chapterIndex, pageNumber++, chapterTitle));
-        pagesCreated++;
-        lastPageFullnessRatio = currentPageHeight / adjustedMaxHeight;
-
-        // Start a new page with just the chapter number
         currentPageBlocks.clear();
-        currentPageBlocks.add(block);
-        currentPageHeight = blockHeight;
-        continue;
+        currentPageBlocks.add(chapterTitleBlock);
+        currentPageBlocks.add(firstBlock);
+        currentPageHeight = titleHeight + firstBlockHeight;
+        hasChapterTitle = true;
       }
 
-      // Check if this block would fit on the current page
-      if (currentPageHeight + blockHeight <= adjustedMaxHeight) {
-        // Block fits completely, add it to current page
-        currentPageBlocks.add(block);
-        currentPageHeight += blockHeight;
-      } else if (currentPageHeight <
-              adjustedMaxHeight * 0.72 && // Lower threshold to 72%
-          block.tag == 'p' &&
-          !block.text.contains('<h') &&
-          !block.text.contains('<img')) {
-        // Page is at least 72% filled but has space, and this is a paragraph that could potentially be split
-        // Try to split this block to better fill the page
-        final remainingHeight = adjustedMaxHeight - currentPageHeight;
+      // Start processing from the second block
+      for (int i = 1; i < blocks.length; i++) {
+        var block = blocks[i];
 
-        // Calculate a target fill ratio based on context
-        double targetFillRatio = 0.88; // Reduced from 0.90 for safety
-
-        // If the paragraph is very long, be more conservative
-        if (plainText.length > 700) {
-          targetFillRatio = 0.85; // Reduced from 0.88
+        // Skip empty paragraphs that might create unwanted gaps
+        if (block.tag == 'p') {
+          final trimmedText = _stripHtmlTags(block.text).trim();
+          if (trimmedText.isEmpty || trimmedText == "&nbsp;") {
+            continue;
+          }
         }
 
-        // If this is dialog, be more conservative
-        if (isDialog) {
-          targetFillRatio = 0.82; // Even more conservative for dialog
+        // Extract plain text for simple content analysis
+        final plainText = _stripHtmlTags(block.text);
+
+        // Simple content type detection (minimal special casing)
+        bool isDialog = plainText.trim().startsWith('"') ||
+            plainText.trim().startsWith('"');
+        bool isChapterNumber = plainText.trim().length <= 3 &&
+            RegExp(r'^\d+$').hasMatch(plainText.trim());
+
+        // Apply minimal styling for dialog paragraphs
+        if (isDialog &&
+            block.tag == 'p' &&
+            !block.text.contains('margin-top')) {
+          final dialogWithSpace =
+              '<p style="text-indent: 1.5em; margin-top: 0.8em; margin-bottom: 0; text-align: justify; text-justify: inter-word; line-height: 1.3;">$plainText</p>';
+          block = ContentBlock(text: dialogWithSpace, tag: 'p', isHtml: true);
         }
 
-        // If we're near the end of the chapter, be more aggressive
-        if (i > blocks.length * 0.9) {
-          targetFillRatio = math.min(targetFillRatio + 0.02, 0.9);
+        // Apply minimal styling for chapter numbers
+        if (isChapterNumber && !block.text.contains('text-align: center')) {
+          final chapterNumberBlock = ContentBlock(
+              text:
+                  '<h1 style="text-align: center; font-weight: bold; margin-top: 1.5em; margin-bottom: 1.5em;">${plainText.trim()}</h1>',
+              tag: 'h1',
+              isHtml: true);
+          block = chapterNumberBlock;
         }
 
-        final splitResult = _splitParagraphBlock(
-            block, maxWidth, remainingHeight, targetFillRatio);
+        // Force chapter numbers to start on a new page if there's already content
+        if (isChapterNumber && currentPageBlocks.isNotEmpty) {
+          pages.add(_createPageFromBlocks(
+              currentPageBlocks, chapterIndex, pageNumber++, chapterTitle));
+          currentPageBlocks.clear();
+          currentPageBlocks.add(block);
+          currentPageHeight = _estimateBlockHeight(block.text, maxWidth);
+          continue;
+        }
 
-        if (splitResult.firstPart.isNotEmpty) {
-          // Add the first part to the current page
-          currentPageBlocks.add(ContentBlock(
-              text: splitResult.firstPart, tag: 'p', isHtml: true));
+        // Estimate block height (simple, without complex adjustments)
+        final blockHeight = _estimateBlockHeight(block.text, maxWidth);
 
-          // Double-check that adding this won't cause overflow
-          final firstPartHeight =
-              _estimateBlockHeight(splitResult.firstPart, maxWidth) *
-                  (isDialog ? 1.08 : 1.0); // Extra safety for dialog
+        // Check if block is too large for a single page
+        if (blockHeight > maxHeight * 0.95) {
+          // Split very large blocks across multiple pages
+          if (currentPageBlocks.isNotEmpty) {
+            // Create a page with current blocks first
+            pages.add(_createPageFromBlocks(
+                currentPageBlocks, chapterIndex, pageNumber++, chapterTitle));
+            currentPageBlocks.clear();
+            currentPageHeight = 0;
+          }
 
-          if (currentPageHeight + firstPartHeight > adjustedMaxHeight) {
-            // Risk of overflow, remove the last block and create the page without it
-            currentPageBlocks.removeLast();
+          // Split the large block
+          _splitAndAddLargeBlock(block, maxWidth, maxHeight, chapterIndex,
+              chapterTitle, pageNumber, pages);
 
-            if (currentPageBlocks.isNotEmpty) {
+          // Update page number
+          pageNumber += (blockHeight / maxHeight).ceil();
+          continue;
+        }
+
+        // Standard case: check if this block fits on the current page
+        if (currentPageHeight + blockHeight <= targetHeight) {
+          // Block fits within our target height
+          currentPageBlocks.add(block);
+          currentPageHeight += blockHeight;
+        } else if (block.tag == 'p' &&
+            !block.text.contains('<img') &&
+            currentPageHeight >= targetHeight * 0.5) {
+          // Current page is at least 50% filled and this paragraph would overflow
+          // Try to split the paragraph to better fill the page
+          final remainingHeight = targetHeight - currentPageHeight;
+
+          // Use a more conservative fill ratio for splitting - REDUCED from 0.95
+          const double SPLIT_FILL_RATIO = 0.95;
+
+          final splitResult = _splitParagraphBlock(
+              block, maxWidth, remainingHeight, SPLIT_FILL_RATIO);
+
+          if (splitResult.firstPart.isNotEmpty) {
+            // Check if second part is too short - don't split if it would create a tiny second part
+            final secondPartHeight =
+                _estimateBlockHeight(splitResult.secondPart, maxWidth);
+
+            // If second part would create a very short page (<20% of page height), don't split
+            if (secondPartHeight < maxHeight * 0.2) {
+              // Just put the whole paragraph on the next page
               pages.add(_createPageFromBlocks(
                   currentPageBlocks, chapterIndex, pageNumber++, chapterTitle));
-              pagesCreated++;
-              lastPageFullnessRatio = currentPageHeight / adjustedMaxHeight;
-
-              // Start new page with the entire original block
               currentPageBlocks.clear();
               currentPageBlocks.add(block);
               currentPageHeight = blockHeight;
-    } else {
-              // This was the only block, try to put a smaller portion on this page
-              final moreConservativeSplit = _splitParagraphBlock(
-                  block,
-                  maxWidth,
-                  adjustedMaxHeight * 0.65, // Smaller target, reduced from 0.7
-                  0.65 // Much more conservative fill ratio, reduced from 0.7
-                  );
+            } else {
+              // Add the first part to the current page
+              currentPageBlocks.add(ContentBlock(
+                  text: splitResult.firstPart, tag: 'p', isHtml: true));
 
-              if (moreConservativeSplit.firstPart.isNotEmpty) {
+              // Create the page
+              pages.add(_createPageFromBlocks(
+                  currentPageBlocks, chapterIndex, pageNumber++, chapterTitle));
+
+              // Start new page with the second part
+              currentPageBlocks.clear();
+              currentPageHeight = 0;
+
+              if (splitResult.secondPart.isNotEmpty) {
+                // Add second part to new page
                 currentPageBlocks.add(ContentBlock(
-                    text: moreConservativeSplit.firstPart,
-                    tag: 'p',
-                    isHtml: true));
-
-                pages.add(_createPageFromBlocks(currentPageBlocks, chapterIndex,
-                    pageNumber++, chapterTitle));
-                pagesCreated++;
-
-                // Start new page with second part
-                currentPageBlocks.clear();
-                if (moreConservativeSplit.secondPart.isNotEmpty) {
-                  currentPageBlocks.add(ContentBlock(
-                      text: moreConservativeSplit.secondPart,
-                      tag: 'p',
-                      isHtml: true));
-                  currentPageHeight = _estimateBlockHeight(
-                      moreConservativeSplit.secondPart, maxWidth);
-                } else {
-                  currentPageHeight = 0;
-                }
-              } else {
-                // Couldn't find a good split, use the original block
-                currentPageBlocks.add(block);
-                currentPageHeight = blockHeight;
+                    text: splitResult.secondPart, tag: 'p', isHtml: true));
+                currentPageHeight =
+                    _estimateBlockHeight(splitResult.secondPart, maxWidth);
               }
             }
           } else {
-            // Safe to add, create page with all blocks including split part
+            // Could not split effectively - create page with current blocks
             pages.add(_createPageFromBlocks(
                 currentPageBlocks, chapterIndex, pageNumber++, chapterTitle));
-            pagesCreated++;
-            lastPageFullnessRatio =
-                (currentPageHeight + firstPartHeight) / adjustedMaxHeight;
 
-            // Start a new page with the remainder
+            // Start a new page with this block
             currentPageBlocks.clear();
-            currentPageHeight = 0;
-
-            // Add second part to new page if it exists
-            if (splitResult.secondPart.isNotEmpty) {
-              currentPageBlocks.add(ContentBlock(
-                  text: splitResult.secondPart, tag: 'p', isHtml: true));
-              currentPageHeight =
-                  _estimateBlockHeight(splitResult.secondPart, maxWidth);
-            }
+            currentPageBlocks.add(block);
+            currentPageHeight = blockHeight;
           }
         } else {
-          // Could not split effectively, add page and put entire block on next page
-          pages.add(_createPageFromBlocks(
-              currentPageBlocks, chapterIndex, pageNumber++, chapterTitle));
-          pagesCreated++;
-          lastPageFullnessRatio = currentPageHeight / adjustedMaxHeight;
+          // Block doesn't fit and we can't/shouldn't split it
+          // Create a page with current blocks if there are any
+          if (currentPageBlocks.isNotEmpty) {
+            pages.add(_createPageFromBlocks(
+                currentPageBlocks, chapterIndex, pageNumber++, chapterTitle));
+          }
 
           // Start a new page with this block
           currentPageBlocks.clear();
           currentPageBlocks.add(block);
           currentPageHeight = blockHeight;
         }
-      } else {
-        // Block doesn't fit and we can't/shouldn't split it
-        // Create a page with current blocks if any
-        if (currentPageBlocks.isNotEmpty) {
-          pages.add(_createPageFromBlocks(
-              currentPageBlocks, chapterIndex, pageNumber++, chapterTitle));
-          pagesCreated++;
-          lastPageFullnessRatio = currentPageHeight / adjustedMaxHeight;
-        }
-
-        // Start a new page with this block
-        currentPageBlocks.clear();
-        currentPageBlocks.add(block);
-        currentPageHeight = blockHeight;
       }
-
-      // Update overflow frequency metric based on how full the last page was
-      if (lastPageFullnessRatio > 0.96) {
-        // This page was potentially overflowing
-        overflowFrequency =
-            (overflowFrequency * pagesCreated + 1) / (pagesCreated + 1);
-      } else {
-        // Normal page, decrease the overflow frequency metric
-        overflowFrequency =
-            (overflowFrequency * pagesCreated) / (pagesCreated + 1);
-      }
+    } else {
+      // No blocks to process, just add the title
+      currentPageBlocks.add(chapterTitleBlock);
+      currentPageHeight = titleHeight;
+      hasChapterTitle = true;
     }
 
     // Add the last page if there are remaining blocks
@@ -862,17 +750,24 @@ class EpubPageCalculator {
       String chapterTitle,
       int startPageNumber,
       List<EpubPage> pages) {
-    // Handle text blocks by splitting at character level if needed
+    // Special case for images or non-text content
+    if (block.text.contains('<img') || block.tag == 'figure') {
+      // Put images on their own page
+      pages.add(EpubPage(
+          content: block.text,
+          plainText: _stripHtmlTags(block.text),
+          chapterIndex: chapterIndex,
+          pageNumberInChapter: startPageNumber,
+          chapterTitle: chapterTitle,
+          absolutePageNumber: 0));
+      return;
+    }
+
+    // Handle text blocks by finding natural split points
     if (block.tag == 'p' || block.tag == 'div' || block.tag == 'span') {
-      String text = _stripHtmlTags(block.text);
-      final totalHeight = _estimateBlockHeight(block.text, maxWidth);
-      final chars = text.length;
-
-      // Estimate how many characters fit on one page
-      final estimatedCharsPerPage = (chars * (maxHeight / totalHeight)).floor();
-
-      if (estimatedCharsPerPage <= 0) {
-        // Fallback for very small blocks
+      final String text = _stripHtmlTags(block.text);
+      if (text.length < 200) {
+        // If not very long, just keep it on one page
         pages.add(EpubPage(
             content: block.text,
             plainText: text,
@@ -883,30 +778,47 @@ class EpubPageCalculator {
         return;
       }
 
-      // Split text and create pages
-      int offset = 0;
-      int pageNum = startPageNumber;
+      // Extract the original style if available
+      String style = '';
+      if (block.tag == 'p') {
+        final styleMatch =
+            RegExp(r'''style=["'](.*?)["']''').firstMatch(block.text);
+        if (styleMatch != null) {
+          style = styleMatch.group(1) ?? '';
+        }
+        if (style.isEmpty) {
+          style =
+              "text-indent: 1.5em; margin-bottom: 0.5em; text-align: justify; text-justify: inter-word;";
+        }
+      }
 
-      while (offset < text.length) {
-        int endOffset = math.min(offset + estimatedCharsPerPage, text.length);
+      // Estimate approximate characters per page
+      final approxCharsPerLine = (maxWidth / (_fontSize * 0.6)).floor();
+      final approxLinesPerPage =
+          (maxHeight / (_fontSize * LINE_HEIGHT_MULTIPLIER)).floor();
+      final charsPerPage = (approxCharsPerLine * approxLinesPerPage * 0.85)
+          .floor(); // 85% fill ratio
 
-        // Create a page with this content segment
-        final htmlWrapper = block.tag == 'p'
-            ? '<p style="text-indent: 1.5em; margin-bottom: 0.5em;">${text.substring(offset, endOffset)}</p>'
-            : '<div>${text.substring(offset, endOffset)}</div>';
+      // Use natural break points for splitting
+      final segments = _splitTextIntoPages(text, charsPerPage);
+
+      // Create pages for each segment
+      for (int i = 0; i < segments.length; i++) {
+        final segment = segments[i];
+        final htmlContent = block.tag == 'p'
+            ? '<p style="$style">${segment.trim()}</p>'
+            : '<${block.tag}>${segment.trim()}</${block.tag}>';
 
         pages.add(EpubPage(
-            content: htmlWrapper,
-            plainText: text.substring(offset, endOffset),
+            content: htmlContent,
+            plainText: segment,
             chapterIndex: chapterIndex,
-            pageNumberInChapter: pageNum++,
+            pageNumberInChapter: startPageNumber + i,
             chapterTitle: chapterTitle,
             absolutePageNumber: 0));
-
-        offset = endOffset;
       }
-      } else {
-      // For non-paragraphs just put the entire block on a page by itself
+    } else {
+      // For non-text blocks, just put on a single page
       pages.add(EpubPage(
           content: block.text,
           plainText: _stripHtmlTags(block.text),
@@ -915,6 +827,30 @@ class EpubPageCalculator {
           chapterTitle: chapterTitle,
           absolutePageNumber: 0));
     }
+  }
+
+  // Split text into pages at natural break points
+  List<String> _splitTextIntoPages(String text, int targetCharsPerPage) {
+    final List<String> segments = [];
+    int startIndex = 0;
+
+    while (startIndex < text.length) {
+      // Calculate target end point for this segment
+      int endIndex = math.min(startIndex + targetCharsPerPage, text.length);
+
+      // Find optimal break point near target end
+      if (endIndex < text.length) {
+        endIndex = _findOptimalSplitPoint(text, endIndex);
+      }
+
+      // Add segment
+      segments.add(text.substring(startIndex, endIndex));
+
+      // Move to next segment
+      startIndex = endIndex;
+    }
+
+    return segments;
   }
 
   // Split a paragraph block to better fit current page
@@ -930,24 +866,8 @@ class EpubPageCalculator {
 
     // Extract text without HTML tags
     final fullText = _stripHtmlTags(block.text);
-
-    // Estimate how many characters we can fit in the remaining height
-    // Characters per line approximation
-    final charWidth = 8; // Approximate width of a character in pixels
-    final charsPerLine = (maxWidth / charWidth).floor();
-
-    // Lines that can fit in remaining height
-    final lineHeight = 20; // Approximate line height in pixels
-    final linesAvailable = (remainingHeight / lineHeight).floor();
-
-    // Target number of characters that should fill the remaining space
-    final targetChars = (charsPerLine * linesAvailable * fillFactor).floor();
-
-    // Find the best place to break the paragraph
-    int breakIndex = _findOptimalSplitPoint(fullText, targetChars);
-
-    if (breakIndex <= 50 || breakIndex >= fullText.length - 50) {
-      // No good split point found, or split point is too close to start/end
+    if (fullText.length < 100) {
+      // Too short to split effectively
       return _ParagraphSplitResult('', block.text);
     }
 
@@ -958,25 +878,33 @@ class EpubPageCalculator {
         RegExp(r'''<p\s+style=["'](.*?)["']''').firstMatch(block.text);
     if (styleMatch != null) {
       pStyle = 'style="${styleMatch.group(1)}"';
-      // Ensure justification is included in the style
-      if (!pStyle.contains('text-align')) {
-        pStyle = pStyle.replaceFirst('style="',
-            'style="text-align: justify; text-justify: inter-word; ');
-      }
     }
 
-    // Create HTML for both parts, preserving original styling
+    // Estimate characters that would fit in remaining height
+    final approxCharsPerLine = (maxWidth / (_fontSize * 0.6)).floor();
+    final approxLinesAvailable =
+        (remainingHeight / (_fontSize * LINE_HEIGHT_MULTIPLIER)).floor();
+    final targetChars =
+        (approxCharsPerLine * approxLinesAvailable * fillFactor).floor();
+
+    // Find the best split point
+    int breakIndex = _findOptimalSplitPoint(fullText, targetChars);
+
+    // If we can't find a good split point or it's too close to start/end, don't split
+    if (breakIndex <= 80 || breakIndex >= fullText.length - 50) {
+      return _ParagraphSplitResult('', block.text);
+    }
+
+    // Create the first part with the original style
     final firstPart =
         '<p $pStyle>${fullText.substring(0, breakIndex).trim()}</p>';
 
-    // For the second part, check if it needs indentation
-    // If it's continuing a paragraph, we might want to skip text-indent
+    // For the second part, check if it needs modified indentation
     String secondPartStyle = pStyle;
     if (breakIndex > 0) {
       // If previous char was end of sentence punctuation, keep indentation
-      bool isEndOfSentence = false;
       final char = fullText[breakIndex - 1];
-      isEndOfSentence = char == '.' || char == '?' || char == '!';
+      final isEndOfSentence = char == '.' || char == '?' || char == '!';
 
       // If not at end of sentence, remove indentation for continuation
       if (!isEndOfSentence) {
@@ -984,8 +912,10 @@ class EpubPageCalculator {
       }
     }
 
+    // Create the second part
     final secondPart =
         '<p $secondPartStyle>${fullText.substring(breakIndex).trim()}</p>';
+
     return _ParagraphSplitResult(firstPart, secondPart);
   }
 
@@ -1058,7 +988,7 @@ class EpubPageCalculator {
 
     for (final block in blocks) {
       contentBuilder.write(block.text);
-      contentBuilder.write('\n'); // Add small spacing between blocks
+      // Important: Don't add any newlines between blocks to avoid extra spacing
       plainTextBuilder.write(_stripHtmlTags(block.text));
       plainTextBuilder.write(' '); // Space between blocks in plain text
     }
@@ -1073,150 +1003,84 @@ class EpubPageCalculator {
     );
   }
 
-  // Estimate the height of an HTML block using approximation
+  // Estimate the height of an HTML block using a simplified approach
   double _estimateBlockHeight(String html, double maxWidth) {
     final String text = _stripHtmlTags(html);
     if (text.isEmpty) return 0;
 
-    // Get the HTML tag
+    // Extract the HTML tag
     String tag = 'p';
     final tagMatch = RegExp(r'<([a-zA-Z0-9]+)[^>]*>').firstMatch(html);
     if (tagMatch != null) {
       tag = tagMatch.group(1)?.toLowerCase() ?? 'p';
     }
 
-    // Set base font size based on tag type
+    // Special handling for images
+    if (html.contains('<img')) {
+      // Images use a fixed percentage of the viewport height
+      return _effectiveViewportHeight * 0.5;
+    }
+
+    // Set base font size and spacing based on tag type
     double fontSize = _fontSize;
-    double lineHeight = LINE_HEIGHT_MULTIPLIER;
+    double lineHeightMultiplier = LINE_HEIGHT_MULTIPLIER;
     double topMargin = 0;
     double bottomMargin = 0;
     double characterWidthFactor =
         0.6; // Average character width as fraction of fontSize
 
-    // Extra safety factor for complex content that might need more space
-    double safetyFactor = 1.0;
-
-    // Check if we have an image tag - images need special handling
-    if (html.contains('<img')) {
-      // Images typically need more space - rough estimation
-      return _effectiveViewportHeight * 0.6; // Assume image takes 60% of page
-    }
-
-    // Adjust sizing based on tag type
+    // Simple tag-based adjustments with fewer special cases
     if (tag.startsWith('h')) {
-      // Heading tags
+      // Heading tags with size based on level
       int level = int.tryParse(tag.substring(1)) ?? 1;
-      fontSize =
-          _fontSize * (2.5 - (level * 0.3)); // h1 is largest, then scales down
+      fontSize = _fontSize * (2.0 - (level * 0.2));
+      topMargin = 0.5 * fontSize;
       bottomMargin = 0.5 * fontSize;
-      topMargin = 0.6 * fontSize; // Increased top margin for headings
       characterWidthFactor = 0.7; // Headers often use wider font
-
-      // Headings might need more vertical space especially with line wrapping
-      safetyFactor = 1.2; // Increased from 1.18
-
-      // If this is just a chapter number (1, 2, etc.), give it more space
-      if (text.trim().length <= 3 && RegExp(r'^\d+$').hasMatch(text.trim())) {
-        // This is likely just a chapter number
-        safetyFactor = 1.25;
-        topMargin = 1.0 * fontSize;
-        bottomMargin = 1.0 * fontSize;
-      }
     } else if (tag == 'p') {
-      // Paragraph
-      bottomMargin = 0.5 * fontSize;
+      // Regular paragraphs
+      bottomMargin = 0.3 * fontSize;
 
-      // Check for styles that affect layout
-      if (html.contains('text-align: center') ||
-          html.contains('text-align:center')) {
-        characterWidthFactor =
-            0.65; // Centered text often has different spacing
+      // Basic check for centered text
+      if (html.contains('text-align: center')) {
+        characterWidthFactor = 0.65;
       }
+
+      // Simple check for indentation
       if (html.contains('text-indent')) {
-        // Account for indentation space
-        topMargin += 0.2 * fontSize;
-      }
-
-      // Calculate complexity of text - complex paragraphs need more space
-      if (text.length > 500) {
-        safetyFactor = 1.1; // Increased from 1.08
-      }
-
-      // Check for content with lots of punctuation or special characters
-      final punctuationRatio =
-          RegExp(r'''[,.;:!?"\'\-]''').allMatches(text).length / text.length;
-      if (punctuationRatio > 0.15) {
-        safetyFactor = math.max(safetyFactor, 1.12); // Increased from 1.1
-      }
-
-      // Check for dialog-heavy content (quotes or multiple short paragraphs)
-      // Dialog often has unexpected rendering behavior and needs more space
-      if (text.contains('"') || text.contains('"') || text.contains("said")) {
-        safetyFactor = math.max(safetyFactor, 1.15); // Increased from 1.12
-      }
-
-      // Additional check for paragraph starts with quotation (likely dialog)
-      if (text.trim().startsWith('"') || text.trim().startsWith('"')) {
-        safetyFactor = math.max(safetyFactor, 1.18); // Increased from 1.15
-        // Add a bit more margin for dialog
-        topMargin += 0.2 * fontSize; // Increased from 0.15
-      }
-
-      // Check for content with potentially wider characters
-      if (RegExp(r'[MWQO]').hasMatch(text)) {
-        characterWidthFactor = 0.65; // Adjust for wider characters
-      }
-
-      // Check for very long words that might cause wrapping issues
-      final words = text.split(RegExp(r'\s+'));
-      final maxWordLength =
-          words.fold(0, (max, word) => math.max(max, word.length));
-      if (maxWordLength > 15) {
-        // Long words can cause unexpected wrapping
-        safetyFactor = math.max(safetyFactor, 1.12); // Increased from 1.1
-      }
-
-      // Short paragraphs often take more space than calculated (due to min height in rendering)
-      if (text.length < 100) {
-        safetyFactor = math.max(safetyFactor, 1.12); // Increased from 1.1
+        topMargin += 0.1 * fontSize;
       }
     } else if (tag == 'blockquote') {
-      // Blockquote
-      bottomMargin = 0.5 * fontSize;
-      topMargin = 0.5 * fontSize;
-      // Account for margin/padding in blockquotes
-      maxWidth = maxWidth * 0.9;
-      safetyFactor = 1.18; // Increased from 1.15
+      // Blockquotes with margins
+      topMargin = 0.4 * fontSize;
+      bottomMargin = 0.4 * fontSize;
+      maxWidth = maxWidth * 0.9; // Account for indentation
     } else if (tag == 'pre') {
-      // Preformatted text
-      lineHeight = 1.2; // Tighter line height for code
-      characterWidthFactor = 0.5; // Monospace fonts are often narrower
-      safetyFactor = 1.18; // Increased from 1.15
+      // Code blocks
+      lineHeightMultiplier = 1.2;
+      characterWidthFactor = 0.5; // Monospace fonts
     } else if (tag == 'ul' || tag == 'ol') {
       // Lists
-      bottomMargin = 0.5 * fontSize;
-      // Account for list item indentation
-      maxWidth = maxWidth * 0.9;
-      safetyFactor = 1.22; // Increased from 1.2
+      bottomMargin = 0.4 * fontSize;
+      maxWidth = maxWidth * 0.9; // Account for list indentation
     }
 
-    // Calculate number of lines needed with improved accuracy
-    // Take into account that some characters are wider than others
+    // Calculate number of characters per line
     final charsPerLine = (maxWidth / (fontSize * characterWidthFactor)).floor();
 
-    // Handle texts with long words better
+    // Calculate number of lines needed (simplified word-based approach)
     int numLines = 0;
-
-    // Analyze word lengths to better estimate wrapping
     final words = text.split(RegExp(r'\s+'));
-    int remainingLineChars = charsPerLine;
+    int currentLineLength = 0;
 
     for (final word in words) {
+      // Skip empty words
       if (word.isEmpty) continue;
 
-      // Check if this word fits on the current line
-      if (word.length <= remainingLineChars) {
-        remainingLineChars -= word.length + 1; // word + space
+      // Check if this word fits on current line
+      if (currentLineLength + word.length + 1 <= charsPerLine) {
+        // Word fits, add it to current line
+        currentLineLength += word.length + 1; // word + space
       } else {
         // Word doesn't fit, start a new line
         numLines++;
@@ -1224,37 +1088,54 @@ class EpubPageCalculator {
         if (word.length > charsPerLine) {
           // Very long word that needs multiple lines
           numLines += (word.length / charsPerLine).ceil() - 1;
-          remainingLineChars = charsPerLine - (word.length % charsPerLine);
-          if (remainingLineChars == charsPerLine) remainingLineChars = 0;
+          currentLineLength = word.length % charsPerLine;
+          if (currentLineLength == 0) currentLineLength = charsPerLine;
         } else {
-          remainingLineChars = charsPerLine - word.length - 1;
+          currentLineLength = word.length;
         }
       }
     }
 
-    // Add one more line if we've started filling a line
-    if (remainingLineChars < charsPerLine) {
+    // Add final line if there's content in progress
+    if (currentLineLength > 0) {
       numLines++;
     }
 
     // Ensure at least one line
     numLines = math.max(1, numLines);
 
-    // Quotation marks and punctuation often cause unexpected wrapping
-    // Add a small line count adjustment based on punctuation density
-    final quoteCount = '"\''
-        .split('')
-        .fold(0, (count, char) => count + text.split(char).length - 1);
-    if (quoteCount > 0) {
-      // Add a small percentage of extra lines based on quote count
-      numLines += (numLines * 0.06 * math.min(quoteCount, 5))
-          .ceil(); // Increased from 0.05
+    // Apply a content-based safety factor with more conservative values
+    double safetyFactor = 1.0;
+
+    // Check for specific patterns that might cause overflow
+    bool hasComplexFormatting = html.contains('style=') && html.contains(';');
+    bool containsQuotes = text.contains('"') || text.contains('"');
+    bool isDialog =
+        containsQuotes && (text.contains('said') || text.contains('asked'));
+    bool hasSpecialChars = text.contains('—') || text.contains('–');
+    bool hasNumbers = RegExp(r'\d+').hasMatch(text);
+
+    // Adjust safety factors based on content characteristics
+    if (isDialog) {
+      safetyFactor = 1.15;
+    } else if (hasComplexFormatting) {
+      safetyFactor = 1.12; // Complex formatting needs more room
+    } else if (containsQuotes) {
+      safetyFactor = 1.08; // Just quotes
+    } else if (hasSpecialChars) {
+      safetyFactor = 1.07; // Special characters
+    } else if (hasNumbers) {
+      safetyFactor = 1.05; // Numbers might need slightly more space
+    } else if (text.length > 500) {
+      safetyFactor = 1.05; // Long paragraphs
+    } else {
+      safetyFactor = 1.02; // Default safety factor is slightly increased
     }
 
-    // Calculate total height with safety factor
-    final calculatedHeight =
-        topMargin + (numLines * fontSize * lineHeight) + bottomMargin;
-    return calculatedHeight * safetyFactor;
+    // Calculate final height
+    final height =
+        topMargin + (numLines * fontSize * lineHeightMultiplier) + bottomMargin;
+    return height * safetyFactor;
   }
 
   // Override the _formatTextWithStyles method to just return the HTML directly
@@ -1281,16 +1162,17 @@ class EpubPageCalculator {
 
     // Enhance paragraph styling with indentation, justification and margins
     // Use text-justify: inter-word to ensure proper word spacing in justified text
+    // Reduce margins and increase line height slightly to better fill the page
     content = content.replaceAll('<p>',
-        '<p style="text-indent: 1.5em; margin-bottom: 0; text-align: justify; text-justify: inter-word; line-height: 1.3;">');
+        '<p style="text-indent: 1.5em; margin-bottom: 0; margin-top: 0; text-align: justify; text-justify: inter-word; line-height: 1.2;">');
 
-    // Enhance heading styling
+    // Enhance heading styling - reduce margins further
     content = content.replaceAll('<h1>',
-        '<h1 style="text-align: center; font-weight: bold; margin-top: 1em; margin-bottom: 0.8em;">');
+        '<h1 style="text-align: center; font-weight: bold; margin-top: 0.5em; margin-bottom: 0.5em;">');
     content = content.replaceAll('<h2>',
-        '<h2 style="text-align: center; font-weight: bold; margin-top: 1em; margin-bottom: 0.8em;">');
+        '<h2 style="text-align: center; font-weight: bold; margin-top: 0.5em; margin-bottom: 0.5em;">');
     content = content.replaceAll('<h3>',
-        '<h3 style="font-weight: bold; margin-top: 1em; margin-bottom: 0.5em;">');
+        '<h3 style="font-weight: bold; margin-top: 0.5em; margin-bottom: 0.3em;">');
 
     // Make sure emphasis and strong tags have proper styling
     content = content.replaceAll('<i>', '<em style="font-style: italic;">');
@@ -1300,7 +1182,14 @@ class EpubPageCalculator {
 
     // Enhance blockquote and other common elements
     content = content.replaceAll('<blockquote>',
-        '<blockquote style="margin-left: 2em; font-style: italic;">');
+        '<blockquote style="margin-left: 1.5em; margin-right: 1em; font-style: italic; line-height: 1.3; margin-top: 0.3em; margin-bottom: 0.3em;">');
+
+    // Special handling for dialog with quote marks
+    bool hasDialogMarkers = content.contains('"') ||
+        content.contains('"') ||
+        content.contains('"') ||
+        content.contains("'") ||
+        content.contains("'");
 
     // Remove explicit line breaks that might cause formatting issues
     content = content.replaceAll('<br>', ' ');
@@ -1328,10 +1217,164 @@ class EpubPageCalculator {
     if (!content.trim().startsWith('<')) {
       // Plain text - wrap in paragraph with proper justification
       content =
-          '<p style="text-indent: 1.5em; margin-bottom: 0; text-align: justify; text-justify: inter-word; line-height: 1.3;">${content.trim()}</p>';
+          '<p style="text-indent: 1.5em; margin-bottom: 0; margin-top: 0; text-align: justify; text-justify: inter-word; line-height: 1.2;">${content.trim()}</p>';
     }
 
     return content;
+  }
+
+  // Process and enhance image tags for better rendering
+  String _processImageTags(String html) {
+    if (!html.contains('<img')) {
+      return html;
+    }
+
+    // Process all img tags to make them responsive
+    return html.replaceAllMapped(
+      RegExp(r'<img\s+([^>]*)>', caseSensitive: false),
+      (match) {
+        String attributes = match.group(1) ?? '';
+        // Extract src attribute
+        final srcMatch =
+            RegExp(r'''src=["\'](.*?)["\']''').firstMatch(attributes);
+        final src = srcMatch?.group(1) ?? '';
+
+        // If no valid src, return the original tag
+        if (src.isEmpty) {
+          return match.group(0) ?? '';
+        }
+
+        // Style for responsive images with proper alignment
+        return '<div style="text-align: center; margin: 1em 0;"><img src="$src" style="max-width: 95%; height: auto; display: inline-block;" alt="Image" /></div>';
+      },
+    );
+  }
+
+  // Check if HTML content contains an image
+  bool _containsImage(String html) {
+    return html.contains('<img') || html.contains('<figure');
+  }
+
+  // Handle a block that's too large to fit on a single page
+  void _handleOversizedBlock(
+    ContentBlock block,
+    List<EpubPage> pages,
+    int chapterIndex,
+    int pageNumber,
+    String chapterTitle,
+  ) {
+    // For images, put them on their own page
+    if (_containsImage(block.text)) {
+      pages.add(EpubPage(
+        content: block.text,
+        plainText: _stripHtmlTags(block.text),
+        chapterIndex: chapterIndex,
+        pageNumberInChapter: pageNumber,
+        chapterTitle: chapterTitle,
+        absolutePageNumber: 0, // Will be set later
+      ));
+      return;
+    }
+
+    // For text content, try to split it
+    if (block.tag == 'p') {
+      // Large paragraph - split it into chunks
+      final text = _stripHtmlTags(block.text);
+      if (text.isEmpty) return;
+
+      // Get paragraph style if available
+      String pStyle =
+          'style="text-indent: 1.5em; margin-bottom: 0; text-align: justify; text-justify: inter-word;"';
+      final styleMatch =
+          RegExp(r'''<p\s+style=["'](.*?)["']''').firstMatch(block.text);
+      if (styleMatch != null) {
+        pStyle = 'style="${styleMatch.group(1)}"';
+      }
+
+      // Split into chunks of approximately 500 characters, trying to break at sentences
+      final List<String> chunks = [];
+      int startPos = 0;
+      while (startPos < text.length) {
+        int endPos = startPos + 500;
+        if (endPos >= text.length) {
+          chunks.add(text.substring(startPos));
+          break;
+        }
+
+        // Try to find a sentence break (. ! ?) within 100 chars after the target
+        int breakPos = -1;
+        for (int i = endPos; i < math.min(endPos + 100, text.length); i++) {
+          if (i > 0 &&
+              (text[i - 1] == '.' ||
+                  text[i - 1] == '!' ||
+                  text[i - 1] == '?') &&
+              text[i] == ' ') {
+            breakPos = i;
+            break;
+          }
+        }
+
+        // If no sentence break found, look for other breaks
+        if (breakPos == -1) {
+          for (int i = endPos; i < math.min(endPos + 100, text.length); i++) {
+            if (text[i] == ' ' || text[i] == '\n') {
+              breakPos = i;
+              break;
+            }
+          }
+        }
+
+        // If still no break found, force a break
+        if (breakPos == -1) {
+          breakPos = math.min(endPos + 50, text.length);
+        }
+
+        chunks.add(text.substring(startPos, breakPos));
+        startPos = breakPos;
+      }
+
+      // Create pages for each chunk
+      for (int i = 0; i < chunks.length; i++) {
+        final chunkHtml = '<p $pStyle>${chunks[i]}</p>';
+        pages.add(EpubPage(
+          content: chunkHtml,
+          plainText: chunks[i],
+          chapterIndex: chapterIndex,
+          pageNumberInChapter: pageNumber + i,
+          chapterTitle: chapterTitle,
+          absolutePageNumber: 0, // Will be set later
+        ));
+      }
+    } else {
+      // For non-paragraph elements, just put on a single page
+      pages.add(EpubPage(
+        content: block.text,
+        plainText: _stripHtmlTags(block.text),
+        chapterIndex: chapterIndex,
+        pageNumberInChapter: pageNumber,
+        chapterTitle: chapterTitle,
+        absolutePageNumber: 0, // Will be set later
+      ));
+    }
+  }
+
+  // Helper method to combine HTML blocks into a single HTML string
+  String _combineBlocksHtml(List<ContentBlock> blocks) {
+    final buffer = StringBuffer();
+
+    // Add a wrapper div for measurement
+    buffer.write('<div style="width: ${_viewportWidth}px;">');
+
+    // Add each block
+    for (final block in blocks) {
+      buffer.write(block.text);
+      buffer.write('\n');
+    }
+
+    // Close wrapper div
+    buffer.write('</div>');
+
+    return buffer.toString();
   }
 
   // Handle dialog formatting specifically
@@ -1341,7 +1384,7 @@ class EpubPageCalculator {
 
     // For dialog starting with a quotation mark, we want proper indentation
     if (isDialogStart) {
-      return '<p style="text-indent: 1.5em; margin-top: 0.8em; margin-bottom: 0; text-align: justify; text-justify: inter-word; line-height: 1.3;">${plainText}</p>';
+      return '<p style="text-indent: 1.5em; margin-top: 0; margin-bottom: 0; text-align: justify; text-justify: inter-word; line-height: 1.25;">$plainText</p>';
     }
 
     // For dialog response (like "Yeah." or short responses)
@@ -1349,11 +1392,11 @@ class EpubPageCalculator {
         (plainText.contains('"') ||
             plainText.contains('said') ||
             plainText.contains('asked'))) {
-      return '<p style="text-indent: 1.5em; margin-top: 0.8em; margin-bottom: 0; text-align: justify; text-justify: inter-word; line-height: 1.3;">${plainText}</p>';
+      return '<p style="text-indent: 1.5em; margin-top: 0; margin-bottom: 0; text-align: justify; text-justify: inter-word; line-height: 1.25;">$plainText</p>';
     }
 
     // Regular paragraph
-    return '<p style="text-indent: 1.5em; margin-bottom: 0; text-align: justify; text-justify: inter-word; line-height: 1.3;">${plainText}</p>';
+    return '<p style="text-indent: 1.5em; margin-bottom: 0; margin-top: 0; text-align: justify; text-justify: inter-word; line-height: 1.2;">$plainText</p>';
   }
 
   // Strip HTML tags from content
@@ -1383,6 +1426,433 @@ class EpubPageCalculator {
 
     // Clean up multiple spaces that might have been introduced
     return buffer.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  // New method for text painter-based pagination
+  Future<List<EpubPage>> _paginateBlocksWithTextPainter(
+    List<ContentBlock> blocks,
+    int chapterIndex,
+    String chapterTitle,
+  ) async {
+    final List<EpubPage> pages = [];
+    final List<ContentBlock> currentPageBlocks = [];
+    int pageNumber = 1;
+    bool debugEnabled = false; // Set to true to enable debug output
+
+    // Constants for page filling logic - adjusted for better utilization
+    const double minPageFillRatio = 0.45; // Increased minimum fill ratio
+    const double maxPageFillRatio = 0.92; // Increased maximum fill ratio
+
+    // Add chapter title as inline content, more constrained
+    if (chapterTitle.isNotEmpty) {
+      // Smaller, more compact chapter title
+      currentPageBlocks.add(ContentBlock(
+        text:
+            '<h1 style="text-align: center; font-weight: bold; font-size: 105%; margin-bottom: 0.2em; margin-top: 0.2em;">${chapterTitle.trim()}</h1>',
+        tag: 'h1',
+        isHtml: true,
+      ));
+    }
+
+    // Process blocks sequentially with lookahead
+    for (int i = 0; i < blocks.length; i++) {
+      final block = blocks[i];
+
+      // Skip chapter title blocks since we already added our own
+      if (block.tag.startsWith('h') &&
+          _stripHtmlTags(block.text).trim() == chapterTitle.trim()) {
+        continue;
+      }
+
+      // Build HTML for current blocks plus this new block
+      String currentPageHtml =
+          _combineBlocksHtml([...currentPageBlocks, block]);
+
+      // Calculate current page height with new block
+      final estimatedHeight = _textMeasurer.calculateHeight(currentPageHtml);
+      final maxSafeHeight = _effectiveViewportHeight * maxPageFillRatio;
+
+      // Check if this content fits on the page
+      if (estimatedHeight <= maxSafeHeight) {
+        // Content fits, add the block to current page
+        currentPageBlocks.add(block);
+
+        // Look ahead to next block to see if adding it would overflow
+        // This helps prevent orphaned headings and single lines
+        if (i < blocks.length - 1) {
+          final nextBlock = blocks[i + 1];
+          final nextPageHtml =
+              _combineBlocksHtml([...currentPageBlocks, nextBlock]);
+          final nextEstimatedHeight =
+              _textMeasurer.calculateHeight(nextPageHtml);
+
+          // If next block would overflow and current page is reasonably filled,
+          // go ahead and create the page now
+          if (nextEstimatedHeight > maxSafeHeight &&
+              estimatedHeight >= _effectiveViewportHeight * minPageFillRatio) {
+            // Current page is sufficiently filled and next block won't fit
+            final newPage = _createPageFromBlocks(
+                currentPageBlocks, chapterIndex, pageNumber, chapterTitle);
+            pages.add(newPage);
+            pageNumber++;
+            currentPageBlocks.clear();
+          }
+        }
+      } else if (currentPageBlocks.isEmpty) {
+        // Single block too large for a page, needs to be split
+        _handleOversizedBlock(
+            block, pages, chapterIndex, pageNumber, chapterTitle);
+        pageNumber++;
+      } else {
+        // Content doesn't fit, check if we should try to split
+        bool shouldTrySplit = true;
+
+        // For heavy dialog content, avoid splitting
+        if (block.text.contains('"') || block.text.contains("'")) {
+          shouldTrySplit = false;
+        }
+
+        // Only try to split paragraphs, not headings, lists, etc.
+        if (shouldTrySplit && block.tag == 'p' && !_containsImage(block.text)) {
+          // Get the content of the block to split
+          final contentToSplit = block.text;
+
+          // Try to split the content
+          final splitResult = _textMeasurer.splitContentForPage(contentToSplit);
+
+          if (splitResult.firstPart.isNotEmpty &&
+              splitResult.secondPart.isNotEmpty &&
+              _stripHtmlTags(splitResult.firstPart).length >= 25) {
+            // Increased from 20 to ensure chunks aren't too small
+
+            // Add the first part to the current page
+            currentPageBlocks.add(ContentBlock(
+                text: splitResult.firstPart, tag: 'p', isHtml: true));
+
+            // Create a page with the current blocks
+            final newPage = _createPageFromBlocks(
+                currentPageBlocks, chapterIndex, pageNumber, chapterTitle);
+            pages.add(newPage);
+            pageNumber++;
+
+            // Start next page with the second part
+            currentPageBlocks.clear();
+            currentPageBlocks.add(ContentBlock(
+                text: splitResult.secondPart, tag: 'p', isHtml: true));
+
+            continue;
+          }
+        }
+
+        // If we couldn't split, create a page with current blocks
+        final newPage = _createPageFromBlocks(
+            currentPageBlocks, chapterIndex, pageNumber, chapterTitle);
+        pages.add(newPage);
+        pageNumber++;
+
+        // Start next page with this block
+        currentPageBlocks.clear();
+        currentPageBlocks.add(block);
+      }
+    }
+
+    // Add the final page if there are remaining blocks
+    if (currentPageBlocks.isNotEmpty) {
+      final finalPage = _createPageFromBlocks(
+          currentPageBlocks, chapterIndex, pageNumber, chapterTitle);
+      pages.add(finalPage);
+    }
+
+    return pages;
+  }
+
+  // Helper method to normalize text for comparison
+  String _normalizeText(String text) {
+    // Remove extra spaces, convert to lowercase, and normalize Roman numerals
+    String normalized = text.trim().toLowerCase();
+
+    // Replace special characters and normalize whitespace
+    normalized = normalized.replaceAll(RegExp(r'[^\w\s]'), '');
+    normalized = normalized.replaceAll(RegExp(r'\s+'), ' ');
+
+    // Replace Roman numerals with their standard form (if they exist)
+    final romanNumeralPattern =
+        RegExp(r'\b(i{1,3}|iv|v|vi{1,3}|ix|x)\b', caseSensitive: false);
+    normalized = normalized.replaceAllMapped(romanNumeralPattern, (match) {
+      final numeral = match.group(0)?.toLowerCase() ?? '';
+      return ' $numeral '; // Add spaces to ensure matching as whole words
+    });
+
+    return normalized.trim();
+  }
+
+  // Helper method to check if headings share numeric parts
+  // For example, "Chapter 1" and "1" share "1"; "1.1" and "1" share "1"
+  bool _headingsShareNumericParts(String heading1, String heading2) {
+    // Extract numeric parts from both headings
+    final numRegExp = RegExp(r'\d+(\.\d+)?');
+    final nums1 =
+        numRegExp.allMatches(heading1).map((m) => m.group(0) ?? '').toList();
+    final nums2 =
+        numRegExp.allMatches(heading2).map((m) => m.group(0) ?? '').toList();
+
+    if (nums1.isEmpty || nums2.isEmpty) return false;
+
+    // Check if any number from heading1 contains or is contained by any number from heading2
+    for (final num1 in nums1) {
+      for (final num2 in nums2) {
+        // Check exact match
+        if (num1 == num2) return true;
+
+        // Check if one is part of the other (e.g., "1" is part of "1.1")
+        if (num1.startsWith(num2) || num2.startsWith(num1)) return true;
+      }
+    }
+
+    return false;
+  }
+
+  // Post-process pages to merge very short pages with the next page
+  List<EpubPage> _mergeShortPages(
+      List<EpubPage> pages, int chapterIndex, String chapterTitle) {
+    // If there are fewer than 2 pages, no merging needed
+    if (pages.length < 2) return pages;
+
+    final List<EpubPage> result = [];
+    int i = 0;
+
+    while (i < pages.length) {
+      // Get current page
+      final currentPage = pages[i];
+
+      // Check if this is a short page (less than 25% of viewport height)
+      final double currentPageHeight =
+          _estimateBlockHeight(currentPage.content, _viewportWidth);
+      final bool isShortPage =
+          currentPageHeight < (_effectiveViewportHeight * 0.35);
+
+      // Skip merging if this is the last page or if it's not a short page
+      if (!isShortPage || i == pages.length - 1) {
+        result.add(currentPage);
+        i++;
+        continue;
+      }
+
+      // Check if merging with next page would fit
+      final nextPage = pages[i + 1];
+      final double nextPageHeight =
+          _estimateBlockHeight(nextPage.content, _viewportWidth);
+
+      // If combined height is acceptable (with a small buffer), merge the pages
+      if (currentPageHeight + nextPageHeight <=
+          _effectiveViewportHeight * 1.05) {
+        // Merge the content
+        final mergedContent = currentPage.content + nextPage.content;
+        final mergedPlainText =
+            currentPage.plainText + ' ' + nextPage.plainText;
+
+        // Create merged page
+        final mergedPage = EpubPage(
+          content: mergedContent,
+          plainText: mergedPlainText,
+          chapterIndex: chapterIndex,
+          pageNumberInChapter: currentPage.pageNumberInChapter,
+          chapterTitle: chapterTitle,
+          absolutePageNumber: currentPage.absolutePageNumber,
+        );
+
+        // Add merged page to result
+        result.add(mergedPage);
+
+        // Skip the next page since we merged it
+        i += 2;
+      } else {
+        // Couldn't merge, add current page as-is
+        result.add(currentPage);
+        i++;
+      }
+    }
+
+    // Recalculate page numbers in chapter
+    for (int j = 0; j < result.length; j++) {
+      result[j] = EpubPage(
+        content: result[j].content,
+        plainText: result[j].plainText,
+        chapterIndex: chapterIndex,
+        pageNumberInChapter: j + 1,
+        chapterTitle: chapterTitle,
+        absolutePageNumber: result[j].absolutePageNumber,
+      );
+    }
+
+    return result;
+  }
+}
+
+/// Class to measure HTML text height using approximate calculations
+class HtmlTextMeasurer {
+  final double fontSize;
+  final double maxWidth;
+  final double maxHeight;
+  final double lineHeight;
+  final LRUCache<String, double> _heightCache = LRUCache<String, double>(100);
+
+  HtmlTextMeasurer({
+    required this.fontSize,
+    required this.maxWidth,
+    required this.maxHeight,
+    required this.lineHeight,
+  });
+
+  /// Calculate the approximate height of HTML content
+  double calculateHeight(String html) {
+    // Check cache first
+    final cacheResult = _heightCache.get(html);
+    if (cacheResult != null) {
+      return cacheResult;
+    }
+
+    // Strip HTML to get text for basic calculation
+    final text = _stripHtml(html);
+    if (text.isEmpty) return 0;
+
+    // Basic height calculation
+    double estimatedHeight = 0;
+
+    // Apply different safety factors based on content type
+    double safetyFactor = 1.0;
+
+    // Check for images
+    if (html.contains('<img') || html.contains('<figure')) {
+      // Images need more space
+      estimatedHeight = maxHeight * 0.6;
+      _heightCache.put(html, estimatedHeight);
+      return estimatedHeight;
+    }
+
+    // Check for content type
+    final bool isHeading =
+        html.contains('<h1') || html.contains('<h2') || html.contains('<h3');
+    final bool isDialog =
+        html.contains('"') || html.contains('"') || html.contains('said');
+
+    // Adjust for content type
+    if (isHeading) {
+      safetyFactor = 1.3; // Headings need more space
+    } else if (isDialog) {
+      safetyFactor = 1.25; // Dialog needs more space
+    } else if (text.length > 500) {
+      safetyFactor = 1.15; // Long paragraphs need more space
+    } else {
+      safetyFactor = 1.1; // Default safety factor
+    }
+
+    // Calculate character-based height
+    final charactersPerLine = (maxWidth / (fontSize * 0.6)).floor();
+    int lines = (text.length / charactersPerLine).ceil();
+
+    // Account for line breaks and word wrapping
+    lines += (text.split(' ').length / 15)
+        .floor(); // Assume each 15 words might create an additional line wrap
+
+    // Calculate height with line height and safety factor
+    estimatedHeight =
+        (lines * fontSize * lineHeight + (fontSize * 0.8)) * safetyFactor;
+
+    // Cache the result
+    _heightCache.put(html, estimatedHeight);
+
+    return estimatedHeight;
+  }
+
+  /// Check if content fits within the available height
+  bool contentFits(String html) {
+    // More aggressive approach - use 90% of max height instead of 80%
+    return calculateHeight(html) <= maxHeight;
+  }
+
+  /// Split content into first and second part for pagination
+  _ParagraphSplitResult splitContentForPage(String html) {
+    // Extract text without tags
+    final text = _stripHtml(html);
+    if (text.length < 100) {
+      // Too short to split
+      return _ParagraphSplitResult(html, '');
+    }
+
+    // Start with 50% of content
+    int splitRatio = 50;
+
+    // Determine optimal ratio based on content type
+    if (html.contains('"') || html.contains('"')) {
+      // For dialog, be more conservative
+      splitRatio = 40;
+    } else if (text.length > 1000) {
+      // For very long paragraphs, be more aggressive
+      splitRatio = 60;
+    }
+
+    // Calculate initial split point
+    int splitPoint = (text.length * splitRatio / 100).round();
+
+    // Find the best place to split (sentence end, comma, or space)
+    int bestSplitPoint = _findOptimalSplitPoint(text, splitPoint);
+
+    // Get the style from the original HTML
+    String style =
+        'style="text-indent: 1.5em; margin-bottom: 0; text-align: justify;"';
+    final styleMatch = RegExp(r'''<p\s+style=["'](.*?)["']''').firstMatch(html);
+    if (styleMatch != null) {
+      style = 'style="${styleMatch.group(1)}"';
+    }
+
+    // Create HTML for first and second part
+    final firstPart =
+        '<p $style>${text.substring(0, bestSplitPoint).trim()}</p>';
+    final secondPart = '<p $style>${text.substring(bestSplitPoint).trim()}</p>';
+
+    return _ParagraphSplitResult(firstPart, secondPart);
+  }
+
+  // Helper to find the best split point
+  int _findOptimalSplitPoint(String text, int targetPoint) {
+    // Try to find sentence end within 20% range after target
+    final int rangeEnd =
+        math.min(text.length, targetPoint + (targetPoint * 0.2).round());
+
+    // Look for sentence end (. ! ?)
+    for (int i = targetPoint; i < rangeEnd; i++) {
+      if (i > 0 &&
+          (text[i - 1] == '.' || text[i - 1] == '!' || text[i - 1] == '?') &&
+          (i == text.length - 1 || text[i] == ' ' || text[i] == '\n')) {
+        return i;
+      }
+    }
+
+    // Look for other punctuation (,;:)
+    for (int i = targetPoint; i < rangeEnd; i++) {
+      if (i > 0 &&
+          (text[i - 1] == ',' || text[i - 1] == ';' || text[i - 1] == ':') &&
+          (i == text.length - 1 || text[i] == ' ' || text[i] == '\n')) {
+        return i;
+      }
+    }
+
+    // Fall back to space
+    for (int i = targetPoint; i < rangeEnd; i++) {
+      if (text[i] == ' ' || text[i] == '\n') {
+        return i + 1; // Include the space
+      }
+    }
+
+    // If no good split point, return half of the content
+    return targetPoint;
+  }
+
+  // Helper to strip HTML tags
+  String _stripHtml(String html) {
+    final regexp = RegExp(r'<[^>]*>', multiLine: true, caseSensitive: true);
+    return html.replaceAll(regexp, ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 }
 

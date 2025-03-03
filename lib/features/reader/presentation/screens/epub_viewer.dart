@@ -125,6 +125,12 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   TabController? _tabController;
 
+  // Timer for auto-hiding UI
+  Timer? _uiAutoHideTimer;
+  // Animation controller for fading UI elements
+  late AnimationController _uiAnimationController;
+  late Animation<double> _uiOpacityAnimation;
+
   void _initTabController() {
     _tabController = TabController(length: 3, vsync: this);
   }
@@ -165,7 +171,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     }
   }
 
-  // Modify the tap handler to not need the TapUpDetails
+  // Modify the tap handler to work with bloc and handle auto-hide functionality
   void _handleTapGesture() {
     // First check if side nav or search panel is visible
     if (_isSideNavVisible) {
@@ -186,14 +192,55 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       return;
     }
 
-    // Toggle UI visibility through the bloc
-    // Use setState first to ensure immediate response to user tap
-    _safeSetState(() {
-      _isAppBarVisible = !_isAppBarVisible;
-    });
+    // Define tap zones based on screen width
+    final width = MediaQuery.of(context).size.width;
+    final leftZone = width * 0.3;
+    final rightZone = width * 0.7;
 
-    // Then update through the bloc
-    context.read<ReaderBloc>().add(ToggleUIVisibility());
+    // Get pointer position from last tap event
+    final RenderBox renderBox = context.findRenderObject() as RenderBox;
+    final position =
+        _lastPointerDownPosition ?? renderBox.localToGlobal(Offset.zero);
+
+    // Handle tap zones
+    if (position.dx > leftZone && position.dx < rightZone) {
+      // Center zone - toggle UI
+      _toggleUI();
+    } else if (position.dx <= leftZone) {
+      // Left zone - previous page
+      if (_currentPage > 1) {
+        context.read<ReaderBloc>().add(PreviousPage());
+        _goToPreviousPage();
+      }
+    } else {
+      // Right zone - next page
+      context.read<ReaderBloc>().add(NextPage());
+      _goToNextPage();
+    }
+  }
+
+  // Toggle UI visibility with animation
+  void _toggleUI() {
+    final state = context.read<ReaderBloc>().state;
+    if (state is ReaderLoaded) {
+      final bool showUI = state.showUI;
+
+      // Cancel any existing timer
+      _uiAutoHideTimer?.cancel();
+
+      if (showUI) {
+        // Hide UI - start animation first
+        _uiAnimationController.forward().then((_) {
+          // After animation completes, update the bloc state
+          context.read<ReaderBloc>().add(ToggleUIVisibility());
+          _uiAnimationController.reset();
+        });
+      } else {
+        // Show UI - update bloc state first, then schedule auto-hide
+        context.read<ReaderBloc>().add(ToggleUIVisibility());
+        _scheduleUiAutoHide();
+      }
+    }
   }
 
   void _safeSetState(VoidCallback fn) {
@@ -216,6 +263,20 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
     // Initialize the tab controller for the side menu
     _tabController = TabController(length: 3, vsync: this);
+
+    // Initialize UI animation controller
+    _uiAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+
+    _uiOpacityAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _uiAnimationController,
+      curve: Curves.easeInOut,
+    ));
 
     _pulseController = AnimationController(
       duration: const Duration(milliseconds: 800),
@@ -276,6 +337,8 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     _verticalPageController.dispose();
     _horizontalPageController.dispose();
     _removeFloatingMenu();
+    _uiAutoHideTimer?.cancel();
+    _uiAnimationController.dispose();
     super.dispose();
   }
 
@@ -430,7 +493,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
         }
 
         // Find metadata or create new entry
-        final metadata = await _metadataRepository.getMetadata(filePath);
+        final metadata = _metadataRepository.getMetadata(filePath);
 
         if (metadata == null) {
           final bookTitle = _epubBook!.Title ?? path.basename(filePath);
@@ -644,7 +707,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       // For long strip mode, each "page" is essentially a chapter
       // So we use the flattened pages count which combines all chapters
       _safeSetState(() {
-        _totalPages = _flattenedPages.length > 0
+        _totalPages = _flattenedPages.isNotEmpty
             ? _flattenedPages.length
             : _flatChapters.length;
       });
@@ -666,8 +729,11 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   }
 
   Future<void> _preloadChapter(int index) async {
-    if (index < 0 || index >= _flatChapters.length || _processingResult == null)
+    if (index < 0 ||
+        index >= _flatChapters.length ||
+        _processingResult == null) {
       return;
+    }
 
     try {
       // We can't call private methods directly, so we'll use calculatePages which loads content internally
@@ -802,7 +868,9 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
   Future<void> _splitChapterIntoPages(int chapterIndex) async {
     if (_chapterPagesCache.containsKey(chapterIndex) ||
-        _processingResult == null) return;
+        _processingResult == null) {
+      return;
+    }
 
     try {
       // Use the EpubService to calculate pages
@@ -890,54 +958,24 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
                     // UI elements
                     if (showUI) ...[
-                      // Top AppBar
+                      // Top AppBar with fade animation
                       Positioned(
                         top: 0,
                         left: 0,
                         right: 0,
-                        child: AppBar(
-                          backgroundColor:
-                              Theme.of(context).brightness == Brightness.dark
-                                  ? const Color(0xFF251B2F).withOpacity(0.95)
-                                  : const Color(0xFFFAF9F7).withOpacity(0.95),
-                          elevation: 0,
-                          toolbarHeight:
-                              ResponsiveConstants.getBottomBarHeight(context),
-                          leading: IconButton(
-                            icon: Icon(
-                              Icons.arrow_back,
-                              color: Theme.of(context).brightness ==
-                                      Brightness.dark
-                                  ? const Color(0xFFF2F2F7)
-                                  : const Color(0xFF1C1C1E),
-                              size: ResponsiveConstants.getIconSize(context),
-                            ),
-                            onPressed: () {
-                              Navigator.pop(context);
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (mounted) {
-                                  NavScreen.globalKey.currentState
-                                      ?.hideNavBar(false);
-                                }
-                              });
-                            },
-                          ),
-                          title: Text(
-                            _epubBook?.Title ?? path.basename(state.file.path),
-                            style: TextStyle(
-                              fontSize:
-                                  ResponsiveConstants.getBodyFontSize(context),
-                              color: Theme.of(context).brightness ==
-                                      Brightness.dark
-                                  ? const Color(0xFFF2F2F7)
-                                  : const Color(0xFF1C1C1E),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          actions: [
-                            IconButton(
+                        child: FadeTransition(
+                          opacity: _uiOpacityAnimation,
+                          child: AppBar(
+                            backgroundColor:
+                                Theme.of(context).brightness == Brightness.dark
+                                    ? const Color(0xFF251B2F).withOpacity(0.95)
+                                    : const Color(0xFFFAF9F7).withOpacity(0.95),
+                            elevation: 0,
+                            toolbarHeight:
+                                ResponsiveConstants.getBottomBarHeight(context),
+                            leading: IconButton(
                               icon: Icon(
-                                Icons.search,
+                                Icons.arrow_back,
                                 color: Theme.of(context).brightness ==
                                         Brightness.dark
                                     ? const Color(0xFFF2F2F7)
@@ -945,92 +983,130 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                                 size: ResponsiveConstants.getIconSize(context),
                               ),
                               onPressed: () {
-                                _toggleSearchPanel();
+                                Navigator.pop(context);
+                                WidgetsBinding.instance
+                                    .addPostFrameCallback((_) {
+                                  if (mounted) {
+                                    NavScreen.globalKey.currentState
+                                        ?.hideNavBar(false);
+                                  }
+                                });
                               },
-                              padding: EdgeInsets.all(
-                                  ResponsiveConstants.isTablet(context)
-                                      ? 12
-                                      : 8),
                             ),
-                            IconButton(
-                              icon: Icon(Symbols.thumbnail_bar,
+                            title: Text(
+                              _epubBook?.Title ??
+                                  path.basename(state.file.path),
+                              style: TextStyle(
+                                fontSize: ResponsiveConstants.getBodyFontSize(
+                                    context),
+                                color: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? const Color(0xFFF2F2F7)
+                                    : const Color(0xFF1C1C1E),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            actions: [
+                              IconButton(
+                                icon: Icon(
+                                  Icons.search,
                                   color: Theme.of(context).brightness ==
                                           Brightness.dark
                                       ? const Color(0xFFF2F2F7)
                                       : const Color(0xFF1C1C1E),
                                   size:
                                       ResponsiveConstants.getIconSize(context),
-                                  fill: 0.25),
-                              padding: EdgeInsets.all(
-                                  ResponsiveConstants.isTablet(context)
-                                      ? 12
-                                      : 8),
-                              onPressed: _toggleSideNav,
-                            ),
-                            IconButton(
-                              icon: Icon(
-                                Icons.settings,
-                                color: Theme.of(context).brightness ==
-                                        Brightness.dark
-                                    ? const Color(0xFFF2F2F7)
-                                    : const Color(0xFF1C1C1E),
-                                size: ResponsiveConstants.getIconSize(context),
+                                ),
+                                onPressed: () {
+                                  _toggleSearchPanel();
+                                },
+                                padding: EdgeInsets.all(
+                                    ResponsiveConstants.isTablet(context)
+                                        ? 12
+                                        : 8),
                               ),
-                              onPressed: () {
-                                showReaderSettingsMenu(
-                                  context: context,
-                                  filePath: state.file.path,
-                                  currentLayoutMode:
-                                      convertToReaderLayoutMode(_layoutMode),
-                                  onLayoutModeChanged: (mode) {
-                                    Navigator.pop(context); // Close the menu
+                              IconButton(
+                                icon: Icon(Symbols.thumbnail_bar,
+                                    color: Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? const Color(0xFFF2F2F7)
+                                        : const Color(0xFF1C1C1E),
+                                    size: ResponsiveConstants.getIconSize(
+                                        context),
+                                    fill: 0.25),
+                                padding: EdgeInsets.all(
+                                    ResponsiveConstants.isTablet(context)
+                                        ? 12
+                                        : 8),
+                                onPressed: _toggleSideNav,
+                              ),
+                              IconButton(
+                                icon: Icon(
+                                  Icons.settings,
+                                  color: Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? const Color(0xFFF2F2F7)
+                                      : const Color(0xFF1C1C1E),
+                                  size:
+                                      ResponsiveConstants.getIconSize(context),
+                                ),
+                                onPressed: () {
+                                  showReaderSettingsMenu(
+                                    context: context,
+                                    filePath: state.file.path,
+                                    currentLayoutMode:
+                                        convertToReaderLayoutMode(_layoutMode),
+                                    onLayoutModeChanged: (mode) {
+                                      Navigator.pop(context); // Close the menu
 
-                                    switch (mode) {
-                                      case ReaderLayoutMode.vertical:
-                                        _handleLayoutChange(
-                                            EpubLayoutMode.vertical);
-                                        break;
-                                      case ReaderLayoutMode.horizontal:
-                                        _handleLayoutChange(
-                                            EpubLayoutMode.horizontal);
-                                        break;
-                                      case ReaderLayoutMode.longStrip:
-                                        _handleLayoutChange(
-                                            EpubLayoutMode.longStrip);
-                                        break;
-                                      default:
-                                        _handleLayoutChange(
-                                            EpubLayoutMode.vertical);
-                                    }
-                                  },
-                                  showLongStripOption: true,
-                                );
-                              },
-                              padding: EdgeInsets.all(
-                                  ResponsiveConstants.isTablet(context)
-                                      ? 12
-                                      : 8),
-                            ),
-                            IconButton(
-                              icon: Icon(
-                                Icons.more_vert,
-                                color: Theme.of(context).brightness ==
-                                        Brightness.dark
-                                    ? const Color(0xFFF2F2F7)
-                                    : const Color(0xFF1C1C1E),
-                                size: ResponsiveConstants.getIconSize(context),
+                                      switch (mode) {
+                                        case ReaderLayoutMode.vertical:
+                                          _handleLayoutChange(
+                                              EpubLayoutMode.vertical);
+                                          break;
+                                        case ReaderLayoutMode.horizontal:
+                                          _handleLayoutChange(
+                                              EpubLayoutMode.horizontal);
+                                          break;
+                                        case ReaderLayoutMode.longStrip:
+                                          _handleLayoutChange(
+                                              EpubLayoutMode.longStrip);
+                                          break;
+                                        default:
+                                          _handleLayoutChange(
+                                              EpubLayoutMode.vertical);
+                                      }
+                                    },
+                                    showLongStripOption: true,
+                                  );
+                                },
+                                padding: EdgeInsets.all(
+                                    ResponsiveConstants.isTablet(context)
+                                        ? 12
+                                        : 8),
                               ),
-                              onPressed: () {
-                                _safeSetState(() {
-                                  _showChapters = !_showChapters;
-                                });
-                              },
-                              padding: EdgeInsets.all(
-                                  ResponsiveConstants.isTablet(context)
-                                      ? 12
-                                      : 8),
-                            ),
-                          ],
+                              IconButton(
+                                icon: Icon(
+                                  Icons.more_vert,
+                                  color: Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? const Color(0xFFF2F2F7)
+                                      : const Color(0xFF1C1C1E),
+                                  size:
+                                      ResponsiveConstants.getIconSize(context),
+                                ),
+                                onPressed: () {
+                                  _safeSetState(() {
+                                    _showChapters = !_showChapters;
+                                  });
+                                },
+                                padding: EdgeInsets.all(
+                                    ResponsiveConstants.isTablet(context)
+                                        ? 12
+                                        : 8),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
 
@@ -1544,7 +1620,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   Widget _buildHorizontalLayout() {
     return Container(
       padding: EdgeInsets.only(
-        top: ResponsiveConstants.getBottomBarHeight(context) + 10,
+        top: ResponsiveConstants.getReaderPageTopPadding(context),
         bottom: ResponsiveConstants.getBottomBarHeight(context),
       ),
       child: PageView.builder(
@@ -1597,7 +1673,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   Widget _buildVerticalPagedLayout() {
     return Container(
       padding: EdgeInsets.only(
-        top: ResponsiveConstants.getBottomBarHeight(context) + 10,
+        top: ResponsiveConstants.getReaderPageTopPadding(context),
         bottom: ResponsiveConstants.getBottomBarHeight(context),
       ),
       child: PageView.builder(
@@ -2671,12 +2747,12 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   Widget _buildLongStripLayout() {
     return Container(
       child: ScrollablePositionedList.builder(
-        itemCount: _flattenedPages.length > 0
+        itemCount: _flattenedPages.isNotEmpty
             ? _flattenedPages.length
             : _flatChapters.length,
         itemBuilder: (context, index) {
           // If we have pages, use them
-          if (_flattenedPages.length > 0) {
+          if (_flattenedPages.isNotEmpty) {
             if (index < _flattenedPages.length) {
               final page = _flattenedPages[index];
               return _buildPage(page);
@@ -2832,10 +2908,67 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
     // Limit length
     if (text.length > 100) {
-      text = text.substring(0, 97) + '...';
+      text = '${text.substring(0, 97)}...';
     }
 
     return text;
+  }
+
+  // Function to schedule UI auto-hide
+  void _scheduleUiAutoHide() {
+    // Cancel any existing timer
+    _uiAutoHideTimer?.cancel();
+
+    final state = context.read<ReaderBloc>().state;
+    if (state is ReaderLoaded && state.showUI) {
+      // Only start timer if UI is visible
+      _uiAutoHideTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) {
+          // Animate UI out
+          _uiAnimationController.forward().then((_) {
+            // After animation completes, update the bloc state
+            context.read<ReaderBloc>().add(ToggleUIVisibility());
+
+            // Reset animation controller for next time
+            _uiAnimationController.reset();
+          });
+        }
+      });
+    }
+  }
+
+  // Navigate to the next page
+  void _goToNextPage() {
+    if (_currentPage < _totalPages) {
+      _safeSetState(() {
+        _currentPage++;
+      });
+
+      // Update page view if using horizontal layout
+      if (_layoutMode == EpubLayoutMode.horizontal) {
+        _horizontalPageController.nextPage(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+    }
+  }
+
+  // Navigate to the previous page
+  void _goToPreviousPage() {
+    if (_currentPage > 1) {
+      _safeSetState(() {
+        _currentPage--;
+      });
+
+      // Update page view if using horizontal layout
+      if (_layoutMode == EpubLayoutMode.horizontal) {
+        _horizontalPageController.previousPage(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+    }
   }
 }
 
@@ -2883,12 +3016,12 @@ class OutlineView extends StatelessWidget {
   final Function(OutlineItem) onItemTap;
 
   const OutlineView({
-    Key? key,
+    super.key,
     required this.outlines,
     required this.currentPage,
     required this.totalPages,
     required this.onItemTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -3054,13 +3187,13 @@ class MarkersView extends StatelessWidget {
   final Function(MarkerItem) onDeleteMarker;
 
   const MarkersView({
-    Key? key,
+    super.key,
     required this.markers,
     required this.currentPage,
     required this.totalPages,
     required this.onItemTap,
     required this.onDeleteMarker,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -3252,12 +3385,12 @@ class ThumbnailsView extends StatelessWidget {
   final Widget Function(int) getThumbnail;
 
   const ThumbnailsView({
-    Key? key,
+    super.key,
     required this.totalPages,
     required this.currentPage,
     required this.onPageSelected,
     required this.getThumbnail,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
