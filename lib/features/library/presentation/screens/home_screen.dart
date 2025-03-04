@@ -4,7 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:read_leaf/features/library/presentation/blocs/file_bloc.dart';
 import 'package:read_leaf/features/library/presentation/widgets/file_card.dart';
 import 'package:read_leaf/features/library/presentation/widgets/minimal_file_card_widget.dart';
-import 'package:read_leaf/features/library/presentation/widgets/ai_message_card.dart';
 import 'package:read_leaf/features/characters/presentation/widgets/ai_character_slider.dart';
 import 'package:read_leaf/core/utils/file_utils.dart';
 import 'package:read_leaf/features/companion_chat/data/gemini_service.dart';
@@ -200,10 +199,30 @@ class HomeScreenState extends State<HomeScreen> {
   Widget _buildCharacterSlider() {
     if (!_isCharacterSliderMinimized) {
       return AiCharacterSlider(
+        key: AiCharacterSlider.globalKey,
         onMinimize: () {
           setState(() {
             _isCharacterSliderMinimized = true;
           });
+        },
+        aiMessage: _aiMessage,
+        onContinueReading: () {
+          final state = context.read<FileBloc>().state;
+          if (state is FileLoaded && state.files.isNotEmpty) {
+            final lastReadBook = state.files.firstWhere(
+              (file) => file.wasRead,
+              orElse: () => state.files.first,
+            );
+            context.read<FileBloc>().add(ViewFile(lastReadBook.filePath));
+          }
+        },
+        onRemove: () {
+          Provider.of<ThemeProvider>(context, listen: false)
+              .setShowReadingReminders(false);
+        },
+        onUpdatePrompt: (newPrompt) async {
+          await _geminiService.setCustomEncouragementPrompt(newPrompt);
+          generateNewAIMessage();
         },
       );
     }
@@ -349,51 +368,29 @@ class HomeScreenState extends State<HomeScreen> {
                               color: Theme.of(context).cardColor,
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: Column(
-                              children: [
-                                FileCard(
-                                  filePath: lastReadBook.filePath,
-                                  fileSize: lastReadBook.fileSize,
-                                  isSelected: false,
-                                  onSelected: () {},
-                                  onView: () {
-                                    context
-                                        .read<FileBloc>()
-                                        .add(ViewFile(lastReadBook!.filePath));
-                                  },
-                                  onRemove: () {},
-                                  onDownload: () {},
-                                  onStar: () {
-                                    context.read<FileBloc>().add(
-                                        ToggleStarred(lastReadBook?.filePath));
-                                  },
-                                  title: FileCard.extractFileName(
-                                      lastReadBook.filePath),
-                                  canDismiss: false,
-                                  isStarred: lastReadBook.isStarred,
-                                  wasRead: lastReadBook.wasRead,
-                                  hasBeenCompleted:
-                                      lastReadBook.hasBeenCompleted,
-                                ),
-                                AIMessageCard(
-                                  message: _aiMessage ?? '',
-                                  onContinue: () {
-                                    context
-                                        .read<FileBloc>()
-                                        .add(ViewFile(lastReadBook!.filePath));
-                                  },
-                                  onRemove: () {
-                                    Provider.of<ThemeProvider>(context)
-                                        .setShowReadingReminders(false);
-                                  },
-                                  onUpdatePrompt: (newPrompt) async {
-                                    await _geminiService
-                                        .setCustomEncouragementPrompt(
-                                            newPrompt);
-                                    generateNewAIMessage();
-                                  },
-                                ),
-                              ],
+                            child: FileCard(
+                              filePath: lastReadBook.filePath,
+                              fileSize: lastReadBook.fileSize,
+                              isSelected: false,
+                              onSelected: () {},
+                              onView: () {
+                                context
+                                    .read<FileBloc>()
+                                    .add(ViewFile(lastReadBook!.filePath));
+                              },
+                              onRemove: () {},
+                              onDownload: () {},
+                              onStar: () {
+                                context
+                                    .read<FileBloc>()
+                                    .add(ToggleStarred(lastReadBook?.filePath));
+                              },
+                              title: FileCard.extractFileName(
+                                  lastReadBook.filePath),
+                              canDismiss: false,
+                              isStarred: lastReadBook.isStarred,
+                              wasRead: lastReadBook.wasRead,
+                              hasBeenCompleted: lastReadBook.hasBeenCompleted,
                             ),
                           ),
                         ],

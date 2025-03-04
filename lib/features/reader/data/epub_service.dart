@@ -1,9 +1,6 @@
 import 'dart:io';
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:isolate';
-import 'dart:ui';
-import 'package:flutter/material.dart';
 import 'package:epubx/epubx.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' show parse;
@@ -522,8 +519,8 @@ class EpubPageCalculator {
     double maxHeight,
   ) {
     // Constants for simplified pagination - slightly more conservative
-    const double TARGET_FILL_RATIO = 1;
-    final double targetHeight = maxHeight * TARGET_FILL_RATIO;
+    const double targetFillRatio = 1;
+    final double targetHeight = maxHeight * targetFillRatio;
 
     final List<EpubPage> pages = [];
     final List<ContentBlock> currentPageBlocks = [];
@@ -662,10 +659,10 @@ class EpubPageCalculator {
           final remainingHeight = targetHeight - currentPageHeight;
 
           // Use a more conservative fill ratio for splitting - REDUCED from 0.95
-          const double SPLIT_FILL_RATIO = 0.95;
+          const double splitFillRatio = 0.95;
 
           final splitResult = _splitParagraphBlock(
-              block, maxWidth, remainingHeight, SPLIT_FILL_RATIO);
+              block, maxWidth, remainingHeight, splitFillRatio);
 
           if (splitResult.firstPart.isNotEmpty) {
             // Check if second part is too short - don't split if it would create a tiny second part
@@ -1649,7 +1646,7 @@ class EpubPageCalculator {
         // Merge the content
         final mergedContent = currentPage.content + nextPage.content;
         final mergedPlainText =
-            currentPage.plainText + ' ' + nextPage.plainText;
+            '${currentPage.plainText} ${nextPage.plainText}';
 
         // Create merged page
         final mergedPage = EpubPage(

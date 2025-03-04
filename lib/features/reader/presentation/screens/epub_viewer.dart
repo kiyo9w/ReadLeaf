@@ -1,6 +1,4 @@
-import 'dart:io';
 import 'dart:math';
-import 'dart:developer' as dev;
 import 'package:flutter/material.dart' hide Image;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:read_leaf/features/library/presentation/blocs/file_bloc.dart';
@@ -11,7 +9,6 @@ import 'package:get_it/get_it.dart';
 import 'package:read_leaf/features/companion_chat/presentation/widgets/floating_chat_widget.dart';
 import 'package:read_leaf/features/characters/data/ai_character_service.dart';
 import 'package:read_leaf/core/utils/utils.dart';
-import 'package:read_leaf/core/utils/menu_utils.dart';
 import 'package:path/path.dart' as path;
 import 'package:epubx/epubx.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
@@ -20,7 +17,6 @@ import 'package:read_leaf/features/library/data/book_metadata_repository.dart';
 import 'package:read_leaf/features/library/domain/models/book_metadata.dart';
 import 'package:read_leaf/features/library/data/thumbnail_service.dart';
 import 'package:read_leaf/core/constants/responsive_constants.dart';
-import 'package:share_plus/share_plus.dart';
 import 'dart:async';
 import 'package:read_leaf/features/reader/presentation/widgets/reader/floating_selection_menu.dart';
 import 'package:read_leaf/features/reader/presentation/widgets/reader/full_selection_menu.dart';
@@ -33,9 +29,6 @@ import 'package:read_leaf/features/reader/domain/models/epub_models.dart';
 import 'package:uuid/uuid.dart' as uuid;
 import 'package:read_leaf/features/reader/presentation/managers/epub_highlight_manager.dart';
 import 'package:read_leaf/features/reader/presentation/controllers/epub_layout_controller.dart';
-import 'package:read_leaf/features/reader/presentation/widgets/side_menu/outline_view.dart';
-import 'package:read_leaf/features/reader/presentation/widgets/side_menu/markers_view.dart';
-import 'package:read_leaf/features/reader/presentation/widgets/side_menu/thumbnails_view.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 
 class EPUBViewerScreen extends StatefulWidget {
@@ -121,7 +114,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
   // Add the side menu functionality
   bool _isSideNavVisible = false;
-  bool _isAppBarVisible = true;
+  final bool _isAppBarVisible = true;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   TabController? _tabController;
 

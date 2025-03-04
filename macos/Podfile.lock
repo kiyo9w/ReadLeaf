@@ -164,7 +164,7 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/webview_flutter_wkwebview/darwin
 
 SPEC CHECKSUMS:
-  app_links: 86a57d95d4dec830373b8c85c21d1c59a4a5dc21
+  app_links: 10e0a0ab602ffaf34d142cd4862f29d34b303b2a
   AppAuth: d4f13a8fe0baf391b2108511793e4b479691fb73
   audio_session: 728ae3823d914f809c485d390274861a24b0904e
   connectivity_plus: 18382e7311ba19efcaee94442b23b32507b20695

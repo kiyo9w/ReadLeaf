@@ -6,17 +6,60 @@ import 'package:read_leaf/core/constants/ui_constants.dart';
 import 'package:read_leaf/widgets/typing_text.dart';
 import 'package:read_leaf/features/library/presentation/screens/home_screen.dart';
 import 'dart:async';
+import 'dart:ui';
 import 'package:read_leaf/core/constants/responsive_constants.dart';
+import 'package:read_leaf/core/themes/custom_theme_extension.dart';
+
+/// A custom painter that draws a subtle grid pattern
+class GridPatternPainter extends CustomPainter {
+  final Color lineColor;
+  final double lineWidth;
+  final double spacing;
+
+  GridPatternPainter({
+    required this.lineColor,
+    required this.lineWidth,
+    required this.spacing,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = lineColor
+      ..strokeWidth = lineWidth;
+
+    // Draw horizontal lines
+    for (double y = 0; y < size.height; y += spacing) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+
+    // Draw vertical lines
+    for (double x = 0; x < size.width; x += spacing) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
 
 class AiCharacterSlider extends StatefulWidget {
   static final globalKey = GlobalKey<_AiCharacterSliderState>();
   final VoidCallback? onCharacterSelected;
   final VoidCallback? onMinimize;
+  final String? aiMessage;
+  final VoidCallback? onContinueReading;
+  final VoidCallback? onRemove;
+  final Function(String)? onUpdatePrompt;
 
   const AiCharacterSlider({
     super.key,
     this.onCharacterSelected,
     this.onMinimize,
+    this.aiMessage,
+    this.onContinueReading,
+    this.onRemove,
+    this.onUpdatePrompt,
   });
 
   @override
@@ -26,7 +69,8 @@ class AiCharacterSlider extends StatefulWidget {
 class _AiCharacterSliderState extends State<AiCharacterSlider>
     with SingleTickerProviderStateMixin {
   bool _isExpanded = false;
-  bool _isTextExpanded = false;
+  bool _isDescriptionVisible = false;
+  bool _isSettingsOpen = false;
   late int _selectedIndex;
   late List<AiCharacter> characters = [];
   bool _isLoading = true;
@@ -36,15 +80,6 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
 
   // Distance in pixels between each character's "center"
   final double _spacing = UIConstants.characterSpacing;
-
-  // Fixed dimensions for consistent layout
-  final double _avatarHeight = 100.0;
-  final double _headerSpacing = 16.0;
-  final double _nameHeight = 24.0;
-  final double _traitHeight = 20.0;
-  final double _textContainerPadding = 12.0;
-  final double _buttonHeight = 40.0;
-  final double _buttonMargin = 8.0;
 
   late final AiCharacterService _characterService;
 
@@ -62,16 +97,19 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
     });
 
     _expandController = AnimationController(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 400),
       vsync: this,
     );
 
     _expandAnimation = CurvedAnimation(
       parent: _expandController,
-      curve: Curves.easeInOut,
+      curve: Curves.easeOutBack,
     );
 
     _scrollController = ScrollController();
+
+    // Initialize the animation with a small non-zero value to prevent assertion errors
+    _expandController.value = 0.01;
   }
 
   @override
@@ -145,253 +183,825 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
     _loadCharacters();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const SizedBox(
-        height: 200,
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (characters.isEmpty) {
-      return const SizedBox(
-        height: 200,
-        child: Center(child: Text('No characters available')),
-      );
-    }
-
+  void _showPromptDialog(BuildContext context, String characterName) {
+    final controller = TextEditingController(text: "");
     final theme = Theme.of(context);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final height = _calculateHeight(context);
-        return Container(
-          height: height,
-          margin: const EdgeInsets.symmetric(horizontal: 8),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: _isExpanded ? _buildExpandedView() : _buildCollapsedView(),
+    final isTablet = ResponsiveConstants.isTablet(context);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        backgroundColor: theme.cardColor,
+        title: Text(
+          'Customize $characterName\'s Reminder',
+          style: TextStyle(
+            color: theme.textTheme.titleLarge?.color,
+            fontWeight: FontWeight.bold,
+            fontSize: isTablet ? 22.0 : 20.0,
           ),
-        );
-      },
-    );
-  }
-
-  bool _allowDescriptionExpansion = false;
-
-  void setTextExpanded(bool expanded) {
-    if (!expanded) {
-      // When collapsing, wait for the description to finish collapsing before shrinking the parent
-      setState(() {
-        _isTextExpanded = false;
-        _allowDescriptionExpansion = false;
-      });
-    } else {
-      setState(() {
-        _isTextExpanded = true;
-      });
-    }
-  }
-
-  Widget _buildCollapsedView() {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: Stack(
-        children: [
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              GestureDetector(
-                onTap: _expand,
-                child: Center(
-                  child: _buildCharacterAvatar(_selectedIndex, large: true),
-                ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Customize how $characterName reminds you to continue reading.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontSize: isTablet ? 16.0 : 14.0,
               ),
-              const SizedBox(height: 12),
-              Text(
-                characters[_selectedIndex].name,
-                style: theme.textTheme.titleMedium,
-                overflow: TextOverflow.ellipsis,
+            ),
+            SizedBox(height: isTablet ? 20.0 : 16.0),
+            TextField(
+              controller: controller,
+              maxLines: 4,
+              style: TextStyle(
+                color: theme.textTheme.bodyMedium?.color,
+                fontSize: isTablet ? 16.0 : 14.0,
               ),
-              const SizedBox(height: 4),
-              Text(
-                characters[_selectedIndex].trait,
-                style: theme.textTheme.bodySmall,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: theme.cardColor,
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: theme.inputDecorationTheme.fillColor ??
+                    theme.colorScheme.surface.withOpacity(0.1),
+                border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: theme.dividerColor,
+                  ),
                 ),
-                child: ExpandableDescription(
-                  text: characters[_selectedIndex].personality,
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.4,
-                    color: theme.textTheme.bodyMedium?.color,
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: theme.primaryColor,
+                    width: 2,
                   ),
-                  maxLines: 3,
-                  maxWidth: MediaQuery.of(context).size.width - 80,
                 ),
-              ),
-            ],
-          ),
-          Positioned(
-            top: 0,
-            right: 0,
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: _expand,
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: theme.cardColor,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.swap_horiz_rounded,
-                        size: 20,
-                        color: theme.primaryColor,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Switch',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
+                hintText: 'Enter custom prompt...',
+                hintStyle: TextStyle(
+                  color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
+                  fontSize: isTablet ? 16.0 : 14.0,
                 ),
               ),
             ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(
+              foregroundColor: theme.textTheme.bodyMedium?.color,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              padding: EdgeInsets.symmetric(
+                horizontal: isTablet ? 20.0 : 16.0,
+                vertical: isTablet ? 12.0 : 10.0,
+              ),
+            ),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                fontSize: isTablet ? 16.0 : 14.0,
+              ),
+            ),
           ),
-          Positioned(
-            top: 0,
-            left: 0,
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: widget.onMinimize,
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: theme.cardColor,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.keyboard_arrow_up,
-                        size: 20,
-                        color: theme.primaryColor,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Hide',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+          FilledButton(
+            onPressed: () {
+              widget.onUpdatePrompt?.call(controller.text);
+              Navigator.pop(context);
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: theme.primaryColor,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              padding: EdgeInsets.symmetric(
+                horizontal: isTablet ? 20.0 : 16.0,
+                vertical: isTablet ? 12.0 : 10.0,
+              ),
+            ),
+            child: Text(
+              'Save',
+              style: TextStyle(
+                fontSize: isTablet ? 16.0 : 14.0,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
         ],
+        contentPadding: EdgeInsets.only(
+          top: isTablet ? 20.0 : 16.0,
+          left: isTablet ? 24.0 : 20.0,
+          right: isTablet ? 24.0 : 20.0,
+          bottom: isTablet ? 8.0 : 4.0,
+        ),
+        actionsPadding: EdgeInsets.only(
+          left: isTablet ? 24.0 : 20.0,
+          right: isTablet ? 24.0 : 20.0,
+          bottom: isTablet ? 20.0 : 16.0,
+        ),
+      ),
+    );
+  }
+
+  void _toggleSettings() {
+    setState(() {
+      _isSettingsOpen = !_isSettingsOpen;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return SizedBox(
+        height: ResponsiveConstants.isTablet(context) ? 160.0 : 140.0,
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (characters.isEmpty) {
+      return SizedBox(
+        height: ResponsiveConstants.isTablet(context) ? 160.0 : 140.0,
+        child: const Center(child: Text('No characters available')),
+      );
+    }
+
+    final theme = Theme.of(context);
+    final customTheme = theme.extension<CustomThemeExtension>();
+    final avatarSize = ResponsiveConstants.isTablet(context) ? 80.0 : 70.0;
+
+    return Container(
+      margin: EdgeInsets.symmetric(
+          horizontal: ResponsiveConstants.isTablet(context) ? 24.0 : 16.0,
+          vertical: ResponsiveConstants.isTablet(context) ? 12.0 : 8.0),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        transitionBuilder: (Widget child, Animation<double> animation) {
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: Offset(0, _isExpanded ? -0.1 : 0.1),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+              )),
+              child: child,
+            ),
+          );
+        },
+        child: _isExpanded
+            ? _buildExpandedView()
+            : _buildCollapsedView(theme, customTheme, avatarSize),
+      ),
+    );
+  }
+
+  Widget _buildCollapsedView(
+      ThemeData theme, CustomThemeExtension? customTheme, double avatarSize) {
+    final character = characters[_selectedIndex];
+    final messageTextColor = customTheme?.aiMessageText ?? Colors.white;
+    final gradientStart = customTheme?.aiMessageBackground ??
+        const Color.fromARGB(255, 33, 10, 60);
+    final gradientEnd = HSLColor.fromColor(gradientStart)
+        .withLightness((HSLColor.fromColor(gradientStart).lightness + 0.07)
+            .clamp(0.0, 1.0))
+        .toColor();
+    final isTablet = ResponsiveConstants.isTablet(context);
+
+    return AnimatedContainer(
+      key: const ValueKey('collapsed_view'),
+      duration: const Duration(milliseconds: 300),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [gradientStart, gradientEnd],
+          stops: const [0.3, 1.0],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: Colors.white.withOpacity(0.03),
+            blurRadius: 1,
+            spreadRadius: 1,
+            offset: const Offset(0, 1),
+          ),
+        ],
+        border: Border.all(
+          color: Colors.white.withOpacity(0.08),
+          width: 0.5,
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.05,
+              child: CustomPaint(
+                painter: GridPatternPainter(
+                  lineColor: Colors.white,
+                  lineWidth: 0.2,
+                  spacing: isTablet ? 18.0 : 15.0,
+                ),
+              ),
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header section with character info
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                    isTablet ? 20.0 : 16.0,
+                    isTablet ? 20.0 : 16.0,
+                    isTablet ? 20.0 : 16.0,
+                    isTablet ? 10.0 : 8.0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Character avatar with info button
+                    Stack(
+                      children: [
+                        GestureDetector(
+                          onTap: _expand,
+                          child: Hero(
+                            tag: 'character_avatar_${character.name}',
+                            child: Container(
+                              width: avatarSize,
+                              height: avatarSize,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: theme.primaryColor,
+                                  width: 2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: theme.primaryColor.withOpacity(0.3),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                  BoxShadow(
+                                    color: Colors.white.withOpacity(0.1),
+                                    blurRadius: 4,
+                                    spreadRadius: 1,
+                                    offset: const Offset(0, 0),
+                                  ),
+                                ],
+                              ),
+                              child: ClipOval(
+                                child: Image.asset(
+                                  character.avatarImagePath,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _isDescriptionVisible = !_isDescriptionVisible;
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: theme.primaryColor,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.2),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 1),
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                _isDescriptionVisible
+                                    ? Icons.visibility_off
+                                    : Icons.info_outline,
+                                color: Colors.white,
+                                size: isTablet ? 16.0 : 14.0,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(width: isTablet ? 20.0 : 16.0),
+
+                    // Character name and trait
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            character.name,
+                            style: TextStyle(
+                              fontSize: isTablet ? 24.0 : 22.0,
+                              fontWeight: FontWeight.bold,
+                              color: messageTextColor,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.black.withOpacity(0.3),
+                                  blurRadius: 2,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          SizedBox(height: isTablet ? 8.0 : 6.0),
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isTablet ? 12.0 : 10.0,
+                              vertical: isTablet ? 4.0 : 3.0,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  theme.primaryColor.withOpacity(0.2),
+                                  theme.primaryColor.withOpacity(0.3),
+                                ],
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.1),
+                                width: 0.5,
+                              ),
+                            ),
+                            child: Text(
+                              character.trait,
+                              style: TextStyle(
+                                fontSize: isTablet ? 15.0 : 14.0,
+                                color: messageTextColor,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: 0.3,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Action buttons
+                    Row(
+                      children: [
+                        _buildActionButton(
+                          icon: Icons.keyboard_arrow_up,
+                          onTap: widget.onMinimize,
+                          tooltip: 'Hide',
+                          color: messageTextColor,
+                        ),
+                        _buildActionButton(
+                          icon: Icons.swap_horiz_rounded,
+                          onTap: _expand,
+                          tooltip: 'Change character',
+                          color: messageTextColor,
+                        ),
+                        _buildActionButton(
+                          icon: Icons.settings,
+                          onTap: _toggleSettings,
+                          tooltip: 'Settings',
+                          color: messageTextColor,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // Character description (conditional)
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                height: _isDescriptionVisible ? null : 0,
+                curve: Curves.easeInOut,
+                child: _isDescriptionVisible
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                          child: Padding(
+                            padding: EdgeInsets.fromLTRB(
+                                isTablet ? 20.0 : 16.0,
+                                0,
+                                isTablet ? 20.0 : 16.0,
+                                isTablet ? 10.0 : 8.0),
+                            child: Container(
+                              padding: EdgeInsets.all(isTablet ? 14.0 : 12.0),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.2),
+                                  width: 1,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.2),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: TypingText(
+                                text: character.personality,
+                                style: TextStyle(
+                                  fontSize: isTablet ? 14.0 : 13.0,
+                                  height: 1.4,
+                                  color: messageTextColor,
+                                  letterSpacing: 0.2,
+                                ),
+                                maxLines: isTablet ? 4 : 3,
+                                typingSpeed: const Duration(milliseconds: 15),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+
+              // AI Message - Reduced padding between message and button
+              if (widget.aiMessage != null && widget.aiMessage!.isNotEmpty)
+                Padding(
+                  padding: EdgeInsets.fromLTRB(isTablet ? 20.0 : 16.0, 0,
+                      isTablet ? 20.0 : 16.0, isTablet ? 6.0 : 4.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TypingText(
+                        text: widget.aiMessage!,
+                        style: TextStyle(
+                          fontSize: isTablet ? 16.0 : 15.0,
+                          height: 1.5,
+                          color: messageTextColor,
+                          letterSpacing: 0.2,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 1,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        typingSpeed: const Duration(milliseconds: 30),
+                      ),
+                      SizedBox(height: isTablet ? 12.0 : 8.0), // Reduced space
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: _buildContinueReadingButton(theme),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+
+          // Settings menu
+          if (_isSettingsOpen)
+            Positioned(
+              top: 70,
+              right: isTablet ? 20.0 : 16.0,
+              child: _buildSettingsMenu(theme, character.name),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required VoidCallback? onTap,
+    required String tooltip,
+    required Color color,
+  }) {
+    final isTablet = ResponsiveConstants.isTablet(context);
+
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: EdgeInsets.all(isTablet ? 10.0 : 8.0),
+            margin: EdgeInsets.symmetric(horizontal: isTablet ? 3.0 : 2.0),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Icon(
+              icon,
+              size: isTablet ? 24.0 : 22.0,
+              color: color,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSettingsMenu(ThemeData theme, String characterName) {
+    final isTablet = ResponsiveConstants.isTablet(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: Container(
+            width: isTablet ? 280.0 : 250.0,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  theme.cardColor.withOpacity(0.85),
+                  theme.cardColor.withOpacity(0.95),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.1),
+                width: 0.5,
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildSettingsItem(
+                  icon: Icons.edit,
+                  title: 'Change how $characterName reminds me',
+                  onTap: () {
+                    _toggleSettings();
+                    _showPromptDialog(context, characterName);
+                  },
+                  theme: theme,
+                ),
+                Divider(
+                  height: 1,
+                  color: theme.dividerColor.withOpacity(0.2),
+                  indent: 16,
+                  endIndent: 16,
+                ),
+                _buildSettingsItem(
+                  icon: Icons.notifications_off,
+                  title: 'Turn off reminders',
+                  onTap: () {
+                    _toggleSettings();
+                    widget.onRemove?.call();
+                  },
+                  theme: theme,
+                  iconColor: Colors.red.shade400,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSettingsItem({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    required ThemeData theme,
+    Color? iconColor,
+  }) {
+    final isTablet = ResponsiveConstants.isTablet(context);
+
+    return InkWell(
+      onTap: onTap,
+      splashColor: theme.primaryColor.withOpacity(0.1),
+      highlightColor: theme.primaryColor.withOpacity(0.05),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: isTablet ? 20.0 : 16.0,
+          vertical: isTablet ? 16.0 : 12.0,
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: (iconColor ?? theme.primaryColor).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                icon,
+                size: isTablet ? 22.0 : 20.0,
+                color: iconColor ?? theme.primaryColor,
+              ),
+            ),
+            SizedBox(width: isTablet ? 20.0 : 16.0),
+            Expanded(
+              child: Text(
+                title,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                  fontSize: isTablet ? 15.0 : 14.0,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContinueReadingButton(ThemeData theme) {
+    final isTablet = ResponsiveConstants.isTablet(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            theme.primaryColor,
+            Color.lerp(theme.primaryColor, Colors.purple, 0.3) ??
+                theme.primaryColor,
+            Color.lerp(theme.primaryColor, Colors.blue, 0.1) ??
+                theme.primaryColor,
+          ],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: theme.primaryColor.withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+          BoxShadow(
+            color: Colors.white.withOpacity(0.1),
+            blurRadius: 4,
+            spreadRadius: 0,
+            offset: const Offset(0, 0),
+          ),
+        ],
+        border: Border.all(
+          color: Colors.white.withOpacity(0.1),
+          width: 0.5,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: widget.onContinueReading,
+          borderRadius: BorderRadius.circular(16),
+          splashColor: Colors.white.withOpacity(0.2),
+          highlightColor: Colors.white.withOpacity(0.1),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: isTablet ? 24.0 : 20.0,
+              vertical: isTablet ? 14.0 : 12.0,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Continue reading',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: isTablet ? 16.0 : 15.0,
+                    color: Colors.white,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                SizedBox(width: isTablet ? 10.0 : 8.0),
+                Icon(
+                  Icons.arrow_forward_rounded,
+                  color: Colors.white,
+                  size: isTablet ? 20.0 : 18.0,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildExpandedView() {
     final theme = Theme.of(context);
+    final isTablet = ResponsiveConstants.isTablet(context);
+
     return Container(
+      key: const ValueKey('expanded_view'),
+      padding: EdgeInsets.only(bottom: isTablet ? 16.0 : 12.0),
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
+          // Header with title and close button
+          Container(
+            padding: EdgeInsets.all(isTablet ? 20.0 : 16.0),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  theme.colorScheme.primary.withOpacity(0.15),
+                  theme.colorScheme.secondary.withOpacity(0.05),
+                ],
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
+              ),
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: Text(
-                    'Choose Character',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontSize: ResponsiveConstants.getTitleFontSize(context),
-                    ),
-                    overflow: TextOverflow.ellipsis,
+                Text(
+                  'Choose Character',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontSize: ResponsiveConstants.getTitleFontSize(context),
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                IconButton(
-                  onPressed: _collapse,
-                  icon: Icon(
-                    Icons.close,
-                    color: theme.iconTheme.color,
-                    size: ResponsiveConstants.getIconSize(context),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: _collapse,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: EdgeInsets.all(isTablet ? 10.0 : 8.0),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface.withOpacity(0.8),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.close,
+                        color: theme.iconTheme.color,
+                        size: ResponsiveConstants.getIconSize(context),
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          Expanded(
+
+          // Character selector - improved with better padding
+          SizedBox(
+            height: isTablet ? 240.0 : 220.0,
             child: ListView.builder(
               controller: _scrollController,
               scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: EdgeInsets.symmetric(
+                  horizontal: isTablet ? 20.0 : 16.0,
+                  vertical: isTablet ? 16.0 : 12.0),
               itemCount: characters.length,
               itemBuilder: (context, index) => _buildCharacterItem(index),
             ),
@@ -408,95 +1018,227 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
     final theme = Theme.of(context);
     final isTablet = ResponsiveConstants.isTablet(context);
 
-    return GestureDetector(
-      onTap: () => _onCharacterTap(index),
-      child: Container(
-        width: 140,
-        margin: const EdgeInsets.symmetric(horizontal: 8),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? theme.primaryColor.withOpacity(0.1)
-              : theme.cardColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? theme.primaryColor : theme.dividerColor,
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Stack(
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: _buildCharacterAvatar(index),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  character.name,
-                  style: theme.textTheme.titleMedium,
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  character.trait,
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
-            ),
-            if (isCustom)
-              Positioned(
-                top: 0,
-                right: 0,
-                child: GestureDetector(
-                  onTap: () => _deleteCharacter(index),
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.close,
-                      color: Colors.white,
-                      size: 16,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCharacterAvatar(int index, {bool large = false}) {
-    final theme = Theme.of(context);
-    final isTablet = ResponsiveConstants.isTablet(context);
-    final size = large ? (isTablet ? 120.0 : 100.0) : (isTablet ? 100.0 : 80.0);
-
-    return Container(
-      width: size,
-      height: size,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      width: isTablet ? 160.0 : 140.0,
+      margin: EdgeInsets.symmetric(horizontal: isTablet ? 12.0 : 10.0),
       decoration: BoxDecoration(
-        shape: BoxShape.circle,
+        gradient: isSelected
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  theme.primaryColor.withOpacity(0.15),
+                  theme.primaryColor.withOpacity(0.05),
+                ],
+                stops: const [0.3, 1.0],
+              )
+            : null,
+        color: isSelected ? null : theme.cardColor,
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color:
-              index == _selectedIndex ? theme.primaryColor : Colors.transparent,
-          width: isTablet ? 3 : 2,
+          color: isSelected ? theme.primaryColor : theme.dividerColor,
+          width: isSelected ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
+            color: isSelected
+                ? theme.primaryColor.withOpacity(0.25)
+                : Colors.black.withOpacity(0.05),
+            blurRadius: isSelected ? 10 : 6,
             offset: const Offset(0, 2),
           ),
+          if (isSelected)
+            BoxShadow(
+              color: Colors.white.withOpacity(0.1),
+              blurRadius: 4,
+              spreadRadius: 0,
+              offset: const Offset(0, 0),
+            ),
         ],
       ),
-      child: ClipOval(
-        child: Image.asset(
-          characters[index].avatarImagePath,
-          fit: BoxFit.cover,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _onCharacterTap(index),
+          borderRadius: BorderRadius.circular(17),
+          splashColor: theme.primaryColor.withOpacity(0.15),
+          highlightColor: theme.primaryColor.withOpacity(0.1),
+          child: Stack(
+            children: [
+              Padding(
+                padding: EdgeInsets.all(isTablet ? 16.0 : 14.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: TweenAnimationBuilder<double>(
+                        duration: const Duration(milliseconds: 300),
+                        tween: Tween<double>(
+                          begin: 0.95,
+                          end: isSelected ? 1.05 : 0.95,
+                        ),
+                        curve: Curves.easeInOut,
+                        builder: (context, value, child) {
+                          return Transform.scale(
+                            scale: value,
+                            child: child,
+                          );
+                        },
+                        child: Hero(
+                          tag: isSelected
+                              ? 'character_avatar_${character.name}'
+                              : 'character_avatar_inactive_${character.name}',
+                          child: Container(
+                            width: isTablet ? 90.0 : 82.0,
+                            height: isTablet ? 90.0 : 82.0,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isSelected
+                                    ? theme.primaryColor
+                                    : Colors.transparent,
+                                width: isSelected ? 3 : 0,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: isSelected
+                                      ? theme.primaryColor.withOpacity(0.5)
+                                      : Colors.black.withOpacity(0.1),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child: Image.asset(
+                                character.avatarImagePath,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: isTablet ? 14.0 : 12.0),
+                    Text(
+                      character.name,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: isSelected
+                            ? theme.primaryColor
+                            : theme.textTheme.bodyLarge?.color,
+                        fontSize: isTablet ? 18.0 : 16.0,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    SizedBox(height: isTablet ? 8.0 : 6.0),
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isTablet ? 12.0 : 10.0,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? theme.primaryColor.withOpacity(0.25)
+                            : theme.cardColor,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected
+                              ? theme.primaryColor.withOpacity(0.3)
+                              : theme.dividerColor,
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        character.trait,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: isSelected
+                              ? theme.primaryColor
+                              : theme.textTheme.bodySmall?.color,
+                          fontWeight:
+                              isSelected ? FontWeight.w600 : FontWeight.normal,
+                          letterSpacing: 0.2,
+                          fontSize: isTablet ? 13.0 : 12.0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isCustom)
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: GestureDetector(
+                    onTap: () => _deleteCharacter(index),
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade600,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.2),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.close,
+                        color: Colors.white,
+                        size: isTablet ? 18.0 : 16.0,
+                      ),
+                    ),
+                  ),
+                ),
+              if (isSelected)
+                Positioned(
+                  bottom: 12,
+                  right: 12,
+                  child: TweenAnimationBuilder<double>(
+                    duration: const Duration(milliseconds: 300),
+                    tween: Tween<double>(begin: 0.0, end: 1.0),
+                    builder: (context, value, child) {
+                      return Transform.scale(
+                        scale: value,
+                        child: child,
+                      );
+                    },
+                    child: Container(
+                      width: isTablet ? 30.0 : 26.0,
+                      height: isTablet ? 30.0 : 26.0,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            theme.primaryColor,
+                            Color.lerp(
+                                    theme.primaryColor, Colors.purple, 0.3) ??
+                                theme.primaryColor,
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: theme.primaryColor.withOpacity(0.3),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.check,
+                        color: Colors.white,
+                        size: isTablet ? 18.0 : 16.0,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -563,242 +1305,15 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
   void _expand() {
     setState(() {
       _isExpanded = true;
+      _isSettingsOpen = false;
     });
-    _expandController.forward();
   }
 
   /// Collapse back to a single avatar.
   void _collapse() {
     setState(() {
       _isExpanded = false;
+      _isSettingsOpen = false;
     });
-    _expandController.reverse();
-  }
-
-  // Calculate height based on content
-  double _calculateHeight(BuildContext context) {
-    if (_isExpanded) {
-      return ResponsiveConstants.isLargeTablet(context)
-          ? 320.0
-          : ResponsiveConstants.isTablet(context)
-              ? 300.0 // Height for regular tablets
-              : 280.0; // Height for phones
-    }
-
-    // Get text painter to measure text height
-    final TextPainter textPainter = TextPainter(
-      text: TextSpan(
-        text: characters[_selectedIndex].personality,
-        style: TextStyle(
-          fontSize: ResponsiveConstants.isTablet(context) ? 15 : 13,
-          height: 1.4,
-          color: Theme.of(context).textTheme.bodyMedium?.color,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-      maxLines: _isTextExpanded ? null : 3,
-    );
-
-    // Calculate available width for text
-    final double availableWidth = MediaQuery.of(context).size.width - 80;
-    textPainter.layout(maxWidth: availableWidth);
-
-    // Check if text actually needs expansion
-    bool needsExpansion = false;
-    if (!_isTextExpanded) {
-      textPainter.maxLines = 3;
-      textPainter.layout(maxWidth: availableWidth);
-      needsExpansion = textPainter.didExceedMaxLines;
-    }
-
-    // Base height calculation with responsive adjustments
-    double height =
-        ResponsiveConstants.isTablet(context) ? 20.0 : 16.0; // Top padding
-    height +=
-        ResponsiveConstants.isTablet(context) ? 100.0 : 100.0; // Avatar height
-    height += ResponsiveConstants.isTablet(context)
-        ? 14.0
-        : 12.0; // Spacing after avatar
-    height +=
-        ResponsiveConstants.isTablet(context) ? 28.0 : 24.0; // Name height
-    height += ResponsiveConstants.isTablet(context)
-        ? 6.0
-        : 4.0; // Spacing between name and trait
-    height += ResponsiveConstants.isTablet(context) ? 22.0 : 20.0;
-    height += ResponsiveConstants.isTablet(context)
-        ? 14.0
-        : 12.0; // Spacing before text container
-    height += 24.0; // Text container padding
-    height += textPainter.height; // Text height
-
-    // Add height for button if text needs expansion
-    if (needsExpansion || _isTextExpanded) {
-      height +=
-          ResponsiveConstants.isTablet(context) ? 12.0 : 8.0; // Button margin
-      height +=
-          ResponsiveConstants.isTablet(context) ? 48.0 : 40.0; // Button height
-      height += 5.0; // Extra space to prevent overflow
-    }
-
-    height +=
-        ResponsiveConstants.isTablet(context) ? 8.0 : 5.0; // Bottom padding
-
-    return height.ceilToDouble();
-  }
-}
-
-class ExpandableDescription extends StatefulWidget {
-  final String text;
-  final TextStyle style;
-  final int maxLines;
-  final double maxWidth;
-
-  const ExpandableDescription({
-    required this.text,
-    required this.style,
-    required this.maxWidth,
-    this.maxLines = 3,
-    super.key,
-  });
-
-  @override
-  State<ExpandableDescription> createState() => _ExpandableDescriptionState();
-}
-
-class _ExpandableDescriptionState extends State<ExpandableDescription> {
-  bool _isExpanded = false;
-  bool _showReadMore = false;
-  late TextPainter _textPainter;
-  bool _hasOverflow = false;
-  late int _actualLineCount;
-  Timer? _readMoreTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    _measureText();
-    _scheduleReadMoreButton();
-  }
-
-  @override
-  void dispose() {
-    _readMoreTimer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  void didUpdateWidget(ExpandableDescription oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.text != widget.text ||
-        oldWidget.maxWidth != widget.maxWidth ||
-        oldWidget.style != widget.style) {
-      _measureText();
-      _showReadMore = false;
-      _scheduleReadMoreButton();
-    }
-  }
-
-  void _scheduleReadMoreButton() {
-    _readMoreTimer?.cancel();
-    _readMoreTimer = Timer(const Duration(milliseconds: 2200), () {
-      if (mounted) {
-        setState(() {
-          _showReadMore = true;
-        });
-      }
-    });
-  }
-
-  void _measureText() {
-    _textPainter = TextPainter(
-      text: TextSpan(text: widget.text, style: widget.style),
-      maxLines: 1000,
-      textDirection: TextDirection.ltr,
-    )..layout(maxWidth: widget.maxWidth);
-
-    List<LineMetrics> lines = _textPainter.computeLineMetrics();
-    _actualLineCount = lines.length;
-
-    _textPainter.maxLines = widget.maxLines;
-    _textPainter.layout(maxWidth: widget.maxWidth);
-    _hasOverflow = _textPainter.didExceedMaxLines;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final sliderState =
-        context.findAncestorStateOfType<_AiCharacterSliderState>();
-
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeInOut,
-      alignment: Alignment.topCenter,
-      onEnd: () {
-        if (!_isExpanded) {
-          sliderState?.setTextExpanded(false);
-        }
-      },
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TypingText(
-            text: widget.text,
-            style: widget.style,
-            maxLines: _isExpanded ? _actualLineCount : widget.maxLines,
-            typingSpeed: const Duration(milliseconds: 15),
-            overflow: TextOverflow.ellipsis,
-          ),
-          if (_hasOverflow && _showReadMore)
-            GestureDetector(
-              onTap: () {
-                setState(() {
-                  _isExpanded = !_isExpanded;
-                  if (_isExpanded) {
-                    sliderState?.setTextExpanded(true);
-                  } else {
-                    _isExpanded = false;
-                  }
-                });
-              },
-              child: Container(
-                width: double.infinity,
-                height: 40,
-                margin: const EdgeInsets.only(top: 4), // Reduced from 12 to 4
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: _isExpanded
-                        ? [Colors.transparent, Colors.grey.withOpacity(0.1)]
-                        : [Colors.grey.withOpacity(0.1), Colors.transparent],
-                  ),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      _isExpanded ? 'Show less' : 'Read more',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      _isExpanded
-                          ? Icons.keyboard_arrow_up
-                          : Icons.keyboard_arrow_down,
-                      size: 20,
-                      color: Theme.of(context).primaryColor,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
   }
 }
