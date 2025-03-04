@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:read_leaf/features/characters/data/ai_character_service.dart';
 import 'package:read_leaf/injection/injection.dart';
+import 'package:read_leaf/core/constants/responsive_constants.dart';
 
 class MinimizedCharacterSlider extends StatefulWidget {
   final VoidCallback onTap;
@@ -48,6 +49,21 @@ class _MinimizedCharacterSliderState extends State<MinimizedCharacterSlider>
   Widget build(BuildContext context) {
     final character = getIt<AiCharacterService>().getSelectedCharacter();
     final theme = Theme.of(context);
+    final isTablet = ResponsiveConstants.isTablet(context);
+
+    // Calculate sizes based on tablet or mobile and position (appbar or not)
+    final double avatarSize =
+        widget.inAppBar ? (isTablet ? 50.0 : 44.0) : (isTablet ? 68.0 : 58.0);
+
+    final double pulseSize =
+        widget.inAppBar ? (isTablet ? 52.0 : 46.0) : (isTablet ? 70.0 : 60.0);
+
+    final double iconSize =
+        widget.inAppBar ? (isTablet ? 18.0 : 16.0) : (isTablet ? 20.0 : 16.0);
+
+    final double borderWidth = isTablet ? 2.5 : 2.0;
+    final double padding =
+        widget.inAppBar ? (isTablet ? 10.0 : 8.0) : (isTablet ? 5.0 : 5.0);
 
     return GestureDetector(
       onTap: widget.onTap,
@@ -66,8 +82,8 @@ class _MinimizedCharacterSliderState extends State<MinimizedCharacterSlider>
                   return Transform.scale(
                     scale: _pulseAnimation.value,
                     child: Container(
-                      width: widget.inAppBar ? 46 : 60,
-                      height: widget.inAppBar ? 46 : 60,
+                      width: pulseSize,
+                      height: pulseSize,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: RadialGradient(
@@ -87,13 +103,13 @@ class _MinimizedCharacterSliderState extends State<MinimizedCharacterSlider>
               Hero(
                 tag: 'character_avatar_${character?.name ?? "default"}',
                 child: Container(
-                  width: widget.inAppBar ? 44 : 58,
-                  height: widget.inAppBar ? 44 : 58,
+                  width: avatarSize,
+                  height: avatarSize,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
                       color: theme.primaryColor,
-                      width: 2,
+                      width: borderWidth,
                     ),
                     boxShadow: [
                       BoxShadow(
@@ -118,7 +134,7 @@ class _MinimizedCharacterSliderState extends State<MinimizedCharacterSlider>
                   right: 0,
                   bottom: 0,
                   child: Container(
-                    padding: const EdgeInsets.all(5),
+                    padding: EdgeInsets.all(padding),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
@@ -140,7 +156,7 @@ class _MinimizedCharacterSliderState extends State<MinimizedCharacterSlider>
                     ),
                     child: Icon(
                       Icons.expand_less,
-                      size: 16,
+                      size: iconSize,
                       color: Colors.white,
                     ),
                   ),

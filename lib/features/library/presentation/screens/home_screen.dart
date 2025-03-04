@@ -20,6 +20,7 @@ import 'package:read_leaf/features/library/presentation/widgets/refresh_animatio
 import 'package:read_leaf/features/characters/presentation/widgets/minimized_character_slider.dart';
 import 'package:provider/provider.dart';
 import 'package:read_leaf/core/providers/theme_provider.dart';
+import 'package:read_leaf/core/providers/settings_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -37,6 +38,7 @@ class HomeScreenState extends State<HomeScreen> {
   bool _isScrollingDown = false;
   double _dragOffset = 0.0;
   bool _isCharacterSliderMinimized = false;
+  bool _isGeneratingMessage = false;
 
   @override
   void initState() {
@@ -50,6 +52,7 @@ class HomeScreenState extends State<HomeScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Always call generateNewAIMessage, but it will internally check if reminders are enabled
       if (_aiMessage == null && mounted) {
         generateNewAIMessage();
       }
@@ -155,20 +158,38 @@ class HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() {
           _aiMessage = message;
+          _isGeneratingMessage = false;
         });
       }
     } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isGeneratingMessage = false;
+        });
+      }
       Utils.showErrorSnackBar(context, 'Error generating AI message');
       print('Error generating AI message: $e');
     }
   }
 
-  // Make this method public so it can be called from the character slider
   Future<void> generateNewAIMessage() async {
     if (mounted) {
+      // Check if reminders are enabled
+      final settingsProvider =
+          Provider.of<SettingsProvider>(context, listen: false);
+      if (!settingsProvider.remindersEnabled) {
+        // If reminders are disabled, clear any existing message but don't generate a new one
+        setState(() {
+          _aiMessage = null;
+          _isGeneratingMessage = false;
+        });
+        return;
+      }
+
       // Clear existing message first to trigger UI update
       setState(() {
         _aiMessage = null;
+        _isGeneratingMessage = true;
       });
       // Generate new message after a short delay
       await Future.delayed(const Duration(milliseconds: 100));
@@ -197,6 +218,10 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildCharacterSlider() {
+    // Check if reading reminders are enabled in the settings
+    final settingsProvider =
+        Provider.of<SettingsProvider>(context, listen: false);
+
     if (!_isCharacterSliderMinimized) {
       return AiCharacterSlider(
         key: AiCharacterSlider.globalKey,
@@ -205,7 +230,9 @@ class HomeScreenState extends State<HomeScreen> {
             _isCharacterSliderMinimized = true;
           });
         },
-        aiMessage: _aiMessage,
+        // Only pass the AI message if reminders are enabled
+        aiMessage: settingsProvider.remindersEnabled ? _aiMessage : null,
+        isGeneratingMessage: _isGeneratingMessage,
         onContinueReading: () {
           final state = context.read<FileBloc>().state;
           if (state is FileLoaded && state.files.isNotEmpty) {
@@ -217,8 +244,9 @@ class HomeScreenState extends State<HomeScreen> {
           }
         },
         onRemove: () {
-          Provider.of<ThemeProvider>(context, listen: false)
-              .setShowReadingReminders(false);
+          // Update the settings provider instead of theme provider
+          Provider.of<SettingsProvider>(context, listen: false)
+              .toggleReminders(false);
         },
         onUpdatePrompt: (newPrompt) async {
           await _geminiService.setCustomEncouragementPrompt(newPrompt);
@@ -262,7 +290,11 @@ class HomeScreenState extends State<HomeScreen> {
             onRefresh: () async {
               await _refreshScreen();
               await _loadBookOfTheDay();
-              await generateNewAIMessage();
+              final settingsProvider =
+                  Provider.of<SettingsProvider>(context, listen: false);
+              if (settingsProvider.remindersEnabled) {
+                await generateNewAIMessage();
+              }
               setState(() {
                 _dragOffset = 0;
               });

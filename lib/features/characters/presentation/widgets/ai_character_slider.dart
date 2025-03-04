@@ -9,6 +9,9 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:read_leaf/core/constants/responsive_constants.dart';
 import 'package:read_leaf/core/themes/custom_theme_extension.dart';
+import 'package:read_leaf/features/characters/presentation/widgets/typing_indicator.dart';
+import 'package:provider/provider.dart';
+import 'package:read_leaf/core/providers/settings_provider.dart';
 
 /// A custom painter that draws a subtle grid pattern
 class GridPatternPainter extends CustomPainter {
@@ -51,6 +54,7 @@ class AiCharacterSlider extends StatefulWidget {
   final VoidCallback? onContinueReading;
   final VoidCallback? onRemove;
   final Function(String)? onUpdatePrompt;
+  final bool isGeneratingMessage;
 
   const AiCharacterSlider({
     super.key,
@@ -60,6 +64,7 @@ class AiCharacterSlider extends StatefulWidget {
     this.onContinueReading,
     this.onRemove,
     this.onUpdatePrompt,
+    this.isGeneratingMessage = false,
   });
 
   @override
@@ -77,6 +82,7 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
   late ScrollController _scrollController;
   late AnimationController _expandController;
   late Animation<double> _expandAnimation;
+  OverlayEntry? _settingsOverlay;
 
   // Distance in pixels between each character's "center"
   final double _spacing = UIConstants.characterSpacing;
@@ -114,6 +120,7 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
 
   @override
   void dispose() {
+    _removeSettingsOverlay();
     _scrollController.dispose();
     _expandController.dispose();
     super.dispose();
@@ -307,9 +314,57 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
   }
 
   void _toggleSettings() {
+    if (_isSettingsOpen) {
+      _removeSettingsOverlay();
+    } else {
+      _showSettingsOverlay();
+    }
     setState(() {
       _isSettingsOpen = !_isSettingsOpen;
     });
+  }
+
+  void _showSettingsOverlay() {
+    final RenderBox renderBox = context.findRenderObject() as RenderBox;
+    final settingsButtonPosition = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+
+    // Calculate position for the settings menu
+    final character = characters[_selectedIndex];
+    final theme = Theme.of(context);
+    final isTablet = ResponsiveConstants.isTablet(context);
+
+    _settingsOverlay = OverlayEntry(
+      builder: (context) => Stack(
+        children: [
+          // Invisible full-screen button to detect taps outside the menu
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: _toggleSettings,
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                color: Colors.transparent,
+              ),
+            ),
+          ),
+          Positioned(
+            top: settingsButtonPosition.dy + 70, // Same position as before
+            right: isTablet ? 20.0 : 16.0,
+            child: Material(
+              color: Colors.transparent,
+              child: _buildSettingsMenu(theme, character.name),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    Overlay.of(context).insert(_settingsOverlay!);
+  }
+
+  void _removeSettingsOverlay() {
+    _settingsOverlay?.remove();
+    _settingsOverlay = null;
   }
 
   @override
@@ -639,14 +694,15 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
                     : const SizedBox.shrink(),
               ),
 
-              // AI Message - Reduced padding between message and button
-              if (widget.aiMessage != null && widget.aiMessage!.isNotEmpty)
-                Padding(
-                  padding: EdgeInsets.fromLTRB(isTablet ? 20.0 : 16.0, 0,
-                      isTablet ? 20.0 : 16.0, isTablet ? 6.0 : 4.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+              // AI Message or Typing Indicator
+              Padding(
+                padding: EdgeInsets.fromLTRB(isTablet ? 20.0 : 16.0, 0,
+                    isTablet ? 20.0 : 16.0, isTablet ? 6.0 : 4.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (widget.aiMessage != null &&
+                        widget.aiMessage!.isNotEmpty)
                       TypingText(
                         text: widget.aiMessage!,
                         style: TextStyle(
@@ -663,26 +719,37 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
                           ],
                         ),
                         typingSpeed: const Duration(milliseconds: 30),
-                      ),
+                      )
+                    else if (widget.isGeneratingMessage)
+                      _buildThinkingIndicator(
+                          theme, character.name, messageTextColor, isTablet),
+
+                    if (widget.aiMessage != null &&
+                        widget.aiMessage!.isNotEmpty)
                       SizedBox(height: isTablet ? 12.0 : 8.0), // Reduced space
+
+                    if (widget.aiMessage != null &&
+                        widget.aiMessage!.isNotEmpty)
                       Align(
                         alignment: Alignment.centerRight,
                         child: _buildContinueReadingButton(theme),
                       ),
-                    ],
-                  ),
+                  ],
                 ),
+              ),
             ],
           ),
-
-          // Settings menu
-          if (_isSettingsOpen)
-            Positioned(
-              top: 70,
-              right: isTablet ? 20.0 : 16.0,
-              child: _buildSettingsMenu(theme, character.name),
-            ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildThinkingIndicator(
+      ThemeData theme, String characterName, Color textColor, bool isTablet) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: isTablet ? 12.0 : 8.0),
+      child: TypingIndicator(
+        characterName: characterName,
       ),
     );
   }
@@ -722,6 +789,10 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
 
   Widget _buildSettingsMenu(ThemeData theme, String characterName) {
     final isTablet = ResponsiveConstants.isTablet(context);
+    // Get the settings provider to check the actual reminders state
+    final settingsProvider =
+        Provider.of<SettingsProvider>(context, listen: false);
+    final bool remindersActive = settingsProvider.remindersEnabled;
 
     return Container(
       decoration: BoxDecoration(
@@ -774,14 +845,35 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
                   endIndent: 16,
                 ),
                 _buildSettingsItem(
-                  icon: Icons.notifications_off,
-                  title: 'Turn off reminders',
+                  icon: remindersActive
+                      ? Icons.notifications_off
+                      : Icons.notifications_active,
+                  title: remindersActive
+                      ? 'Turn off reminders'
+                      : 'Turn on reminders',
                   onTap: () {
                     _toggleSettings();
-                    widget.onRemove?.call();
+                    // Toggle the reminders setting in the provider
+                    settingsProvider.toggleReminders(!remindersActive);
+
+                    // If we're turning reminders on, we need to generate a new message
+                    if (!remindersActive) {
+                      final homeScreen =
+                          context.findAncestorStateOfType<HomeScreenState>();
+                      if (homeScreen != null) {
+                        Future.microtask(() {
+                          homeScreen.generateNewAIMessage();
+                        });
+                      }
+                    } else {
+                      // If we're turning reminders off, call the onRemove callback
+                      widget.onRemove?.call();
+                    }
                   },
                   theme: theme,
-                  iconColor: Colors.red.shade400,
+                  iconColor: remindersActive
+                      ? Colors.red.shade400
+                      : Colors.green.shade400,
                 ),
               ],
             ),
@@ -1315,5 +1407,6 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
       _isExpanded = false;
       _isSettingsOpen = false;
     });
+    _removeSettingsOverlay();
   }
 }
