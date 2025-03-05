@@ -79,7 +79,17 @@ class SupabaseService {
   }
 
   Future<void> signOut() async {
-    await _client.auth.signOut();
+    try {
+      // Kill the session completely and clear local state
+      await _client.auth.signOut();
+      // Clear any persisted data
+      await _client.auth.signOut(scope: SignOutScope.global);
+      // Force refresh the auth state
+      await _client.auth.refreshSession();
+    } catch (e) {
+      // Make sure we still attempt to sign out even if one method fails
+      await _client.auth.signOut(scope: SignOutScope.global);
+    }
   }
 
   // User data methods
@@ -88,29 +98,26 @@ class SupabaseService {
       final userId = _client.auth.currentUser?.id;
       if (userId == null) return null;
 
-      final profile = await _client
-          .from(_userProfilesTable)
-          .select()
-          .eq('id', userId)
-          .single();
+      // Get all user data in parallel for better performance
+      final results = await Future.wait([
+        _client.from(_userProfilesTable).select().eq('id', userId).single(),
+        _client
+            .from(_userPreferencesTable)
+            .select()
+            .eq('user_id', userId)
+            .single(),
+        _client.from(_userLibraryTable).select().eq('user_id', userId).single(),
+        _client
+            .from(_userAiSettingsTable)
+            .select()
+            .eq('user_id', userId)
+            .single(),
+      ]);
 
-      final preferences = await _client
-          .from(_userPreferencesTable)
-          .select()
-          .eq('user_id', userId)
-          .single();
-
-      final library = await _client
-          .from(_userLibraryTable)
-          .select()
-          .eq('user_id', userId)
-          .single();
-
-      final aiSettings = await _client
-          .from(_userAiSettingsTable)
-          .select()
-          .eq('user_id', userId)
-          .single();
+      final profile = results[0];
+      final preferences = results[1];
+      final library = results[2];
+      final aiSettings = results[3];
 
       // Get social provider avatar if available
       String? avatarUrl = profile['avatar_url'];
@@ -141,7 +148,80 @@ class SupabaseService {
         aiSettings: UserAISettings.fromJson(aiSettings),
       );
     } catch (e) {
+      // If any of the required data is missing, try to recreate it
+      await _recreateUserData();
       rethrow;
+    }
+  }
+
+  Future<void> _recreateUserData() async {
+    try {
+      final userId = _client.auth.currentUser?.id;
+      if (userId == null) return;
+
+      final email = _client.auth.currentUser?.email;
+      if (email == null) return;
+
+      // Check if profile exists
+      final profileExists = await _client
+          .from(_userProfilesTable)
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+
+      if (profileExists == null) {
+        // Create profile
+        await _client.from(_userProfilesTable).insert({
+          'id': userId,
+          'email': email,
+          'username': email.split('@')[0],
+        });
+      }
+
+      // Check if preferences exist
+      final preferencesExist = await _client
+          .from(_userPreferencesTable)
+          .select()
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (preferencesExist == null) {
+        // Create preferences
+        await _client.from(_userPreferencesTable).insert({
+          'user_id': userId,
+        });
+      }
+
+      // Check if library exists
+      final libraryExists = await _client
+          .from(_userLibraryTable)
+          .select()
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (libraryExists == null) {
+        // Create library
+        await _client.from(_userLibraryTable).insert({
+          'user_id': userId,
+        });
+      }
+
+      // Check if AI settings exist
+      final aiSettingsExist = await _client
+          .from(_userAiSettingsTable)
+          .select()
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (aiSettingsExist == null) {
+        // Create AI settings
+        await _client.from(_userAiSettingsTable).insert({
+          'user_id': userId,
+        });
+      }
+    } catch (e) {
+      // Log error but don't rethrow as this is a recovery attempt
+      print('Error recreating user data: $e');
     }
   }
 

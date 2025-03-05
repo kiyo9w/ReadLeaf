@@ -11,7 +11,7 @@ import '../../../settings/data/sync/user_preferences_service.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final SupabaseService _supabaseService;
-  late final StreamSubscription<AuthEvent> _authStateSubscription;
+  late final StreamSubscription<AuthState> _authStateSubscription;
   AuthState? _lastKnownState;
   final ChatService _chatService;
   final BookMetadataRepository _bookMetadataRepository;
@@ -34,21 +34,21 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
     // Listen to auth state changes
     _authStateSubscription =
-        Supabase.instance.client.auth.onAuthStateChange.map((data) {
-      final AuthChangeEvent event = data.event;
-      final Session? session = data.session;
-
-      switch (event) {
-        case AuthChangeEvent.signedIn:
-          return AuthUserUpdated(session?.user.id);
-        case AuthChangeEvent.signedOut:
-          return AuthUserUpdated(null);
-        case AuthChangeEvent.userUpdated:
-          return AuthUserUpdated(session?.user.id);
-        default:
-          return AuthUserUpdated(session?.user.id);
+        Supabase.instance.client.auth.onAuthStateChange.distinct().map((data) {
+      if (data.event == AuthChangeEvent.signedOut) {
+        return AuthUnauthenticated();
+      } else if (data.session?.user != null &&
+          data.event != AuthChangeEvent.tokenRefreshed) {
+        return AuthLoading();
       }
-    }).listen((event) => add(event));
+      return state;
+    }).listen((authState) {
+      if (authState is AuthUnauthenticated) {
+        add(AuthUserUpdated(null));
+      } else if (authState is AuthLoading) {
+        add(AuthUserUpdated(Supabase.instance.client.auth.currentUser?.id));
+      }
+    });
   }
 
   Future<void> _initializeAuthState() async {
@@ -57,9 +57,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       if (user != null) {
         _lastKnownState = AuthAuthenticated(user);
         emit(_lastKnownState!);
+      } else {
+        _lastKnownState = AuthUnauthenticated();
+        emit(_lastKnownState!);
       }
     } catch (e) {
       // Ignore errors during initialization
+      _lastKnownState = AuthUnauthenticated();
+      emit(_lastKnownState!);
     }
   }
 
@@ -85,6 +90,17 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         emit(_lastKnownState!);
       }
     } catch (e) {
+      // If there's an error, try to recreate user data
+      try {
+        final user = await _supabaseService.getUserData();
+        if (user != null) {
+          _lastKnownState = AuthAuthenticated(user);
+          emit(_lastKnownState!);
+          return;
+        }
+      } catch (_) {
+        // If recreation fails, emit failure
+      }
       emit(AuthFailure(e.toString()));
     }
   }
@@ -102,11 +118,20 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
 
       if (user != null) {
-        if (event.context.mounted) {
-          Navigator.of(event.context).pop();
+        // Wait a bit longer for the trigger to complete
+        await Future.delayed(const Duration(seconds: 1));
+
+        // Verify user data was created
+        final verifiedUser = await _supabaseService.getUserData();
+        if (verifiedUser != null) {
+          if (event.context.mounted) {
+            Navigator.of(event.context).pop();
+          }
+          _lastKnownState = AuthAuthenticated(verifiedUser);
+          emit(_lastKnownState!);
+        } else {
+          emit(AuthFailure('Failed to create user profile'));
         }
-        _lastKnownState = AuthAuthenticated(user);
-        emit(_lastKnownState!);
       } else {
         emit(AuthFailure('Sign up failed'));
       }
@@ -141,6 +166,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     try {
+      emit(AuthLoading());
+
+      // Cancel existing subscription first
+      await _authStateSubscription.cancel();
+
       // Clear all local user data
       await Future.wait([
         _chatService.clearAllData(),
@@ -151,8 +181,28 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       // Sign out from Supabase
       await _supabaseService.signOut();
 
+      // Reset the last known state
       _lastKnownState = AuthUnauthenticated();
       emit(_lastKnownState!);
+
+      // Reinitialize auth state subscription
+      _authStateSubscription = Supabase.instance.client.auth.onAuthStateChange
+          .distinct()
+          .map((data) {
+        if (data.event == AuthChangeEvent.signedOut) {
+          return AuthUnauthenticated();
+        } else if (data.session?.user != null &&
+            data.event != AuthChangeEvent.tokenRefreshed) {
+          return AuthLoading();
+        }
+        return state;
+      }).listen((authState) {
+        if (authState is AuthUnauthenticated) {
+          add(AuthUserUpdated(null));
+        } else if (authState is AuthLoading) {
+          add(AuthUserUpdated(Supabase.instance.client.auth.currentUser?.id));
+        }
+      });
     } catch (e) {
       emit(AuthFailure(e.toString()));
     }
@@ -163,11 +213,15 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     try {
-      if (event.userId != null) {
-        if (_lastKnownState is! AuthAuthenticated) {
-          emit(AuthLoading());
-        }
+      if (event.userId == null) {
+        _lastKnownState = AuthUnauthenticated();
+        emit(_lastKnownState!);
+        return;
+      }
 
+      // Only proceed with authentication if we're not already authenticated
+      if (_lastKnownState is! AuthAuthenticated) {
+        emit(AuthLoading());
         final user = await _supabaseService.getUserData();
         if (user != null) {
           _lastKnownState = AuthAuthenticated(user);
@@ -176,12 +230,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           _lastKnownState = AuthUnauthenticated();
           emit(_lastKnownState!);
         }
-      } else {
-        _lastKnownState = AuthUnauthenticated();
-        emit(_lastKnownState!);
       }
     } catch (e) {
-      emit(AuthFailure(e.toString()));
+      _lastKnownState = AuthUnauthenticated();
+      emit(_lastKnownState!);
     }
   }
 
