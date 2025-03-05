@@ -5,11 +5,17 @@ import 'package:path_provider/path_provider.dart';
 import 'package:read_leaf/features/characters/domain/models/ai_character.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:logging/logging.dart';
+import 'package:read_leaf/features/characters/data/public_character_repository.dart';
 
 class CharacterTemplateService {
   final _log = Logger('CharacterTemplateService');
   final _supabase = Supabase.instance.client;
   static const _templateDir = 'character_templates';
+  late final PublicCharacterRepository _publicCharacterRepository;
+
+  CharacterTemplateService() {
+    _publicCharacterRepository = PublicCharacterRepository();
+  }
 
   // Get local template directory
   Future<Directory> get _localTemplateDir async {
@@ -299,7 +305,7 @@ class CharacterTemplateService {
 
   // Save template to Supabase
   Future<void> saveTemplate(AiCharacter character,
-      {bool isPublic = false}) async {
+      {bool isPublic = false, String category = 'Custom'}) async {
     try {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) {
@@ -322,6 +328,14 @@ class CharacterTemplateService {
         'is_public': isPublic,
         'updated_at': DateTime.now().toIso8601String(),
       });
+
+      // If the character is public, also save it to the public characters table
+      if (isPublic) {
+        await _publicCharacterRepository.publishCharacter(
+          character,
+          category: category,
+        );
+      }
     } catch (e, stack) {
       _log.severe('Error saving template', e, stack);
       rethrow;
@@ -375,11 +389,36 @@ class CharacterTemplateService {
         throw Exception('User not authenticated');
       }
 
+      // Get the character to check if it's public
+      final character = await _supabase
+          .from('character_templates')
+          .select()
+          .eq('user_id', userId)
+          .eq('name', name)
+          .single();
+
+      // Delete from character_templates
       await _supabase
           .from('character_templates')
           .delete()
           .eq('user_id', userId)
           .eq('name', name);
+
+      // If the character was public, also delete it from public_characters
+      if (character['is_public'] == true) {
+        // Find the public character by name and user_id
+        final publicCharacters = await _supabase
+            .from('public_characters')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('name', name);
+
+        if (publicCharacters.isNotEmpty) {
+          final publicCharacterId = publicCharacters[0]['id'];
+          await _publicCharacterRepository
+              .deletePublicCharacter(publicCharacterId);
+        }
+      }
     } catch (e, stack) {
       _log.severe('Error deleting template', e, stack);
       rethrow;
@@ -387,18 +426,51 @@ class CharacterTemplateService {
   }
 
   // Update template publicity
-  Future<void> updateTemplatePublicity(String name, bool isPublic) async {
+  Future<void> updateTemplatePublicity(String name, bool isPublic,
+      {String category = 'Custom'}) async {
     try {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) {
         throw Exception('User not authenticated');
       }
 
+      // Update in character_templates
       await _supabase
           .from('character_templates')
           .update({'is_public': isPublic})
           .eq('user_id', userId)
           .eq('name', name);
+
+      // Get the full character data
+      final characterData = await _supabase
+          .from('character_templates')
+          .select()
+          .eq('user_id', userId)
+          .eq('name', name)
+          .single();
+
+      final character = AiCharacter.fromJson(characterData);
+
+      // If making public, add to public_characters
+      if (isPublic) {
+        await _publicCharacterRepository.publishCharacter(
+          character,
+          category: category,
+        );
+      } else {
+        // If making private, remove from public_characters
+        final publicCharacters = await _supabase
+            .from('public_characters')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('name', name);
+
+        if (publicCharacters.isNotEmpty) {
+          final publicCharacterId = publicCharacters[0]['id'];
+          await _publicCharacterRepository
+              .deletePublicCharacter(publicCharacterId);
+        }
+      }
     } catch (e, stack) {
       _log.severe('Error updating template publicity', e, stack);
       rethrow;

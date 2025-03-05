@@ -581,19 +581,66 @@ class _CharacterScreenState extends State<CharacterScreen>
   }
 
   Widget _buildCategoryContent(String category, ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildFeaturedCharacters(theme, _getCharactersByCategory(category)),
-          const SizedBox(height: 16),
-          _buildAllCharacters(theme, _getCharactersByCategory(category)),
-          const SizedBox(height: 16),
-          _buildRecentCharacters(theme, _getCharactersByCategory(category)),
-          const SizedBox(height: 80),
-        ],
-      ),
+    return FutureBuilder<List<AiCharacter>>(
+      future: _loadCharactersByCategory(category),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Text(
+              'Error loading characters: ${snapshot.error}',
+              style: TextStyle(color: theme.colorScheme.error),
+            ),
+          );
+        }
+
+        final characters = snapshot.data ?? [];
+
+        if (characters.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.sentiment_dissatisfied,
+                    size: 64,
+                    color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No characters found in this category',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color:
+                          theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildFeaturedCharacters(theme, characters.take(5).toList()),
+              const SizedBox(height: 16),
+              _buildAllCharacters(theme, characters),
+              const SizedBox(height: 16),
+              _buildRecentCharacters(theme, characters.take(6).toList()),
+              const SizedBox(height: 80),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -641,6 +688,15 @@ class _CharacterScreenState extends State<CharacterScreen>
     final allCharacters = _characterService.getCharactersSync();
     if (category == 'All') return allCharacters;
     return allCharacters.where((char) => char.tags.contains(category)).toList();
+  }
+
+  Future<List<AiCharacter>> _loadCharactersByCategory(String category) async {
+    try {
+      return await _characterService.getCharactersByCategory(category);
+    } catch (e) {
+      // Fall back to local filtering if server request fails
+      return _getCharactersByCategory(category);
+    }
   }
 
   Widget _buildFeaturedCharacters(

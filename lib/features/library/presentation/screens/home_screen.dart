@@ -19,7 +19,6 @@ import 'package:read_leaf/core/utils/utils.dart';
 import 'package:read_leaf/features/library/presentation/widgets/refresh_animation.dart';
 import 'package:read_leaf/features/characters/presentation/widgets/minimized_character_slider.dart';
 import 'package:provider/provider.dart';
-import 'package:read_leaf/core/providers/theme_provider.dart';
 import 'package:read_leaf/core/providers/settings_provider.dart';
 
 class HomeScreen extends StatefulWidget {

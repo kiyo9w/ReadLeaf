@@ -7,7 +7,6 @@ import 'package:read_leaf/features/characters/domain/models/ai_character.dart';
 import 'package:logging/logging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:read_leaf/features/library/data/book_metadata_repository.dart';
-import 'package:read_leaf/features/library/domain/models/book_metadata.dart';
 import 'package:read_leaf/injection/injection.dart';
 
 class AiGenerationConfig {
@@ -270,7 +269,7 @@ ROLEPLAY RULES:
     // First try: Attempt to re-fetch metadata for the current book
     if (bookTitle.isNotEmpty) {
       _log.info('Attempting to fetch fresh metadata for: $bookTitle');
-      final books = await _bookMetadataRepository.getAllMetadata();
+      final books = _bookMetadataRepository.getAllMetadata();
       final currentBookMetadata = books
           .where((meta) =>
               meta.title.toLowerCase() == bookTitle.toLowerCase() ||
@@ -295,7 +294,7 @@ ROLEPLAY RULES:
 
     // Second try: Find another book with valid metadata
     _log.info('Attempting to find another book with valid metadata');
-    final allBooks = await _bookMetadataRepository.getAllMetadata();
+    final allBooks = _bookMetadataRepository.getAllMetadata();
 
     // Sort by lastReadTime to get the most recently read books first
     allBooks.sort((a, b) => b.lastReadTime.compareTo(a.lastReadTime));
@@ -357,8 +356,7 @@ ROLEPLAY RULES:
               currentPage != validatedMetadata.currentPage ||
               totalPages != validatedMetadata.totalPages)) {
         _log.info(
-            'Using validated metadata instead: title="${validatedMetadata.title}", ' +
-                'currentPage=${validatedMetadata.currentPage}, totalPages=${validatedMetadata.totalPages}');
+            'Using validated metadata instead: title="${validatedMetadata.title}", ' 'currentPage=${validatedMetadata.currentPage}, totalPages=${validatedMetadata.totalPages}');
 
         // If the title changed, we're using an alternative book
         isAlternativeBook = bookTitle != validatedMetadata.title;

@@ -3,6 +3,7 @@ import 'package:get_it/get_it.dart';
 import 'package:read_leaf/features/settings/data/sync/sync_manager.dart';
 import 'package:read_leaf/features/characters/data/character_template_service.dart';
 import 'package:read_leaf/features/characters/data/default_character_loader.dart';
+import 'package:read_leaf/features/characters/data/public_character_repository.dart';
 import 'package:logging/logging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -12,9 +13,11 @@ class AiCharacterService {
   static final _log = Logger('AiCharacterService');
   late final CharacterTemplateService _templateService;
   late final SyncManager _syncManager;
+  late final PublicCharacterRepository _publicCharacterRepository;
   AiCharacter? _selectedCharacter;
   final Map<String, Map<String, dynamic>> _characterPreferences = {};
   List<AiCharacter> _characters = [];
+  List<AiCharacter> _publicCharacters = [];
 
   // Add stream controller for character updates
   final _characterUpdateController = StreamController<void>.broadcast();
@@ -25,6 +28,7 @@ class AiCharacterService {
       _log.info('Initializing AiCharacterService');
       _templateService = CharacterTemplateService();
       _syncManager = GetIt.I<SyncManager>();
+      _publicCharacterRepository = PublicCharacterRepository();
 
       // First load default characters to ensure we have something
       final defaultCharacters =
@@ -121,8 +125,9 @@ class AiCharacterService {
         _log.info('Loaded ${customCharacters.length} custom characters');
 
         // Get public characters
-        final publicCharacters = await _templateService.getPublicTemplates();
+        final publicCharacters = await _loadPublicCharacters();
         _log.info('Loaded ${publicCharacters.length} public characters');
+        _publicCharacters = publicCharacters;
 
         // Combine all characters, removing duplicates by name
         final allCharacters = {
@@ -148,12 +153,75 @@ class AiCharacterService {
     }
   }
 
-  Future<void> addCustomCharacter(AiCharacter character) async {
+  Future<List<AiCharacter>> _loadPublicCharacters() async {
+    try {
+      // Get public characters from repository
+      final publicCharacters =
+          await _publicCharacterRepository.getAllPublicCharacters(
+        limit: 100,
+        sortBy: 'created_at',
+        descending: true,
+      );
+
+      // Convert to AiCharacter objects
+      return publicCharacters.map((pc) => pc.toAiCharacter()).toList();
+    } catch (e, stack) {
+      _log.severe('Error loading public characters', e, stack);
+      return [];
+    }
+  }
+
+  Future<List<AiCharacter>> getCharactersByCategory(String category) async {
+    if (category == 'All') {
+      return _characters;
+    }
+
+    if (category == 'Custom') {
+      return _characters.where((c) => c.tags.contains('Custom')).toList();
+    }
+
+    try {
+      // Get characters from the public repository by category
+      final publicCharacters =
+          await _publicCharacterRepository.getPublicCharactersByCategory(
+        category,
+        limit: 50,
+      );
+
+      // Convert to AiCharacter objects
+      final categoryCharacters =
+          publicCharacters.map((pc) => pc.toAiCharacter()).toList();
+
+      // Add any local characters with matching tags
+      final localCategoryCharacters = _characters
+          .where((c) =>
+              c.tags.contains(category) &&
+              !categoryCharacters.any((pc) => pc.name == c.name))
+          .toList();
+
+      return [...categoryCharacters, ...localCategoryCharacters];
+    } catch (e, stack) {
+      _log.severe('Error getting characters by category', e, stack);
+      // Fall back to local filtering
+      return _characters.where((c) => c.tags.contains(category)).toList();
+    }
+  }
+
+  List<AiCharacter> getCharactersSync() {
+    return _characters;
+  }
+
+  Future<void> addCustomCharacter(AiCharacter character,
+      {bool isPublic = false, String category = 'Custom'}) async {
     try {
       _log.info('Adding custom character: ${character.name}');
 
       // Save to template service
-      await _templateService.saveTemplate(character);
+      await _templateService.saveTemplate(
+        character,
+        isPublic: isPublic,
+        category: category,
+      );
 
       // Add to local list
       _characters = [
@@ -177,14 +245,28 @@ class AiCharacterService {
     }
   }
 
-  Future<void> updateCharacter(AiCharacter character) async {
+  Future<void> updateCharacter(AiCharacter character,
+      {bool isPublic = false, String category = 'Custom'}) async {
     try {
-      await _templateService.saveTemplate(character);
+      await _templateService.saveTemplate(
+        character,
+        isPublic: isPublic,
+        category: category,
+      );
 
       // Update selected character if it's the same one
       if (_selectedCharacter?.name == character.name) {
         _selectedCharacter = character;
       }
+
+      // Update local list
+      _characters = [
+        character,
+        ..._characters.where((c) => c.name != character.name),
+      ];
+
+      // Notify listeners of the update
+      _characterUpdateController.add(null);
 
       _log.info('Updated character: ${character.name}');
     } catch (e, stack) {
@@ -201,8 +283,17 @@ class AiCharacterService {
       if (_selectedCharacter?.name == name) {
         final defaultCharacters =
             await DefaultCharacterLoader.loadDefaultCharacters();
-        _selectedCharacter = defaultCharacters[2]; // Default to Amelia
+        _selectedCharacter = defaultCharacters.firstWhere(
+          (c) => c.name == 'Amelia',
+          orElse: () => defaultCharacters[0],
+        );
       }
+
+      // Remove from local list
+      _characters = _characters.where((c) => c.name != name).toList();
+
+      // Notify listeners of the update
+      _characterUpdateController.add(null);
 
       _log.info('Deleted character: $name');
     } catch (e, stack) {
@@ -211,10 +302,15 @@ class AiCharacterService {
     }
   }
 
-  Future<void> importCharacter(String jsonPath) async {
+  Future<void> importCharacter(String jsonPath,
+      {bool isPublic = false, String category = 'Custom'}) async {
     try {
       final character = await _templateService.importTemplate(jsonPath);
-      await addCustomCharacter(character);
+      await addCustomCharacter(
+        character,
+        isPublic: isPublic,
+        category: category,
+      );
       _log.info('Imported character: ${character.name}');
     } catch (e, stack) {
       _log.severe('Error importing character', e, stack);
@@ -230,6 +326,75 @@ class AiCharacterService {
     } catch (e, stack) {
       _log.severe('Error exporting character', e, stack);
       rethrow;
+    }
+  }
+
+  Future<void> updateCharacterPublicity(String name, bool isPublic,
+      {String category = 'Custom'}) async {
+    try {
+      await _templateService.updateTemplatePublicity(
+        name,
+        isPublic,
+        category: category,
+      );
+
+      // Refresh the character list
+      await getAllCharacters();
+
+      // Notify listeners of the update
+      _characterUpdateController.add(null);
+
+      _log.info('Updated character publicity: $name, isPublic: $isPublic');
+    } catch (e, stack) {
+      _log.severe('Error updating character publicity', e, stack);
+      rethrow;
+    }
+  }
+
+  Future<void> _loadPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final prefsJson = prefs.getString('character_preferences');
+      if (prefsJson != null) {
+        final prefsMap = json.decode(prefsJson) as Map<String, dynamic>;
+        _characterPreferences.clear();
+        prefsMap.forEach((key, value) {
+          _characterPreferences[key] = value as Map<String, dynamic>;
+        });
+      }
+
+      // Try to load selected character from preferences
+      final selectedCharName = prefs.getString('selected_character');
+      if (selectedCharName != null && _characters.isNotEmpty) {
+        _selectedCharacter = _characters.firstWhere(
+          (c) => c.name == selectedCharName,
+          orElse: () => _characters[0],
+        );
+      }
+    } catch (e, stack) {
+      _log.warning('Error loading preferences', e, stack);
+      // Non-fatal error, continue with defaults
+    }
+  }
+
+  Future<void> updatePreferenceFromServer(
+    String characterName,
+    DateTime lastUsed,
+    Map<String, dynamic> customSettings,
+  ) async {
+    try {
+      _characterPreferences[characterName] = {
+        'last_used': lastUsed.toIso8601String(),
+        'custom_settings': customSettings,
+      };
+
+      // Save to local storage
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+          'character_preferences', json.encode(_characterPreferences));
+    } catch (e, stack) {
+      _log.warning('Error updating preference from server', e, stack);
+      // Non-fatal error
     }
   }
 
@@ -250,77 +415,7 @@ ROLEPLAY RULES:
 - Express emotions and reactions naturally""";
   }
 
-  @override
-  Future<void> dispose() async {
-    _log.info('Disposing AiCharacterService');
-    DefaultCharacterLoader.clearCache();
-    await _characterUpdateController.close();
-  }
-
-  Future<void> updatePreferenceFromServer(
-    String characterName,
-    DateTime lastUsed,
-    Map<String, dynamic> customSettings,
-  ) async {
-    try {
-      // Find the character in our loaded characters
-      final character = _characters.firstWhere(
-        (c) => c.name == characterName,
-        orElse: () => throw Exception('Character not found: $characterName'),
-      );
-
-      // Update preferences
-      _characterPreferences[characterName] = {
-        'lastUsed': lastUsed.toIso8601String(),
-        'customSettings': customSettings,
-      };
-
-      // If this is the currently selected character, update its settings
-      if (_selectedCharacter?.name == characterName) {
-        _selectedCharacter = character;
-      }
-
-      await _savePreferences();
-      _log.info('Updated preferences for character: $characterName');
-    } catch (e, stack) {
-      _log.severe('Error updating character preferences', e, stack);
-      rethrow;
-    }
-  }
-
-  Future<void> _savePreferences() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final prefsJson = jsonEncode(_characterPreferences);
-      await prefs.setString('character_preferences', prefsJson);
-      _log.info('Saved character preferences to local storage');
-    } catch (e, stack) {
-      _log.severe('Error saving character preferences', e, stack);
-      rethrow;
-    }
-  }
-
-  Future<void> _loadPreferences() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final prefsJson = prefs.getString('character_preferences');
-      if (prefsJson != null) {
-        final Map<String, dynamic> prefsMap = jsonDecode(prefsJson);
-        _characterPreferences.clear();
-        prefsMap.forEach((key, value) {
-          if (value is Map<String, dynamic>) {
-            _characterPreferences[key] = value;
-          }
-        });
-        _log.info('Loaded character preferences from local storage');
-      }
-    } catch (e, stack) {
-      _log.severe('Error loading character preferences', e, stack);
-      // Don't rethrow - allow service to continue with empty preferences
-    }
-  }
-
-  List<AiCharacter> getCharactersSync() {
-    return _characters;
+  void dispose() {
+    _characterUpdateController.close();
   }
 }

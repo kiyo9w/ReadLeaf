@@ -69,6 +69,11 @@ class _CreateCharacterScreenState extends State<CreateCharacterScreen> {
   // Voice options
   final _voiceOptions = ['Friendly', 'Professional', 'Casual', 'Formal'];
 
+  // Categories for characters
+  final List<String> _categories = ['Study', 'Fiction', 'Research', 'Custom'];
+
+  String _selectedCategory = 'Custom';
+
   final ImagePicker _picker = ImagePicker();
 
   // For multi-category chips, we load categories from JSON
@@ -586,6 +591,15 @@ class _CreateCharacterScreenState extends State<CreateCharacterScreen> {
                 .toList(),
           ),
           SizedBox(height: isTablet ? 28 : 24),
+          Text(
+            'Publishing Options',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.primaryColor,
+              fontSize: isTablet ? 20 : 18,
+            ),
+          ),
+          SizedBox(height: isTablet ? 16 : 12),
           Container(
             decoration: BoxDecoration(
               color: theme.scaffoldBackgroundColor,
@@ -612,6 +626,41 @@ class _CreateCharacterScreenState extends State<CreateCharacterScreen> {
               activeColor: theme.primaryColor,
             ),
           ),
+          if (_isPublic) ...[
+            SizedBox(height: isTablet ? 20 : 16),
+            Text(
+              'Category',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w500,
+                fontSize: isTablet ? 18 : 16,
+              ),
+            ),
+            SizedBox(height: isTablet ? 12 : 8),
+            Wrap(
+              spacing: isTablet ? 12 : 8,
+              runSpacing: isTablet ? 12 : 8,
+              children: _categories.map((category) {
+                final isSelected = _selectedCategory == category;
+                return ChoiceChip(
+                  label: Text(category),
+                  selected: isSelected,
+                  onSelected: (selected) {
+                    if (selected) {
+                      setState(() {
+                        _selectedCategory = category;
+                      });
+                    }
+                  },
+                  backgroundColor: theme.cardColor,
+                  selectedColor: theme.primaryColor.withOpacity(0.2),
+                  labelStyle: TextStyle(
+                    color: isSelected ? theme.primaryColor : null,
+                    fontWeight: isSelected ? FontWeight.bold : null,
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
         ],
       ),
     );
@@ -781,7 +830,11 @@ ${_nameController.text}'s Response:""";
 
       try {
         final aiCharacterService = getIt<AiCharacterService>();
-        await aiCharacterService.addCustomCharacter(newCharacter);
+        await aiCharacterService.addCustomCharacter(
+          newCharacter,
+          isPublic: _isPublic,
+          category: _currentStep == 2 ? _selectedCategory : 'Custom',
+        );
         await aiCharacterService.setSelectedCharacter(newCharacter);
         if (mounted) {
           final homeScreen = context.findAncestorStateOfType<HomeScreenState>();

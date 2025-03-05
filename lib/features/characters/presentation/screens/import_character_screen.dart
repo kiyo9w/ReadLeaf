@@ -32,9 +32,13 @@ class _ImportCharacterScreenState extends State<ImportCharacterScreen> {
   final _greetingController = TextEditingController();
   final _scenarioController = TextEditingController();
   bool _isPublic = true;
+  String _selectedCategory = 'Custom';
   AiCharacter? _importedCharacter;
   bool _isLoading = true;
   String? _error;
+
+  // Categories for characters
+  final List<String> _categories = ['Study', 'Fiction', 'Research', 'Custom'];
 
   @override
   void initState() {
@@ -98,7 +102,11 @@ class _ImportCharacterScreenState extends State<ImportCharacterScreen> {
         );
 
         final aiCharacterService = getIt<AiCharacterService>();
-        await aiCharacterService.addCustomCharacter(updatedCharacter);
+        await aiCharacterService.addCustomCharacter(
+          updatedCharacter,
+          isPublic: _isPublic,
+          category: _selectedCategory,
+        );
 
         if (mounted) {
           Navigator.pop(context, true);
@@ -288,6 +296,13 @@ class _ImportCharacterScreenState extends State<ImportCharacterScreen> {
                 },
               ),
               const SizedBox(height: 24),
+              Text(
+                'Publishing Options',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
               SwitchListTile(
                 title: const Text('Public Character'),
                 subtitle: const Text('Allow others to use this character'),
@@ -298,6 +313,29 @@ class _ImportCharacterScreenState extends State<ImportCharacterScreen> {
                   });
                 },
               ),
+              if (_isPublic) ...[
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(
+                    labelText: 'Category',
+                    border: OutlineInputBorder(),
+                  ),
+                  value: _selectedCategory,
+                  items: _categories.map((category) {
+                    return DropdownMenuItem<String>(
+                      value: category,
+                      child: Text(category),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        _selectedCategory = value;
+                      });
+                    }
+                  },
+                ),
+              ],
             ],
           ),
         ),
