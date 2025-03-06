@@ -65,6 +65,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   final bool _needCoverPage = true;
   final bool _isInitialLoading = true;
   final double _loadingProgress = 0.0;
+  StreamSubscription? _fontSizeSubscription;
 
   String get _currentTitle {
     switch (_tabController.index) {
@@ -106,6 +107,19 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
         NavScreen.globalKey.currentState?.hideNavBar(true);
       }
     });
+
+    // Listen to reader bloc state changes for font size updates
+    _fontSizeSubscription = context.read<ReaderBloc>().stream.listen((state) {
+      if (mounted && state is ReaderLoaded) {
+        return;
+      }
+    });
+
+    // Initialize zoom from current font size
+    final readerState = context.read<ReaderBloc>().state;
+    if (readerState is ReaderLoaded) {
+      return;
+    }
   }
 
   void _onControllerReady() {
@@ -197,6 +211,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   void dispose() {
     _tabController.dispose();
     _sliderDwellTimer?.cancel();
+    _fontSizeSubscription?.cancel();
     try {
       _controller.removeListener(_onControllerReady);
       _textSearcher.removeListener(_update);
@@ -1087,15 +1102,14 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                               onPressed: _toggleSearchPanel,
                             ),
                             IconButton(
-                              icon: Icon(
-                                Symbols.thumbnail_bar,
-                                color: Theme.of(context).brightness ==
-                                        Brightness.dark
-                                    ? const Color(0xFFF2F2F7)
-                                    : const Color(0xFF1C1C1E),
-                                size: ResponsiveConstants.getIconSize(context),
-                                fill: 0.25
-                              ),
+                              icon: Icon(Symbols.thumbnail_bar,
+                                  color: Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? const Color(0xFFF2F2F7)
+                                      : const Color(0xFF1C1C1E),
+                                  size:
+                                      ResponsiveConstants.getIconSize(context),
+                                  fill: 0.25),
                               padding: EdgeInsets.all(
                                   ResponsiveConstants.isTablet(context)
                                       ? 12

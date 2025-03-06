@@ -44,18 +44,18 @@ class ReaderSettingsMenu extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildHeader(context),
-          const Divider(height: 1),
-          _buildLayoutSection(context),
-          const Divider(height: 1),
-          _buildReadingModeSection(context),
-          const Divider(height: 1),
-          _buildFileActionsSection(context),
-        ],
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHeader(context),
+            const Divider(height: 1),
+            _buildAppearanceSection(context),
+            const Divider(height: 1),
+            _buildFileActionsSection(context),
+          ],
+        ),
       ),
     );
   }
@@ -93,23 +93,15 @@ class ReaderSettingsMenu extends StatelessWidget {
     );
   }
 
-  Widget _buildLayoutSection(BuildContext context) {
+  Widget _buildAppearanceSection(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-          child: Text(
-            'Page Layout',
-            style: TextStyle(
-              fontSize: ResponsiveConstants.getBodyFontSize(context) + 2,
-              fontWeight: FontWeight.w600,
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? const Color(0xFFF2F2F7)
-                  : const Color(0xFF1C1C1E),
-            ),
-          ),
-        ),
+        // Appearance header
+        _buildSectionHeader(context, 'Appearance'),
+
+        // Page Layout subsection
+        _buildSubsectionLabel(context, 'Page Layout'),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -149,7 +141,188 @@ class ReaderSettingsMenu extends StatelessWidget {
             ],
           ),
         ),
+
+        // Reading Mode subsection
+        _buildSubsectionLabel(context, 'Reading Mode'),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Row(
+            children: [
+              _buildReadingModeOption(
+                context,
+                ReadingMode.light,
+                'Light',
+                Icons.light_mode,
+              ),
+              const SizedBox(width: 12),
+              _buildReadingModeOption(
+                context,
+                ReadingMode.dark,
+                'Dark',
+                Icons.dark_mode,
+              ),
+              const SizedBox(width: 12),
+              _buildReadingModeOption(
+                context,
+                ReadingMode.sepia,
+                'Sepia',
+                Icons.auto_awesome,
+              ),
+            ],
+          ),
+        ),
+
+        // Font Size subsection
+        _buildSubsectionLabel(context, 'Font Size'),
+        _buildFontSizeSlider(context),
       ],
+    );
+  }
+
+  Widget _buildSectionHeader(BuildContext context, String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 24, 12, 8),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 20,
+            decoration: BoxDecoration(
+              color: const Color(0xFF7D9D64),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: ResponsiveConstants.getBodyFontSize(context) + 2,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF7D9D64),
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubsectionLabel(BuildContext context, String label) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: ResponsiveConstants.getBodyFontSize(context),
+          fontWeight: FontWeight.w500,
+          color: Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFFD1C4E9)
+              : const Color(0xFF6A5C71),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFontSizeSlider(BuildContext context) {
+    // Get current font size from the bloc state
+    final currentFontSize = context.select((ReaderBloc bloc) {
+      if (bloc.state is ReaderLoaded) {
+        return (bloc.state as ReaderLoaded).fontSize;
+      }
+      return 23.0; // Default font size
+    });
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFF352A3B).withOpacity(0.5)
+              : const Color(0xFFF8F1F1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF352A3B)
+                : const Color(0xFFE5E5EA),
+            width: 1.5,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'A',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFFF2F2F7)
+                        : const Color(0xFF1C1C1E),
+                  ),
+                ),
+                Text(
+                  currentFontSize.round().toString(),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFFF2F2F7)
+                        : const Color(0xFF1C1C1E),
+                  ),
+                ),
+                Text(
+                  'A',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFFF2F2F7)
+                        : const Color(0xFF1C1C1E),
+                  ),
+                ),
+              ],
+            ),
+            SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                activeTrackColor:
+                    Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFFAA96B6)
+                        : const Color(0xFF9E7B80),
+                inactiveTrackColor:
+                    Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF4A3F56)
+                        : const Color(0xFFDED2D3),
+                thumbColor: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFFD1C4E9)
+                    : const Color(0xFF9E7B80),
+                overlayColor: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0x29D1C4E9)
+                    : const Color(0x299E7B80),
+                trackHeight: 4.0,
+                thumbShape:
+                    const RoundSliderThumbShape(enabledThumbRadius: 8.0),
+                overlayShape:
+                    const RoundSliderOverlayShape(overlayRadius: 16.0),
+              ),
+              child: Slider(
+                value: currentFontSize,
+                min: 12.0,
+                max: 32.0,
+                divisions: 20,
+                onChanged: (value) {
+                  // Update the font size in the bloc
+                  context.read<ReaderBloc>().add(SetFontSize(value));
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -211,55 +384,6 @@ class ReaderSettingsMenu extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildReadingModeSection(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-          child: Text(
-            'Reading Mode',
-            style: TextStyle(
-              fontSize: ResponsiveConstants.getBodyFontSize(context) + 2,
-              fontWeight: FontWeight.w600,
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? const Color(0xFFF2F2F7)
-                  : const Color(0xFF1C1C1E),
-            ),
-          ),
-        ),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: Row(
-            children: [
-              _buildReadingModeOption(
-                context,
-                ReadingMode.light,
-                'Light',
-                Icons.light_mode,
-              ),
-              const SizedBox(width: 12),
-              _buildReadingModeOption(
-                context,
-                ReadingMode.dark,
-                'Dark',
-                Icons.dark_mode,
-              ),
-              const SizedBox(width: 12),
-              _buildReadingModeOption(
-                context,
-                ReadingMode.sepia,
-                'Sepia',
-                Icons.auto_awesome,
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 
@@ -337,21 +461,11 @@ class ReaderSettingsMenu extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // File Actions header
+        _buildSectionHeader(context, 'File Actions'),
+
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-          child: Text(
-            'File Actions',
-            style: TextStyle(
-              fontSize: ResponsiveConstants.getBodyFontSize(context) + 2,
-              fontWeight: FontWeight.w600,
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? const Color(0xFFF2F2F7)
-                  : const Color(0xFF1C1C1E),
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           child: Column(
             children: [
               _buildActionButton(
