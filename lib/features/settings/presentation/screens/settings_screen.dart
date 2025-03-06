@@ -158,7 +158,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                         child: Icon(
                           icon,
-                          color: Theme.of(context).primaryColor,
+                          color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
                           size: 22,
                         ),
                       ),
@@ -254,23 +254,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         onChanged: onChanged,
         activeColor: Theme.of(context).colorScheme.primary,
       ),
-    );
-  }
-
-  Widget _buildColorPalette(List<Color> colors) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: colors.map((color) {
-        return Container(
-          width: 16,
-          height: 16,
-          margin: const EdgeInsets.symmetric(horizontal: 2),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        );
-      }).toList(),
     );
   }
 
@@ -871,14 +854,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         color: isDark
-                            ? colors[0].withOpacity(0.2)
-                            : colors[0].withOpacity(0.1),
+                            ? colors[5]
+                            : colors[5],
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
                         isDark ? Icons.dark_mode : Icons.light_mode,
                         size: 18,
-                        color: isDark ? colors[5] : colors[1],
+                        color: isDark ? Colors.white : Colors.black,
                       ),
                     ),
                     const SizedBox(width: 12),

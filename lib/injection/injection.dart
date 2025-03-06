@@ -30,6 +30,7 @@ import 'package:read_leaf/features/settings/data/sync/user_preferences_service.d
 import 'package:read_leaf/features/library/data/thumbnail_service.dart';
 import 'package:read_leaf/features/characters/data/character_template_service.dart';
 import 'package:read_leaf/features/reader/data/text_selection_service.dart';
+import 'package:read_leaf/features/reader/data/epub_service.dart';
 
 final getIt = GetIt.instance;
 
@@ -136,6 +137,10 @@ Future<void> configureDependencies() async {
   final textSelectionService = TextSelectionService();
   getIt.registerSingleton<TextSelectionService>(textSelectionService);
 
+  // Register reader services
+  final epubService = EpubService();
+  getIt.registerSingleton<EpubService>(epubService);
+
   // Register blocs
   getIt.registerLazySingleton<ReaderBloc>(() => ReaderBloc());
   getIt.registerLazySingleton<FileBloc>(() => FileBloc(
@@ -238,4 +243,7 @@ abstract class RegisterModule {
 
   @lazySingleton
   TextSelectionService get textSelectionService => TextSelectionService();
+
+  @lazySingleton
+  EpubService get epubService => EpubService();
 }

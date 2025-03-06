@@ -1311,31 +1311,31 @@ class ThemeProvider extends ChangeNotifier {
     useMaterial3: true,
     brightness: Brightness.light,
 
-    primaryColor: const Color(0xFFFF8FAB), // Main pink accent
-    scaffoldBackgroundColor: const Color(0xFFFFE4EC), // Pastel pink background
-    cardColor: Colors.white,
-    dividerColor: const Color(0xFFFFC2D1),
-    hintColor: const Color(0xFFFFAFC7), // Slightly deeper pink
-    highlightColor: const Color(0xFFFF8FAB),
+    primaryColor: const Color(0xFFEABCDD), // Soft pink
+    scaffoldBackgroundColor: const Color(0xFFF0DFEA), // Light pastel pink
+    cardColor: const Color(0xFFF7F6F5), // Near-white card
+    dividerColor: const Color(0xFFDDD1E9), // Lavender-like secondary
+    hintColor: const Color(0xFFEABCDD), // Soft pink for hints
+    highlightColor: const Color(0xFFA4B5D5), // Cool blue-gray accent
 
     colorScheme: const ColorScheme.light(
-      primary: Color(0xFFFF8FAB),
-      secondary: Color(0xFFFFD3DD),
-      tertiary: Color(0xFFFFE4EC),
-      surface: Colors.white,
+      primary: Color(0xFFEABCDD),
+      secondary: Color(0xFFDDD1E9),
+      tertiary: Color(0xFFF0DFEA),
+      surface: Color(0xFFF7F6F5),
       error: Color(0xFFB00020),
       onPrimary: Color(0xFFFFFFFF), // White text on pink
-      onSecondary: Color(0xFF1B1B1B), // Dark text on lighter pink
+      onSecondary: Color(0xFF1B1B1B), // Dark text on lavender
       onSurface: Color(0xFF1B1B1B),
       onError: Color(0xFFFFFFFF),
-      surfaceTint: Color(0xFFFF8FAB),
-      primaryContainer: Color(0xFFFFC2D1),
-      secondaryContainer: Color(0xFFFFEBF1),
-      tertiaryContainer: Color(0xFFFFF5F7),
+      surfaceTint: Color(0xFFEABCDD),
+      primaryContainer: Color(0xFFDDD1E9),
+      secondaryContainer: Color(0xFFF0DFEA),
+      tertiaryContainer: Color(0xFFF7F6F5),
     ),
 
     appBarTheme: const AppBarTheme(
-      backgroundColor: Color(0xFFFFE4EC),
+      backgroundColor: Color(0xFFF0DFEA),
       foregroundColor: Color(0xFF1B1B1B),
       elevation: 0,
       iconTheme: IconThemeData(color: Color(0xFF1B1B1B)),
@@ -1366,8 +1366,8 @@ class ThemeProvider extends ChangeNotifier {
     iconTheme: const IconThemeData(color: Color(0xFF1B1B1B), size: 24),
 
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: const Color(0xFFFFE4EC),
-      indicatorColor: const Color(0xFFFF8FAB).withOpacity(0.2),
+      backgroundColor: const Color(0xFFF0DFEA),
+      indicatorColor: const Color(0xFFEABCDD).withOpacity(0.2),
       labelTextStyle: WidgetStateProperty.all(
         const TextStyle(
             fontSize: 12,
@@ -1377,7 +1377,7 @@ class ThemeProvider extends ChangeNotifier {
     ),
 
     cardTheme: CardTheme(
-      color: Colors.white,
+      color: const Color(0xFFF7F6F5),
       elevation: 2,
       shadowColor: Colors.black.withOpacity(0.1),
       shape: RoundedRectangleBorder(
@@ -1386,7 +1386,7 @@ class ThemeProvider extends ChangeNotifier {
     ),
 
     dialogTheme: DialogTheme(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF7F6F5),
       elevation: 8,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
@@ -1395,30 +1395,30 @@ class ThemeProvider extends ChangeNotifier {
 
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: const Color(0xFFFFEBF1),
+      fillColor: const Color(0xFFF0DFEA),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide.none,
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      hintStyle: const TextStyle(color: Color(0xFFFFAFC7)),
+      hintStyle: const TextStyle(color: Color(0xFFEABCDD)),
     ),
 
     dividerTheme: const DividerThemeData(
-      color: Color(0xFFFFC2D1),
+      color: Color(0xFFDDD1E9),
       thickness: 1,
       space: 1,
     ),
 
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
-      backgroundColor: Color(0xFFFF8FAB),
+      backgroundColor: Color(0xFFEABCDD),
       foregroundColor: Color(0xFFFFFFFF),
     ),
 
     checkboxTheme: CheckboxThemeData(
       fillColor: WidgetStateProperty.resolveWith<Color>((states) {
         if (states.contains(WidgetState.selected)) {
-          return const Color(0xFFFF8FAB);
+          return const Color(0xFFEABCDD);
         }
         return Colors.grey;
       }),
@@ -1427,7 +1427,7 @@ class ThemeProvider extends ChangeNotifier {
     radioTheme: RadioThemeData(
       fillColor: WidgetStateProperty.resolveWith<Color>((states) {
         if (states.contains(WidgetState.selected)) {
-          return const Color(0xFFFF8FAB);
+          return const Color(0xFFEABCDD);
         }
         return Colors.grey;
       }),
@@ -1436,24 +1436,24 @@ class ThemeProvider extends ChangeNotifier {
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith<Color>((states) {
         if (states.contains(WidgetState.selected)) {
-          return const Color(0xFFFF8FAB);
+          return const Color(0xFFEABCDD);
         }
         return Colors.grey;
       }),
       trackColor: WidgetStateProperty.resolveWith<Color>((states) {
         if (states.contains(WidgetState.selected)) {
-          return const Color(0xFFFF8FAB).withOpacity(0.5);
+          return const Color(0xFFEABCDD).withOpacity(0.5);
         }
         return Colors.grey.withOpacity(0.3);
       }),
     ),
 
     progressIndicatorTheme:
-        const ProgressIndicatorThemeData(color: Color(0xFFFF8FAB)),
+        const ProgressIndicatorThemeData(color: Color(0xFFEABCDD)),
 
     chipTheme: ChipThemeData(
-      backgroundColor: const Color(0xFFFFEBF1),
-      selectedColor: const Color(0xFFFF8FAB).withOpacity(0.2),
+      backgroundColor: const Color(0xFFF0DFEA),
+      selectedColor: const Color(0xFFEABCDD).withOpacity(0.2),
       disabledColor: Colors.grey.withOpacity(0.3),
       padding: const EdgeInsets.all(8),
       labelStyle: const TextStyle(color: Color(0xFF1B1B1B)),
@@ -1461,11 +1461,11 @@ class ThemeProvider extends ChangeNotifier {
 
     extensions: [
       const CustomThemeExtension(
-        fileCardBackground: Colors.white,
+        fileCardBackground: Color(0xFFF7F6F5),
         fileCardText: Color(0xFF1B1B1B),
-        aiMessageBackground: Color(0xFFFFEBF1),
+        aiMessageBackground: Color(0xFFF0DFEA),
         aiMessageText: Color(0xFF1B1B1B),
-        minimalFileCardBackground: Colors.white,
+        minimalFileCardBackground: Color(0xFFF7F6F5),
         minimalFileCardText: Color(0xFF1B1B1B),
       ),
     ],
@@ -1484,15 +1484,15 @@ class ThemeProvider extends ChangeNotifier {
     //
     // Most widget backgrounds revolve around #15032C (Sapphire)
     //
-    scaffoldBackgroundColor: const Color(0xFF673AB7),
-    cardColor:
-        const Color(0xFF1E062E), // Slightly lighter than #15032C for contrast
+    scaffoldBackgroundColor: const Color.fromARGB(255, 17, 9, 32),
+    cardColor: const Color.fromARGB(
+        255, 65, 22, 93), // Slightly lighter than #15032C for contrast
     dividerColor: const Color(0xFF321246),
     hintColor: const Color(0xFF808080), // Neutral grey hint
     highlightColor: const Color(0xFF270652), // Deep purple highlight
 
     colorScheme: const ColorScheme.dark(
-      primary: Color(0xFF9F6CD2), // Lighter purple accent
+      primary: Color.fromARGB(255, 17, 9, 32), // Lighter purple accent
       secondary: Color(0xFFC7A7E3), // A complementary lighter purple
       tertiary: Color(0xFFE1C6F7), // Sapphire background
       surface: Color(0xFF15032C), // Same for surfaces to unify the "night" feel

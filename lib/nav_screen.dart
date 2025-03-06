@@ -36,7 +36,9 @@ class _NavScreenState extends State<NavScreen> {
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final activeColor = Theme.of(context).colorScheme.primary;
+    final activeColor = isDarkMode
+        ? Theme.of(context).colorScheme.primaryContainer
+        : Theme.of(context).colorScheme.primary;
     final inactiveColor = isDarkMode
         ? Colors.white.withOpacity(0.5)
         : Colors.black.withOpacity(0.5);
@@ -49,7 +51,6 @@ class _NavScreenState extends State<NavScreen> {
                 OpenReader('', file: file, filePath: state.filePath),
               );
 
-          // Determine file type and route to appropriate viewer
           final fileExtension = file.path.toLowerCase().split('.').last;
           String targetRoute;
 

@@ -32,21 +32,28 @@ class PublicCharacterRepository {
     try {
       _log.info('Getting all public characters');
 
-      // Build the query with filters
-      final query = """
-        SELECT pc.*, cl.user_id FROM public_characters pc
-        LEFT JOIN character_likes cl ON pc.id = cl.character_id
-        WHERE pc.is_public = true
-        ${category != null && category.isNotEmpty && category != 'All' ? "AND pc.category = '$category'" : ""}
-        ${tags != null && tags.isNotEmpty ? "AND pc.tags && ARRAY[${tags.map((t) => "'$t'").join(',')}]" : ""}
-        ORDER BY pc.$sortBy ${descending ? 'DESC' : 'ASC'}
-        LIMIT $limit OFFSET $offset
-      """;
+      // Start with base query
+      dynamic query = _supabase
+          .from('public_characters')
+          .select('*, character_likes(user_id)')
+          .eq('is_public', true);
 
-      // Execute the query
-      final response =
-          await _supabase.rpc('execute_sql_query', params: {'query': query});
+      // Add category filter if specified
+      if (category != null && category.isNotEmpty && category != 'All') {
+        query = query.eq('category', category);
+      }
 
+      // Add tags filter if specified
+      if (tags != null && tags.isNotEmpty) {
+        query = query.contains('tags', tags);
+      }
+
+      // Add sorting and pagination
+      query = query
+          .order(sortBy, ascending: !descending)
+          .range(offset, offset + limit - 1);
+
+      final response = await query;
       final userId = _supabase.auth.currentUser?.id;
 
       return (response as List).map((json) {
@@ -79,11 +86,10 @@ class PublicCharacterRepository {
 
       final response = await _supabase
           .from('public_characters')
-          .select('*, character_likes!inner(user_id)')
+          .select('*, character_likes(user_id)')
           .eq('is_public', true)
           .eq('category', category)
           .order('created_at', ascending: false)
-          .limit(limit)
           .range(offset, offset + limit - 1);
 
       final userId = _supabase.auth.currentUser?.id;
@@ -116,7 +122,7 @@ class PublicCharacterRepository {
 
       final response = await _supabase
           .from('public_characters')
-          .select('*, character_likes!inner(user_id)')
+          .select('*, character_likes(user_id)')
           .eq('is_public', true)
           .order('download_count', ascending: false)
           .limit(limit);
@@ -154,7 +160,7 @@ class PublicCharacterRepository {
 
       final response = await _supabase
           .from('public_characters')
-          .select('*, character_likes!inner(user_id)')
+          .select('*, character_likes(user_id)')
           .eq('user_id', userId)
           .order('created_at', ascending: false);
 
@@ -177,7 +183,7 @@ class PublicCharacterRepository {
 
       final response = await _supabase
           .from('public_characters')
-          .select('*, character_likes!inner(user_id)')
+          .select('*, character_likes(user_id)')
           .eq('id', id)
           .single();
 
@@ -230,6 +236,8 @@ class PublicCharacterRepository {
         'updated_at': character.updatedAt.toIso8601String(),
         'is_public': true,
         'category': category,
+        'download_count': 0,
+        'like_count': 0,
       };
 
       final response = await _supabase
@@ -385,20 +393,18 @@ class PublicCharacterRepository {
     try {
       _log.info('Searching public characters: $query');
 
-      // Build the query with filters
-      final sqlQuery = """
-        SELECT pc.*, cl.user_id FROM public_characters pc
-        LEFT JOIN character_likes cl ON pc.id = cl.character_id
-        WHERE pc.is_public = true
-        AND (pc.name ILIKE '%$query%' OR pc.summary ILIKE '%$query%' OR pc.tags @> ARRAY['$query'])
-        ${category != null && category.isNotEmpty && category != 'All' ? "AND pc.category = '$category'" : ""}
-        ORDER BY pc.created_at DESC
-        LIMIT $limit
-      """;
+      dynamic dbQuery = _supabase
+          .from('public_characters')
+          .select('*, character_likes(user_id)')
+          .eq('is_public', true)
+          .or('name.ilike.%${query}%,summary.ilike.%${query}%,tags.cs.{${query}}');
 
-      // Execute the query
+      if (category != null && category.isNotEmpty && category != 'All') {
+        dbQuery = dbQuery.eq('category', category);
+      }
+
       final response =
-          await _supabase.rpc('execute_sql_query', params: {'query': sqlQuery});
+          await dbQuery.order('created_at', ascending: false).limit(limit);
 
       final userId = _supabase.auth.currentUser?.id;
 
