@@ -21,6 +21,7 @@ class ReaderLoaded extends ReaderState {
   final bool showUI;
   final bool showSideNav;
   final BookMetadata metadata;
+  final double fontSize;
 
   const ReaderLoaded({
     required this.totalPages,
@@ -32,6 +33,7 @@ class ReaderLoaded extends ReaderState {
     required this.showUI,
     required this.showSideNav,
     required this.metadata,
+    this.fontSize = 23.0,
   });
 
   @override
@@ -45,6 +47,7 @@ class ReaderLoaded extends ReaderState {
         showUI,
         showSideNav,
         metadata,
+        fontSize,
       ];
 
   ReaderLoaded copyWith({
@@ -57,6 +60,7 @@ class ReaderLoaded extends ReaderState {
     bool? showUI,
     bool? showSideNav,
     BookMetadata? metadata,
+    double? fontSize,
   }) {
     return ReaderLoaded(
       totalPages: totalPages ?? this.totalPages,
@@ -68,6 +72,7 @@ class ReaderLoaded extends ReaderState {
       showUI: showUI ?? this.showUI,
       showSideNav: showSideNav ?? this.showSideNav,
       metadata: metadata ?? this.metadata,
+      fontSize: fontSize ?? this.fontSize,
     );
   }
 }

@@ -18,7 +18,8 @@ class OpenReader extends ReaderEvent {
   final String contentParsed;
   final String filePath;
 
-  const OpenReader(this.contentParsed, {required this.file, required this.filePath});
+  const OpenReader(this.contentParsed,
+      {required this.file, required this.filePath});
 
   @override
   List<Object> get props => [file, filePath, contentParsed];
@@ -46,6 +47,15 @@ class SetZoomLevel extends ReaderEvent {
 
   @override
   List<Object> get props => [zoomLevel];
+}
+
+class SetFontSize extends ReaderEvent {
+  final double fontSize;
+
+  const SetFontSize(this.fontSize);
+
+  @override
+  List<Object> get props => [fontSize];
 }
 
 class setReadingMode extends ReaderEvent {

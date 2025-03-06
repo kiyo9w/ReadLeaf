@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:async';
-import 'dart:math' as math;
 import 'package:epubx/epubx.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' show parse;
@@ -11,6 +10,15 @@ import 'dart:ui' as ui;
 
 /// Service responsible for loading, parsing, and paginating EPUB files
 class EpubService {
+  static final EpubService _instance = EpubService._internal();
+
+  // Factory constructor to return the singleton instance
+  factory EpubService() {
+    return _instance;
+  }
+
+  EpubService._internal();
+
   // Cache for already processed books
   final Map<String, EpubProcessingResult> _processedBooks = {};
 
@@ -129,6 +137,8 @@ class EpubService {
       return pages;
     } catch (e) {
       print('Error calculating pages for chapter $chapterIndex: $e');
+      // Return a simple error page instead of throwing an exception
+      // to prevent cascading failures
       return [
         EpubPage(
           content: '<p>Error loading chapter content: $e</p>',

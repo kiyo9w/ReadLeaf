@@ -44,6 +44,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   late final _characterService = GetIt.I<AiCharacterService>();
   late final _metadataRepository = GetIt.I<BookMetadataRepository>();
   late final _thumbnailService = GetIt.I<ThumbnailService>();
+  late final _epubService = GetIt.I<EpubService>();
   final GlobalKey<FloatingChatWidgetState> _floatingChatKey = GlobalKey();
   final ItemScrollController _scrollController = ItemScrollController();
   final ItemPositionsListener _positionsListener =
@@ -67,8 +68,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   final Map<int, List<EpubPageContent>> _chapterPagesCache = {};
   int _totalPages = 0;
   int _currentPage = 1;
-  late EpubService _epubService;
-  double _fontSize = 23.0; // Use constant directly
+  double _fontSize = 23.0; // Default value, will be updated from bloc
   final int _totalWordsInBook = 0;
   final Map<int, int> _wordsPerChapter = {};
   final Map<int, int> _absolutePageMapping = {};
@@ -124,9 +124,11 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   late AnimationController _uiAnimationController;
   late Animation<double> _uiOpacityAnimation;
 
-  void _initTabController() {
-    _tabController = TabController(length: 3, vsync: this);
-  }
+  StreamSubscription? _fontSizeSubscription;
+
+  // Add loading progress variables
+  String _loadingMessage = '';
+  double _loadingProgress = 0.0;
 
   void _toggleSideNav() {
     setState(() {
@@ -249,13 +251,27 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   @override
   void initState() {
     super.initState();
-    _verticalPageController = PageController(initialPage: _currentPage - 1);
-    _horizontalPageController = PageController(initialPage: _currentPage - 1);
-    _epubService = EpubService();
+
+    // Initialize controllers with listeners
+    _verticalPageController = PageController();
+    _horizontalPageController = PageController();
+
+    // Add page change listeners to both controllers
+    _verticalPageController.addListener(_handlePageControllerChange);
+    _horizontalPageController.addListener(_handlePageControllerChange);
+
+    // Setup book
     _initializeReader();
 
     // Initialize the tab controller for the side menu
     _tabController = TabController(length: 3, vsync: this);
+
+    // Listen to reader bloc state changes for font size updates
+    _fontSizeSubscription = context.read<ReaderBloc>().stream.listen((state) {
+      if (mounted && state is ReaderLoaded && state.fontSize != _fontSize) {
+        _updateFontSize(state.fontSize);
+      }
+    });
 
     // Initialize UI animation controller
     _uiAnimationController = AnimationController(
@@ -300,6 +316,40 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     });
   }
 
+  // Handle page controller changes to keep both modes in sync
+  void _handlePageControllerChange() {
+    if (_isDisposed || _isLoading) return;
+
+    // Check which controller triggered the change
+    if (_layoutMode == EpubLayoutMode.vertical &&
+        _verticalPageController.hasClients) {
+      final page = (_verticalPageController.page?.round() ?? 0) + 1;
+      if (page != _currentPage) {
+        _safeSetState(() {
+          _currentPage = page;
+        });
+        // Update horizontal controller if it exists and isn't the source of change
+        if (_horizontalPageController.hasClients &&
+            (_horizontalPageController.page?.round() ?? 0) != page - 1) {
+          _horizontalPageController.jumpToPage(page - 1);
+        }
+      }
+    } else if (_layoutMode == EpubLayoutMode.horizontal &&
+        _horizontalPageController.hasClients) {
+      final page = (_horizontalPageController.page?.round() ?? 0) + 1;
+      if (page != _currentPage) {
+        _safeSetState(() {
+          _currentPage = page;
+        });
+        // Update vertical controller if it exists and isn't the source of change
+        if (_verticalPageController.hasClients &&
+            (_verticalPageController.page?.round() ?? 0) != page - 1) {
+          _verticalPageController.jumpToPage(page - 1);
+        }
+      }
+    }
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -312,13 +362,47 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
     NavScreen.globalKey.currentState?.hideNavBar(true);
     _positionsListener.itemPositions.addListener(_onScroll);
-    await _loadEpub();
+
+    // Begin book loading and pagination process
+    try {
+      _safeSetState(() {
+        _isLoading = true;
+        _loadingMessage = 'Loading book...';
+      });
+
+      // Load the book
+      await _loadEpub();
+
+      // First load surrounding chapters for initial display
+      await _loadSurroundingChapters(_currentChapterIndex);
+
+      // Do initial calculation of total pages (may be incomplete)
+      _calculateTotalPages();
+
+      // Update UI to show progress
+      _safeSetState(() {
+        _loadingMessage = 'Preparing pagination...';
+      });
+
+      // Force complete pagination to ensure we have all pages calculated
+      await _forceCompletePagination();
+
+      // Now navigate to last read page with complete pagination
+      await _navigateToLastReadPage();
+    } catch (e) {
+      print('Error initializing book: $e');
+    } finally {
+      _safeSetState(() {
+        _isLoading = false;
+        _loadingMessage = '';
+      });
+    }
   }
 
   @override
   void dispose() {
     if (_metadata != null && !_isDisposed) {
-      _updateMetadata(_currentPage); // Final metadata save
+      _updateMetadata(_currentPage);
     }
     _cleanupCache();
     _isDisposed = true;
@@ -327,6 +411,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     _pulseTimer?.cancel();
     _sliderDwellTimer?.cancel();
     _floatingMenuTimer?.cancel();
+    _fontSizeSubscription?.cancel();
     _verticalPageController.dispose();
     _horizontalPageController.dispose();
     _removeFloatingMenu();
@@ -422,7 +507,28 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       }
 
       return (bestPosition?.index ?? 0) + 1;
+    } else if (_layoutMode == EpubLayoutMode.vertical) {
+      // For vertical mode, get the current page from the controller
+      if (_verticalPageController.hasClients &&
+          _verticalPageController.page != null) {
+        // Add 1 because the controller uses 0-indexed pages
+        return (_verticalPageController.page!.round() + 1)
+            .clamp(1, _totalPages);
+      }
+      // Fallback to current state if controller is not available
+      return _currentPage.clamp(1, math.max(1, _totalPages));
+    } else if (_layoutMode == EpubLayoutMode.horizontal) {
+      // For horizontal mode, get the current page from the controller
+      if (_horizontalPageController.hasClients &&
+          _horizontalPageController.page != null) {
+        // Add 1 because the controller uses 0-indexed pages
+        return (_horizontalPageController.page!.round() + 1)
+            .clamp(1, _totalPages);
+      }
+      // Fallback to current state if controller is not available
+      return _currentPage.clamp(1, math.max(1, _totalPages));
     } else {
+      // Fallback for any other mode
       if (_totalPages == 0) return 1;
       return _currentPage.clamp(1, _totalPages);
     }
@@ -432,7 +538,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     if (_metadata == null || _isDisposed) return;
 
     // Ensure currentPage doesn't exceed total pages
-    final validatedPage = currentPage.clamp(1, _totalPages);
+    final validatedPage = currentPage.clamp(1, math.max(1, _totalPages));
 
     // Calculate progress as a percentage between 0.0 and 1.0
     final progress =
@@ -440,7 +546,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
     // Update metadata with current page and progress
     final updatedMetadata = _metadata!.copyWith(
-      lastOpenedPage: validatedPage,
+      lastOpenedPage: validatedPage.toInt(),
       lastReadTime: DateTime.now(),
       readingProgress: progress,
       totalPages: _totalPages, // Ensure total pages is always up to date
@@ -450,6 +556,8 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     if (!_isDisposed) {
       _safeSetState(() {
         _metadata = updatedMetadata;
+        // Also ensure _currentPage is properly clamped
+        _currentPage = validatedPage.toInt();
       });
     }
   }
@@ -559,6 +667,11 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
             _metadata = updatedMetadata;
           });
         }
+
+        // Important: Navigate to the last read page after initialization
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _navigateToLastReadPage();
+        });
       }
     } catch (e) {
       print('Error loading EPUB: $e');
@@ -567,6 +680,143 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       }
       _safeSetState(() {
         _isLoading = false;
+      });
+    }
+  }
+
+  // Navigate to the last read page stored in metadata
+  Future<void> _navigateToLastReadPage() async {
+    if (_metadata == null) {
+      print('Cannot navigate to last read page: metadata not available');
+      return;
+    }
+
+    // Get the last read page from metadata - don't clamp yet
+    final targetPage = _metadata!.lastOpenedPage;
+
+    print('Preparing to navigate to last read page: $targetPage');
+
+    // Wait for all pagination to complete and total pages to be accurate
+    await _ensureFullPagination();
+
+    // Now clamp after we have the correct total pages
+    final lastPage = targetPage.clamp(1, _totalPages);
+
+    print(
+        'Navigating to last read page: $lastPage (original: $targetPage) of $_totalPages');
+
+    // Wait a moment for layout to complete
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    // Jump to the page directly
+    try {
+      if (_layoutMode == EpubLayoutMode.vertical &&
+          _verticalPageController.hasClients) {
+        _verticalPageController.jumpToPage(lastPage - 1);
+        print('Vertical jump complete to page ${lastPage - 1} (0-indexed)');
+      } else if (_layoutMode == EpubLayoutMode.horizontal &&
+          _horizontalPageController.hasClients) {
+        _horizontalPageController.jumpToPage(lastPage - 1);
+        print('Horizontal jump complete to page ${lastPage - 1} (0-indexed)');
+      } else if (_layoutMode == EpubLayoutMode.longStrip &&
+          _scrollController.isAttached) {
+        // For long strip mode, use the raw index if within flattened pages range
+        final targetIndex = lastPage - 1;
+
+        _scrollController.jumpTo(
+            index:
+                targetIndex.clamp(0, math.max(0, _flattenedPages.length - 1)));
+        print('Long strip jump complete to index $targetIndex');
+      }
+
+      // Update UI state
+      _safeSetState(() {
+        _currentPage = lastPage;
+      });
+    } catch (e) {
+      print('Error jumping to last read page: $e');
+    }
+  }
+
+  // Make sure full pagination is complete before proceeding
+  Future<void> _ensureFullPagination() async {
+    print('Ensuring complete pagination before navigation...');
+
+    // Wait for the current pagination to finish first
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    // Check if we need to update the total pages first
+    if (_flattenedPages.length > _totalPages) {
+      _safeSetState(() {
+        _totalPages = _flattenedPages.length;
+      });
+      print('Updated total pages to match flattened pages: $_totalPages');
+    }
+
+    // Wait for all chapters to be loaded
+    if (_chapterPagesCache.length < _flatChapters.length) {
+      print('Not all chapters are cached, forcing complete pagination...');
+      await _forceCompletePagination();
+    }
+
+    // Final update to total pages based on all available information
+    int calculatedTotal = 0;
+
+    // First try to use flattened pages length which should be accurate for long strip
+    if (_flattenedPages.isNotEmpty) {
+      calculatedTotal = _flattenedPages.length;
+    } else {
+      // Otherwise sum up all chapter pages
+      for (final chapterPages in _chapterPagesCache.values) {
+        calculatedTotal += chapterPages.length;
+      }
+    }
+
+    // Update total pages with max of current and calculated
+    if (calculatedTotal > _totalPages) {
+      _safeSetState(() {
+        _totalPages = calculatedTotal;
+      });
+      print('Final total pages update: $_totalPages');
+    }
+
+    // Print debug info
+    _debugPaginationInfo();
+  }
+
+  // Initialize the book after loading
+  Future<void> _initializeBook() async {
+    if (_isDisposed) return;
+
+    try {
+      _safeSetState(() {
+        _isLoading = true;
+        _loadingMessage = 'Loading book...';
+      });
+
+      // First load surrounding chapters for initial display
+      await _loadSurroundingChapters(_currentChapterIndex);
+
+      // Do initial calculation of total pages (may be incomplete)
+      _calculateTotalPages();
+
+      // Update UI to show progress
+      _safeSetState(() {
+        _loadingMessage = 'Preparing pagination...';
+        _isLoading = true;
+      });
+
+      // Force complete pagination to ensure we have all pages calculated
+      await _forceCompletePagination();
+
+      // Now navigate to last read page with complete pagination
+      await _navigateToLastReadPage();
+    } catch (e) {
+      print('Error initializing book: $e');
+    } finally {
+      _safeSetState(() {
+        _isLoading = false;
+        _loadingMessage = '';
       });
     }
   }
@@ -692,33 +942,57 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     }
   }
 
-  void _calculateTotalPages() {
-    if (_isDisposed) return;
+  // Debug helper for pagination issues
+  void _debugPaginationInfo() {
+    print('----- PAGINATION DEBUG INFO -----');
+    print('Total pages: $_totalPages');
+    print('Current page: $_currentPage');
+    print('Layout mode: $_layoutMode');
+    print('Chapters: ${_flatChapters.length}');
+    print('Flattened pages: ${_flattenedPages.length}');
+    print('Chapter pages cache: ${_chapterPagesCache.length} chapters cached');
 
-    // Calculate total pages based on layout mode
-    if (_layoutMode == EpubLayoutMode.longStrip) {
-      // For long strip mode, each "page" is essentially a chapter
-      // So we use the flattened pages count which combines all chapters
-      _safeSetState(() {
-        _totalPages = _flattenedPages.isNotEmpty
-            ? _flattenedPages.length
-            : _flatChapters.length;
-      });
-    } else {
-      // For paginated modes (vertical/horizontal), calculate actual pages
-      int total = 0;
-      for (var i = 0; i < _flatChapters.length; i++) {
-        total += _chapterPagesCache[i]?.length ?? 0;
-      }
+    // Print page counts per chapter
+    _chapterPagesCache.forEach((chapterIndex, pages) {
+      print('Chapter $chapterIndex: ${pages.length} pages');
+    });
 
-      // Ensure we always have at least 1 page
-      _safeSetState(() {
-        _totalPages = total > 0 ? total : 1;
-      });
+    // Print absolute page mapping
+    print('Absolute page mapping entries: ${_absolutePageMapping.length}');
+    if (_absolutePageMapping.isNotEmpty) {
+      final firstEntry = _absolutePageMapping.entries.first;
+      final lastEntry = _absolutePageMapping.entries.last;
+      print(
+          'First mapping: Abs page ${firstEntry.key} -> Chapter ${firstEntry.value}');
+      print(
+          'Last mapping: Abs page ${lastEntry.key} -> Chapter ${lastEntry.value}');
     }
 
-    // Debug output total pages
-    print('Total pages calculated: $_totalPages for layout mode: $_layoutMode');
+    print('----------------------------------');
+  }
+
+  // Calculate total pages
+  void _calculateTotalPages() {
+    int totalPages = 0;
+
+    // Count pages from all cached chapters
+    for (final pages in _chapterPagesCache.values) {
+      totalPages += pages.length;
+    }
+
+    // If we have no cached chapters, estimate based on average page count
+    if (totalPages == 0 && _flatChapters.isNotEmpty) {
+      // Assume approximately 3 pages per chapter if we don't have data
+      totalPages = _flatChapters.length * 3;
+    }
+
+    // Update total pages
+    _safeSetState(() {
+      _totalPages = math.max(1, totalPages);
+    });
+
+    // Debug pagination info
+    _debugPaginationInfo();
   }
 
   Future<void> _preloadChapter(int index) async {
@@ -860,7 +1134,11 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   }
 
   Future<void> _splitChapterIntoPages(int chapterIndex) async {
-    if (_chapterPagesCache.containsKey(chapterIndex) ||
+    if (!mounted ||
+        _isDisposed ||
+        chapterIndex < 0 ||
+        chapterIndex >= _flatChapters.length ||
+        _chapterPagesCache.containsKey(chapterIndex) ||
         _processingResult == null) {
       return;
     }
@@ -875,6 +1153,9 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
         fontSize: _fontSize,
       );
 
+      // Check mounted again after the async operation
+      if (!mounted || _isDisposed) return;
+
       // Convert EpubPage objects to EpubPageContent objects
       final pages = epubPages
           .map((p) => EpubPageContent(
@@ -887,7 +1168,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
               ))
           .toList();
 
-      if (!_isDisposed) {
+      if (!_isDisposed && mounted) {
         _safeSetState(() {
           _chapterPagesCache[chapterIndex] = pages;
         });
@@ -896,8 +1177,8 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       }
     } catch (e) {
       print('Error splitting chapter $chapterIndex into pages: $e');
-      // Add a single page with error message
-      if (!_isDisposed) {
+      // Add a single page with error message only if still mounted
+      if (!_isDisposed && mounted) {
         _safeSetState(() {
           _chapterPagesCache[chapterIndex] = [
             EpubPageContent(
@@ -939,7 +1220,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                   children: [
                     // Content layer
                     if (_isLoading)
-                      const Center(child: CircularProgressIndicator())
+                      _buildLoadingIndicator()
                     else if (_layoutMode == EpubLayoutMode.horizontal)
                       _buildHorizontalLayout()
                     else if (_layoutMode == EpubLayoutMode.vertical)
@@ -2401,178 +2682,134 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   }
 
   int _getCurrentPage() {
-    // Find the absolute page number based on current chapter and scroll position
-    final positions = _positionsListener.itemPositions.value;
-    if (positions.isEmpty) return 1;
-
-    final firstPosition = positions.first;
-    final chapterIndex = firstPosition.index;
-
-    // Find the first absolute page number for this chapter
-    int absolutePage = 1;
-    for (var entry in _absolutePageMapping.entries) {
-      if (entry.value == chapterIndex) {
-        absolutePage = entry.key;
-        break;
+    if (_layoutMode == EpubLayoutMode.longStrip) {
+      return _calculateCurrentPageInLongStrip();
+    } else if (_layoutMode == EpubLayoutMode.vertical) {
+      if (_verticalPageController.hasClients) {
+        return (_verticalPageController.page?.round() ?? 0) + 1;
+      }
+    } else if (_layoutMode == EpubLayoutMode.horizontal) {
+      if (_horizontalPageController.hasClients) {
+        return (_horizontalPageController.page?.round() ?? 0) + 1;
       }
     }
 
-    // Add offset based on scroll position within chapter
-    if (_chapterPagesCache.containsKey(chapterIndex)) {
-      final chapterPages = _chapterPagesCache[chapterIndex]!;
-      final progress = 1.0 - firstPosition.itemLeadingEdge;
-      final pageOffset = (progress * chapterPages.length).floor();
-      absolutePage += pageOffset;
-    }
-
-    return absolutePage.clamp(1, _totalPages);
+    return _currentPage;
   }
 
   Future<void> _jumpToPage(num targetPage) async {
-    final safePage = targetPage.clamp(1, math.max(1, _totalPages));
+    // Simple boundary check and conversion to int - log the original value
+    final originalPage = targetPage;
+    final int page = targetPage.clamp(1, _totalPages).toInt();
 
-    if (_layoutMode == EpubLayoutMode.vertical) {
-      await _verticalPageController.animateToPage(
-        (safePage - 1).toInt(),
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    } else if (_layoutMode == EpubLayoutMode.horizontal) {
-      await _horizontalPageController.animateToPage(
-        (safePage - 1).toInt(),
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    } else if (_layoutMode == EpubLayoutMode.longStrip) {
-      if (_scrollController.isAttached && mounted) {
-        await _scrollController.scrollTo(
-          index: (safePage - 1).toInt(),
+    // Log for debugging
+    if (originalPage != page) {
+      print(
+          'Page request clamped from $originalPage to $page (total: $_totalPages)');
+    }
+
+    // Update state right away
+    _safeSetState(() {
+      _currentPage = page;
+    });
+
+    try {
+      // Handle navigation based on layout mode
+      if (_layoutMode == EpubLayoutMode.vertical &&
+          _verticalPageController.hasClients) {
+        _verticalPageController.animateToPage(
+          page - 1, // Convert to 0-indexed
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      } else if (_layoutMode == EpubLayoutMode.horizontal &&
+          _horizontalPageController.hasClients) {
+        _horizontalPageController.animateToPage(
+          page - 1, // Convert to 0-indexed
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      } else if (_layoutMode == EpubLayoutMode.longStrip &&
+          _scrollController.isAttached) {
+        // For long strip, find the closest chapter
+        int index = 0;
+
+        if (_flattenedPages.isNotEmpty && page <= _flattenedPages.length) {
+          index = page - 1;
+        } else {
+          // Estimate based on total progress
+          double progress = _totalPages > 0 ? page / _totalPages : 0;
+          index = (progress * _flatChapters.length).floor();
+          index = index.clamp(0, _flatChapters.length - 1);
+        }
+
+        _scrollController.scrollTo(
+          index: index,
           duration: const Duration(milliseconds: 300),
         );
       }
+
+      // Update any metadata needed after navigation
+      await _updateMetadata(page);
+    } catch (e) {
+      print('Error jumping to page: $e');
     }
+  }
+
+  // Update font size and recalculate pages
+  Future<void> _updateFontSize(double newFontSize) async {
+    if (!mounted || _fontSize == newFontSize) return;
 
     _safeSetState(() {
-      _currentPage = safePage.toInt();
+      _isLoading = true;
+      _fontSize = newFontSize;
     });
-  }
 
-  // Add this method to check if a tap position is on a UI element
-  bool _isUIElement(Offset position) {
-    // Get screen dimensions
-    final size = MediaQuery.of(context).size;
+    try {
+      double oldProgress = _totalPages > 0 ? _currentPage / _totalPages : 0.0;
 
-    // Define UI element regions
-    final topBarRegion = Rect.fromLTWH(0, 0, size.width, kToolbarHeight);
-    final bottomBarRegion = Rect.fromLTWH(
-        0,
-        size.height - ResponsiveConstants.getBottomBarHeight(context),
-        size.width,
-        ResponsiveConstants.getBottomBarHeight(context));
+      // Clear caches for recalculation
+      _chapterPagesCache.clear();
+      _absolutePageMapping.clear();
+      _nextAbsolutePage = 1;
 
-    // Check if tap is in any UI region
-    return topBarRegion.contains(position) ||
-        bottomBarRegion.contains(position);
-  }
+      for (int i = 0; i < _flatChapters.length; i++) {
+        if (!mounted) {
+          return; // Check mounted state before processing each chapter
+        }
+        await _splitChapterIntoPages(i);
+      }
 
-  void _showFontSizeDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Font Size'),
-        content: StatefulBuilder(
-          builder: (context, setState) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Slider(
-                value: _fontSize,
-                min: 12.0,
-                max: 32.0,
-                divisions: 20,
-                label: _fontSize.round().toString(),
-                onChanged: (value) {
-                  setState(() {
-                    _fontSize = value;
-                  });
-                },
-                onChangeEnd: (value) async {
-                  if (mounted) {
-                    setState(() {
-                      _isLoading = true;
-                    });
-                  }
+      if (!mounted) return;
+      _calculateTotalPages();
 
-                  try {
-                    double oldProgress =
-                        _totalPages > 0 ? _currentPage / _totalPages : 0.0;
+      int newCurrentPage =
+          _totalPages > 0 ? (oldProgress * _totalPages).round() : 1;
+      newCurrentPage = newCurrentPage.clamp(1, _totalPages);
 
-                    // Clear caches for recalculation
-                    _chapterPagesCache.clear();
-                    _absolutePageMapping.clear();
-                    _nextAbsolutePage = 1;
+      _verticalPageController = PageController(initialPage: newCurrentPage - 1);
+      _horizontalPageController =
+          PageController(initialPage: newCurrentPage - 1);
 
-                    setState(() {
-                      _fontSize = value;
-                    });
+      if (mounted) {
+        _safeSetState(() {
+          _currentPage = newCurrentPage;
+          _isLoading = false;
+        });
+      }
 
-                    for (int i = 0; i < _flatChapters.length; i++) {
-                      await _splitChapterIntoPages(i);
-                    }
-                    _calculateTotalPages();
-
-                    int newCurrentPage = _totalPages > 0
-                        ? (oldProgress * _totalPages).round()
-                        : 1;
-                    newCurrentPage = newCurrentPage.clamp(1, _totalPages);
-
-                    _verticalPageController =
-                        PageController(initialPage: newCurrentPage - 1);
-                    _horizontalPageController =
-                        PageController(initialPage: newCurrentPage - 1);
-
-                    if (mounted) {
-                      setState(() {
-                        _currentPage = newCurrentPage;
-                        _isLoading = false;
-                      });
-                    }
-
-                    await _jumpToPage(newCurrentPage);
-                    await _updateMetadata(
-                        newCurrentPage); // Update metadata after pagination changes
-                  } catch (e) {
-                    print('Error updating font size: $e');
-                    if (mounted) {
-                      setState(() {
-                        _isLoading = false;
-                      });
-                    }
-                  }
-                },
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).cardColor,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  'Sample Text\nMultiple lines to preview text size and spacing.',
-                  style: TextStyle(fontSize: _fontSize),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
+      if (!mounted) return;
+      await _jumpToPage(newCurrentPage);
+      await _updateMetadata(
+          newCurrentPage); // Update metadata after pagination changes
+    } catch (e) {
+      print('Error updating font size: $e');
+      if (mounted) {
+        _safeSetState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   void _handleSliderTap(TapDownDetails details, double width) {
@@ -2962,6 +3199,210 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
         );
       }
     }
+  }
+
+  Future<void> _changeLayoutMode(EpubLayoutMode mode) async {
+    if (_layoutMode == mode) return;
+
+    // Get current page before changing mode
+    final currentPage = _currentPage;
+    final previousMode = _layoutMode;
+
+    _safeSetState(() {
+      _isLoading = true;
+      _layoutMode = mode;
+    });
+
+    try {
+      // For major mode change that affects pagination, reset appropriate caches
+      if ((previousMode == EpubLayoutMode.longStrip &&
+              (mode == EpubLayoutMode.vertical ||
+                  mode == EpubLayoutMode.horizontal)) ||
+          ((previousMode == EpubLayoutMode.vertical ||
+                  previousMode == EpubLayoutMode.horizontal) &&
+              mode == EpubLayoutMode.longStrip)) {
+        // Clear caches since pagination is different between these modes
+        _chapterPagesCache.clear();
+        _absolutePageMapping.clear();
+        _nextAbsolutePage = 1;
+      }
+
+      // Rebuild pages with new layout mode
+      await _loadSurroundingChapters(_currentChapterIndex);
+      _calculateTotalPages();
+
+      // Wait for layout to complete
+      await Future.delayed(Duration(milliseconds: 50));
+
+      // Jump to the same position in the new mode
+      if (currentPage > 0) {
+        await _jumpToPage(currentPage);
+      }
+    } catch (e) {
+      print('Error changing layout mode: $e');
+    } finally {
+      _safeSetState(() {
+        _isLoading = false;
+      });
+
+      // Save the new mode preference
+      await _updateMetadata(_currentPage);
+    }
+  }
+
+  // Calculate current page based on scroll position in long strip mode
+  int _calculateCurrentPageInLongStrip() {
+    if (_flattenedPages.isEmpty) {
+      return 1;
+    }
+
+    final positions = _positionsListener.itemPositions.value;
+    if (positions.isEmpty) {
+      return 1;
+    }
+
+    // Sort positions by how visible they are
+    final visiblePositions = positions.toList()
+      ..sort((a, b) {
+        // First sort by visibility percentage
+        final aVisibility = a.itemLeadingEdge < 0
+            ? 0.0
+            : (1.0 - a.itemLeadingEdge) *
+                (a.itemTrailingEdge > 1.0 ? 1.0 : a.itemTrailingEdge);
+        final bVisibility = b.itemLeadingEdge < 0
+            ? 0.0
+            : (1.0 - b.itemLeadingEdge) *
+                (b.itemTrailingEdge > 1.0 ? 1.0 : b.itemTrailingEdge);
+
+        // If visibility is significantly different, use that
+        if ((aVisibility - bVisibility).abs() > 0.1) {
+          return bVisibility.compareTo(aVisibility);
+        }
+
+        // Otherwise, prefer the item that's more in view from the top
+        return a.itemLeadingEdge.compareTo(b.itemLeadingEdge);
+      });
+
+    // Get the most visible position
+    final position = visiblePositions.first;
+
+    // Add 1 because positions are 0-indexed
+    return position.index + 1;
+  }
+
+  // Force complete pagination of the entire book
+  Future<void> _forceCompletePagination() async {
+    print('Forcing complete pagination of all chapters...');
+    _safeSetState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Clear any existing cached pagination
+      _chapterPagesCache.clear();
+      _absolutePageMapping.clear();
+      _nextAbsolutePage = 1;
+
+      // Get dimensions for pagination
+      final viewportSize = MediaQuery.of(context).size;
+
+      // Force loading of all chapters in sequence
+      for (int i = 0; i < _flatChapters.length; i++) {
+        // Load each chapter explicitly
+        if (!_chapterPagesCache.containsKey(i)) {
+          print('Paginating chapter $i of ${_flatChapters.length}');
+
+          try {
+            // Make sure the chapter content is loaded
+            await _loadChapter(i);
+
+            // Update progress periodically
+            _safeSetState(() {
+              _loadingProgress = (i + 1) / _flatChapters.length;
+              _loadingMessage =
+                  'Paginating chapter ${i + 1}/${_flatChapters.length}';
+            });
+          } catch (e) {
+            print('Error paginating chapter $i: $e');
+          }
+        }
+      }
+
+      // Calculate the total page count
+      int totalPages = 0;
+
+      // First check if we have flattened pages for long strip mode
+      final flattenedPages = _flattenedPages;
+      if (flattenedPages.isNotEmpty) {
+        totalPages = flattenedPages.length;
+      } else {
+        // Otherwise sum up all chapter pages
+        for (final chapterPages in _chapterPagesCache.values) {
+          totalPages += chapterPages.length;
+        }
+      }
+
+      // Ensure we always have at least one page
+      totalPages = math.max(1, totalPages);
+
+      // Update the total pages state
+      _safeSetState(() {
+        _totalPages = totalPages;
+      });
+
+      print('Full pagination complete: $_totalPages total pages');
+    } catch (e) {
+      print('Error during complete pagination: $e');
+    } finally {
+      _safeSetState(() {
+        _isLoading = false;
+        _loadingProgress = 1.0;
+      });
+    }
+  }
+
+  // Build the loading indicator widget
+  Widget _buildLoadingIndicator() {
+    // Get colors from the current theme
+    final theme = Theme.of(context);
+    final backgroundColor = theme.scaffoldBackgroundColor;
+    final textColor = theme.textTheme.bodyMedium?.color ?? Colors.black;
+
+    return Container(
+      color: backgroundColor,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(
+              value: _loadingProgress > 0 ? _loadingProgress : null,
+              valueColor:
+                  AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _loadingMessage.isNotEmpty ? _loadingMessage : 'Loading...',
+              style: TextStyle(
+                color: textColor,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            if (_loadingProgress > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Text(
+                  '${(_loadingProgress * 100).toInt()}%',
+                  style: TextStyle(
+                    color: textColor.withOpacity(0.7),
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

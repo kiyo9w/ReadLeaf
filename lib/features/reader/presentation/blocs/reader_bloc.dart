@@ -20,6 +20,7 @@ class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
     on<PreviousPage>(_onPreviousPage);
     on<JumpToPage>(_onJumpToPage);
     on<SetZoomLevel>(_onSetZoomLevel);
+    on<SetFontSize>(_onSetFontSize);
     on<ToggleReadingMode>(_onToggleReadingMode);
     on<setReadingMode>(_onSetReadingMode);
     on<CloseReader>(_onCloseReader);
@@ -127,6 +128,16 @@ class ReaderBloc extends Bloc<ReaderEvent, ReaderState> {
       // Only update if the zoom level actually changed
       if (event.zoomLevel != s.zoomLevel) {
         emit(s.copyWith(zoomLevel: event.zoomLevel));
+      }
+    }
+  }
+
+  void _onSetFontSize(SetFontSize event, Emitter<ReaderState> emit) {
+    if (state is ReaderLoaded) {
+      final s = state as ReaderLoaded;
+      // Only update if the font size actually changed
+      if (event.fontSize != s.fontSize) {
+        emit(s.copyWith(fontSize: event.fontSize));
       }
     }
   }
