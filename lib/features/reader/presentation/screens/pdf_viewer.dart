@@ -8,7 +8,6 @@ import 'package:read_leaf/features/library/presentation/blocs/file_bloc.dart';
 import 'package:read_leaf/features/reader/presentation/blocs/reader_bloc.dart';
 import 'package:read_leaf/nav_screen.dart';
 import 'package:read_leaf/widgets/text_search_view.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:read_leaf/features/companion_chat/data/gemini_service.dart';
 import 'package:get_it/get_it.dart';
 import 'package:read_leaf/features/companion_chat/presentation/widgets/floating_chat_widget.dart';
@@ -46,12 +45,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   Timer? _floatingMenuTimer;
   Offset? _lastPointerDownPosition;
   bool _showSearchPanel = false;
-  bool _isZoomedIn = false;
   bool _showAskAiButton = false;
-  final bool _isLoadingAiResponse = false;
   String? _selectedText;
-  final double _scaleFactor = 1.0;
-  final double _baseScaleFactor = 1.0;
   final _markers = <int, List<Marker>>{};
   List<PdfTextRanges>? _textSelections;
   final outline = ValueNotifier<List<PdfOutlineNode>?>(null);
@@ -63,8 +58,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   PdfLayoutMode _layoutMode = PdfLayoutMode.vertical;
   final bool _isRightToLeftReadingOrder = false;
   final bool _needCoverPage = true;
-  final bool _isInitialLoading = true;
-  final double _loadingProgress = 0.0;
   StreamSubscription? _fontSizeSubscription;
 
   String get _currentTitle {
@@ -229,56 +222,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
     super.dispose();
   }
 
-  Future<bool> _shouldOpenUrl(BuildContext context, Uri url) async {
-    final result = await showDialog<bool?>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Navigate to URL?'),
-          content: SelectionArea(
-            child: Text.rich(
-              TextSpan(
-                children: [
-                  const TextSpan(
-                    text:
-                        'Do you want to navigate to the following location?\n',
-                  ),
-                  TextSpan(
-                    text: url.toString(),
-                    style: const TextStyle(color: Colors.blue),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Go'),
-            ),
-          ],
-        );
-      },
-    );
-    return result ?? false;
-  }
-
-  void _handleLink(PdfLink link) async {
-    if (link.url != null) {
-      final shouldOpen = await _shouldOpenUrl(context, link.url!);
-      if (shouldOpen && mounted) {
-        launchUrl(link.url!);
-      }
-    } else if (link.dest != null) {
-      _controller.goToPage(pageNumber: link.dest!.pageNumber);
-    }
-  }
-
   void _closeSearchPanel() {
     setState(() {
       _showSearchPanel = false;
@@ -333,19 +276,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
       }
       readerBloc.add(ToggleSideNav());
     }
-  }
-
-  void _handleDoubleTap(TapDownDetails details) {
-    final zoomCenter = details.localPosition;
-    setState(() {
-      if (_isZoomedIn) {
-        _controller.zoomDown(loop: false);
-        _isZoomedIn = false;
-      } else {
-        _controller.zoomUp(loop: false);
-        _isZoomedIn = true;
-      }
-    });
   }
 
   void _handleTap() {
@@ -1050,8 +980,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                                   : const Color(0xFFFAF9F7).withOpacity(0.95),
                           elevation: 0,
                           toolbarHeight:
-                              ResponsiveConstants.getBottomBarHeight(context) -
-                                  12.0,
+                              ResponsiveConstants.getBottomBarHeight(context),
                           leading: IconButton(
                             icon: Icon(
                               Icons.arrow_back,

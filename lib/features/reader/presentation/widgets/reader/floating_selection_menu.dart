@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:ui';
+import 'package:read_leaf/core/constants/responsive_constants.dart';
 
 enum SelectionMenuType {
   askAi,
@@ -14,7 +15,7 @@ enum SelectionMenuType {
 }
 
 class FloatingSelectionMenu extends StatefulWidget {
-  final String selectedText;
+  final String? selectedText;
   final Function(SelectionMenuType, String) onMenuSelected;
   final VoidCallback? onDismiss;
   final VoidCallback? onExpand;
@@ -49,11 +50,15 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
   String? _wikiError;
   String _wikiExtract = '';
 
+  // Add request cancellation tokens
+  http.Client? _dictionaryClient;
+  http.Client? _wikiClient;
+
   @override
   void initState() {
     super.initState();
-    final int wordCount =
-        widget.selectedText.trim().split(RegExp(r'\s+')).length;
+    final String selectionText = widget.selectedText ?? '';
+    final int wordCount = selectionText.trim().split(RegExp(r'\s+')).length;
 
     final allMenus = [
       SelectionMenuType.askAi,
@@ -75,24 +80,31 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
     _pageController.addListener(() {
       final page = (_pageController.page ?? 0).round();
       if (_currentPageIndex != page) {
-        setState(() {
-          _currentPageIndex = page;
-        });
+        if (mounted) {
+          setState(() {
+            _currentPageIndex = page;
+          });
+        }
       }
     });
 
-    if (_availableMenus.contains(SelectionMenuType.dictionary)) {
-      _fetchDictionaryData(widget.selectedText);
+    if (_availableMenus.contains(SelectionMenuType.dictionary) &&
+        selectionText.isNotEmpty) {
+      _fetchDictionaryData(selectionText);
     }
 
-    if (_availableMenus.contains(SelectionMenuType.wikipedia)) {
-      _fetchWikipediaData(widget.selectedText);
+    if (_availableMenus.contains(SelectionMenuType.wikipedia) &&
+        selectionText.isNotEmpty) {
+      _fetchWikipediaData(selectionText);
     }
   }
 
   @override
   void dispose() {
     _pageController.dispose();
+    // Cancel any pending API requests
+    _dictionaryClient?.close();
+    _wikiClient?.close();
     super.dispose();
   }
 
@@ -100,6 +112,8 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
   // DICTIONARY API (dictionaryapi.dev, English only)
   // ---------------------------------------------------------------------------
   Future<void> _fetchDictionaryData(String word) async {
+    if (!mounted) return;
+
     setState(() {
       _dictionaryLoading = true;
       _dictionaryError = null;
@@ -108,11 +122,19 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
       _dictionaryDefinitions = [];
     });
 
+    // Cancel previous request if any
+    _dictionaryClient?.close();
+    _dictionaryClient = http.Client();
+
     try {
       final url = Uri.parse(
         'https://api.dictionaryapi.dev/api/v2/entries/en/$word',
       );
-      final response = await http.get(url);
+      final response = await _dictionaryClient!.get(url);
+
+      // Check if widget is still mounted before processing the response
+      if (!mounted) return;
+
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         if (data.isNotEmpty) {
@@ -154,11 +176,14 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
         _dictionaryError = 'No dictionary entry found for "$word".';
       }
     } catch (e) {
+      if (!mounted) return;
       _dictionaryError = 'Dictionary error: $e';
     } finally {
-      setState(() {
-        _dictionaryLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _dictionaryLoading = false;
+        });
+      }
     }
   }
 
@@ -166,18 +191,28 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
   // WIKIPEDIA API (English by default)
   // ---------------------------------------------------------------------------
   Future<void> _fetchWikipediaData(String topic) async {
+    if (!mounted) return;
+
     setState(() {
       _wikiLoading = true;
       _wikiError = null;
       _wikiExtract = '';
     });
 
+    // Cancel previous request if any
+    _wikiClient?.close();
+    _wikiClient = http.Client();
+
     try {
       final url = Uri.parse(
         'https://en.wikipedia.org/w/api.php?action=query'
         '&prop=extracts&explaintext&format=json&redirects=1&titles=$topic',
       );
-      final response = await http.get(url);
+      final response = await _wikiClient!.get(url);
+
+      // Check if widget is still mounted before processing the response
+      if (!mounted) return;
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;
         if (data['query'] != null && data['query']['pages'] != null) {
@@ -204,11 +239,14 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
         _wikiError = 'Wikipedia error.';
       }
     } catch (e) {
+      if (!mounted) return;
       _wikiError = 'Wikipedia error: $e';
     } finally {
-      setState(() {
-        _wikiLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _wikiLoading = false;
+        });
+      }
     }
   }
 
@@ -258,6 +296,9 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
   // ---------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
+    // Safely get the selected text or empty string if null
+    final String selectionText = widget.selectedText ?? '';
+
     return Material(
       type: MaterialType.transparency,
       child: Stack(
@@ -265,6 +306,7 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
           Positioned.fill(
             child: GestureDetector(
               onTap: widget.onDismiss,
+              behavior: HitTestBehavior.deferToChild,
               child: Container(color: Colors.transparent),
             ),
           ),
@@ -281,7 +323,8 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
                     ? 0
                     : MediaQuery.of(context).padding.bottom + 16,
               ),
-              height: 385,
+              height: _calculateMenuHeight(context),
+              width: _calculateMenuWidth(context),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -294,6 +337,13 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
                       children: _availableMenus.map((menuType) {
                         final isSelected = _availableMenus.indexOf(menuType) ==
                             _currentPageIndex;
+
+                        // Determine if we should show text labels based on screen size and orientation
+                        final size = MediaQuery.of(context).size;
+                        final isLandscape = size.width > size.height;
+                        final showText = !isLandscape ||
+                            ResponsiveConstants.isTablet(context) ||
+                            _availableMenus.length <= 4;
 
                         return Expanded(
                           child: Padding(
@@ -362,27 +412,29 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
                                                     .colorScheme
                                                     .onSurface,
                                       ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        _getMenuTitle(menuType),
-                                        style: TextStyle(
-                                          color: isSelected
-                                              ? Theme.of(context)
-                                                  .colorScheme
-                                                  .onPrimary
-                                              : Theme.of(context).brightness ==
-                                                      Brightness.dark
-                                                  ? Colors.white
-                                                  : Theme.of(context)
-                                                      .colorScheme
-                                                      .onSurface,
-                                          fontWeight: isSelected
-                                              ? FontWeight.bold
-                                              : FontWeight.normal,
-                                          fontSize: 14,
-                                          overflow: TextOverflow.ellipsis,
+                                      if (showText) const SizedBox(width: 4),
+                                      if (showText)
+                                        Text(
+                                          _getMenuTitle(menuType),
+                                          style: TextStyle(
+                                            color: isSelected
+                                                ? Theme.of(context)
+                                                    .colorScheme
+                                                    .onPrimary
+                                                : Theme.of(context)
+                                                            .brightness ==
+                                                        Brightness.dark
+                                                    ? Colors.white
+                                                    : Theme.of(context)
+                                                        .colorScheme
+                                                        .onSurface,
+                                            fontWeight: isSelected
+                                                ? FontWeight.bold
+                                                : FontWeight.normal,
+                                            fontSize: 14,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
                                         ),
-                                      ),
                                     ],
                                   ),
                                 ),
@@ -434,6 +486,8 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
   // 1) ASK AI
   // ---------------------------------------------------------------------------
   Widget _buildAskAiCard() {
+    final String selectionText = widget.selectedText ?? '';
+
     return _buildBaseCard(
       title: 'Ask AI',
       topRightWidget: Icon(
@@ -450,7 +504,7 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
           label: 'Ask now',
           onTap: () => widget.onMenuSelected(
             SelectionMenuType.askAi,
-            widget.selectedText,
+            selectionText,
           ),
         ),
       ],
@@ -461,6 +515,8 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
   // 2) TRANSLATE
   // ---------------------------------------------------------------------------
   Widget _buildTranslateCard() {
+    final String selectionText = widget.selectedText ?? '';
+
     return _buildBaseCard(
       title: 'Translate',
       topRightWidget: Icon(
@@ -468,7 +524,7 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
         color: Theme.of(context).colorScheme.secondary,
       ),
       body: Text(
-        'Translate "${widget.selectedText}" into another language.',
+        'Translate "${selectionText}" into another language.',
         style: Theme.of(context).textTheme.bodyMedium,
       ),
       bottomRow: [
@@ -476,21 +532,21 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
           label: 'English (US)',
           onTap: () => widget.onMenuSelected(
             SelectionMenuType.translate,
-            widget.selectedText,
+            selectionText,
           ),
         ),
         _buildTextButton(
           label: 'Spanish',
           onTap: () => widget.onMenuSelected(
             SelectionMenuType.translate,
-            widget.selectedText,
+            selectionText,
           ),
         ),
         _buildTextButton(
           label: 'More...',
           onTap: () => widget.onMenuSelected(
             SelectionMenuType.translate,
-            widget.selectedText,
+            selectionText,
           ),
         ),
       ],
@@ -501,6 +557,8 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
   // 3) HIGHLIGHTS
   // ---------------------------------------------------------------------------
   Widget _buildHighlightsCard() {
+    final String selectionText = widget.selectedText ?? '';
+
     return _buildBaseCard(
       title: 'Highlights',
       topRightWidget: Icon(
@@ -508,7 +566,7 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
         color: Theme.of(context).colorScheme.secondary,
       ),
       body: Text(
-        'Save "${widget.selectedText}" for future reference.\n'
+        'Save "${selectionText}" for future reference.\n'
         'Organize and revisit your highlights anytime.',
         style: Theme.of(context).textTheme.bodyMedium,
       ),
@@ -517,14 +575,14 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
           label: 'Highlight',
           onTap: () => widget.onMenuSelected(
             SelectionMenuType.highlight,
-            widget.selectedText,
+            selectionText,
           ),
         ),
         _buildTextButton(
           label: 'View all',
           onTap: () => widget.onMenuSelected(
             SelectionMenuType.highlight,
-            widget.selectedText,
+            selectionText,
           ),
         ),
       ],
@@ -535,6 +593,8 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
   // 4) DICTIONARY
   // ---------------------------------------------------------------------------
   Widget _buildDictionaryCard() {
+    final String selectionText = widget.selectedText ?? '';
+
     Widget dictionaryContent;
     if (_dictionaryLoading) {
       dictionaryContent = const Center(child: CircularProgressIndicator());
@@ -547,7 +607,7 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
       dictionaryContent = _buildDictionaryContent();
     } else {
       dictionaryContent = Text(
-        'No dictionary result for "${widget.selectedText}".',
+        'No dictionary result for "${selectionText}".',
         style: Theme.of(context).textTheme.bodyMedium,
       );
     }
@@ -571,14 +631,14 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
           label: 'Open dictionary',
           onTap: () => widget.onMenuSelected(
             SelectionMenuType.dictionary,
-            widget.selectedText,
+            selectionText,
           ),
         ),
         _buildTextButton(
           label: 'English (US)',
           onTap: () => widget.onMenuSelected(
             SelectionMenuType.translate,
-            widget.selectedText,
+            selectionText,
           ),
         ),
       ],
@@ -628,6 +688,8 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
   // 5) WIKIPEDIA
   // ---------------------------------------------------------------------------
   Widget _buildWikipediaCard() {
+    final String selectionText = widget.selectedText ?? '';
+
     Widget wikiContent;
     if (_wikiLoading) {
       wikiContent = const Center(child: CircularProgressIndicator());
@@ -643,7 +705,7 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
       );
     } else {
       wikiContent = Text(
-        'No Wikipedia snippet found for "${widget.selectedText}".',
+        'No Wikipedia snippet found for "${selectionText}".',
         style: Theme.of(context).textTheme.bodyMedium,
       );
     }
@@ -667,14 +729,14 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
           label: 'Open Wiki',
           onTap: () => widget.onMenuSelected(
             SelectionMenuType.wikipedia,
-            widget.selectedText,
+            selectionText,
           ),
         ),
         _buildTextButton(
           label: 'Read more',
           onTap: () => widget.onMenuSelected(
             SelectionMenuType.wikipedia,
-            widget.selectedText,
+            selectionText,
           ),
         ),
       ],
@@ -685,6 +747,8 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
   // 6) AUDIO
   // ---------------------------------------------------------------------------
   Widget _buildAudioCard() {
+    final String selectionText = widget.selectedText ?? '';
+
     return _buildBaseCard(
       title: 'Audio',
       topRightWidget: Icon(
@@ -692,7 +756,7 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
         color: Theme.of(context).colorScheme.secondary,
       ),
       body: Text(
-        'Convert "${widget.selectedText}" to speech. Listen or download for offline use.',
+        'Convert "${selectionText}" to speech. Listen or download for offline use.',
         style: Theme.of(context).textTheme.bodyMedium,
       ),
       bottomRow: [
@@ -700,14 +764,14 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
           label: 'Play',
           onTap: () => widget.onMenuSelected(
             SelectionMenuType.audio,
-            widget.selectedText,
+            selectionText,
           ),
         ),
         _buildTextButton(
           label: 'Download',
           onTap: () => widget.onMenuSelected(
             SelectionMenuType.audio,
-            widget.selectedText,
+            selectionText,
           ),
         ),
       ],
@@ -718,6 +782,8 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
   // 7) GENERATE IMAGES
   // ---------------------------------------------------------------------------
   Widget _buildGenerateImagesCard() {
+    final String selectionText = widget.selectedText ?? '';
+
     return _buildBaseCard(
       title: 'Generate Images',
       topRightWidget: Icon(
@@ -725,7 +791,7 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
         color: Theme.of(context).colorScheme.secondary,
       ),
       body: Text(
-        'Create AI-generated images from "${widget.selectedText}". '
+        'Create AI-generated images from "${selectionText}". '
         'Experiment with styles and variations.',
         style: Theme.of(context).textTheme.bodyMedium,
       ),
@@ -734,7 +800,7 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
           label: 'Generate now',
           onTap: () => widget.onMenuSelected(
             SelectionMenuType.generateImage,
-            widget.selectedText,
+            selectionText,
           ),
         ),
       ],
@@ -752,6 +818,11 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
   }) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final size = MediaQuery.of(context).size;
+    final isLandscape = size.width > size.height;
+
+    // Adjust padding based on device size
+    final EdgeInsets contentPadding = _getCardPadding(context, isLandscape);
 
     final primaryColor =
         isDark ? const Color(0xFFAA96B6) : theme.colorScheme.primary;
@@ -800,7 +871,7 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
               ? ImageFilter.blur(sigmaX: 0, sigmaY: 0)
               : ImageFilter.blur(sigmaX: 0, sigmaY: 0),
           child: Container(
-            padding: const EdgeInsets.all(20),
+            padding: contentPadding,
             width: double.infinity,
             child: Column(
               mainAxisSize: MainAxisSize.max,
@@ -878,6 +949,9 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
     final buttonColor =
         isDark ? const Color(0xFFAA96B6) : theme.colorScheme.primary;
 
+    // Adjust font size based on device size
+    final fontSize = ResponsiveConstants.isTablet(context) ? 13.0 : 14.0;
+
     return Padding(
       padding: const EdgeInsets.only(right: 12),
       child: Material(
@@ -898,7 +972,7 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
             child: Text(
               label,
               style: TextStyle(
-                fontSize: 14,
+                fontSize: fontSize,
                 fontWeight: FontWeight.w600,
                 color: buttonColor,
               ),
@@ -907,5 +981,55 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
         ),
       ),
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // RESPONSIVE SIZING HELPER
+  // ---------------------------------------------------------------------------
+  double _calculateMenuHeight(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final isLandscape = size.width > size.height;
+
+    // Use the responsive constants from the app
+    if (ResponsiveConstants.isLargeTablet(context)) {
+      return isLandscape ? 300 : 330; // Smaller for large tablets
+    } else if (ResponsiveConstants.isTablet(context)) {
+      return isLandscape ? 320 : 350; // Slightly smaller for regular tablets
+    } else {
+      // For phones
+      return isLandscape ? 330 : 385; // Original size for phones
+    }
+  }
+
+  // Calculate appropriate padding based on device size
+  EdgeInsets _getCardPadding(BuildContext context, bool isLandscape) {
+    if (ResponsiveConstants.isLargeTablet(context)) {
+      return isLandscape
+          ? const EdgeInsets.all(16) // Large tablet in landscape
+          : const EdgeInsets.all(18); // Large tablet in portrait
+    } else if (ResponsiveConstants.isTablet(context)) {
+      return isLandscape
+          ? const EdgeInsets.all(18) // Tablet in landscape
+          : const EdgeInsets.all(20); // Tablet in portrait
+    } else {
+      return isLandscape
+          ? const EdgeInsets.all(16) // Phone in landscape
+          : const EdgeInsets.all(20); // Phone in portrait (original)
+    }
+  }
+
+  // Calculate appropriate width based on device size
+  double _calculateMenuWidth(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final isLandscape = size.width > size.height;
+
+    if (ResponsiveConstants.isLargeTablet(context)) {
+      return isLandscape ? size.width * 0.6 : size.width * 0.75;
+    } else if (ResponsiveConstants.isTablet(context)) {
+      return isLandscape ? size.width * 0.65 : size.width * 0.85;
+    } else {
+      // For phones, use full width
+      return double.infinity;
+    }
   }
 }
