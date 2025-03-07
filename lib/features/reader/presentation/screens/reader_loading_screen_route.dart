@@ -34,7 +34,7 @@ class _ReaderLoadingScreenRouteState extends State<ReaderLoadingScreenRoute> {
   Future<void> _preloadThumbnail() async {
     try {
       final thumbnailService = GetIt.I<ThumbnailService>();
-      
+
       // First check if thumbnail already exists
       final thumbnail = await thumbnailService.getThumbnail(widget.filePath);
       if (thumbnail != null) {
@@ -45,7 +45,7 @@ class _ReaderLoadingScreenRouteState extends State<ReaderLoadingScreenRoute> {
         }
         return;
       }
-      
+
       // If not, explicitly request the thumbnail to be generated
       await thumbnailService.getFileThumbnail(widget.filePath);
       if (mounted) {
@@ -68,13 +68,13 @@ class _ReaderLoadingScreenRouteState extends State<ReaderLoadingScreenRoute> {
   void _simulateLoading() {
     const totalSteps = 10;
     const baseDelay = 150; // Faster loading simulation
-    
+
     for (int i = 1; i <= totalSteps; i++) {
       Future.delayed(Duration(milliseconds: baseDelay * i), () {
         if (mounted) {
           setState(() {
             _loadingProgress = i / totalSteps;
-            
+
             // Mark as completed on the last step
             if (i == totalSteps) {
               _isCompleted = true;
@@ -85,26 +85,34 @@ class _ReaderLoadingScreenRouteState extends State<ReaderLoadingScreenRoute> {
       });
     }
   }
-  
+
   void _navigateWhenReady() {
     if (_isNavigating) return;
-    
+
     // Wait for both loading to complete and thumbnail to be loaded (or timeout)
     if (_isCompleted) {
       _isNavigating = true;
-      
+
       // If thumbnail isn't loaded yet, wait a bit longer but not too long
       if (!_isThumbnailLoaded) {
         Future.delayed(const Duration(milliseconds: 500), () {
           if (mounted) {
-            Navigator.pushReplacementNamed(context, widget.targetRoute);
+            // Use pushReplacementNamed with the correct arguments format
+            Navigator.of(context).pushReplacementNamed(
+              widget.targetRoute,
+              arguments: {'filePath': widget.filePath},
+            );
           }
         });
       } else {
         // If thumbnail is already loaded, add a small delay for smooth transition
         Future.delayed(const Duration(milliseconds: 300), () {
           if (mounted) {
-            Navigator.pushReplacementNamed(context, widget.targetRoute);
+            // Use pushReplacementNamed with the correct arguments format
+            Navigator.of(context).pushReplacementNamed(
+              widget.targetRoute,
+              arguments: {'filePath': widget.filePath},
+            );
           }
         });
       }
