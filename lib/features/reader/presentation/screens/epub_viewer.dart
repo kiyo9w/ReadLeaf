@@ -1,13 +1,6 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 import 'dart:math' as math;
-import 'dart:ui';
-
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart' hide Image;
-import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:read_leaf/features/library/presentation/blocs/file_bloc.dart';
 import 'package:read_leaf/features/reader/presentation/blocs/reader_bloc.dart';
@@ -24,7 +17,6 @@ import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:read_leaf/features/library/data/book_metadata_repository.dart';
 import 'package:read_leaf/features/library/domain/models/book_metadata.dart';
-import 'package:read_leaf/features/library/data/thumbnail_service.dart';
 import 'package:read_leaf/core/constants/responsive_constants.dart';
 import 'package:read_leaf/features/reader/presentation/widgets/reader/floating_selection_menu.dart';
 import 'package:read_leaf/features/reader/presentation/widgets/reader/full_selection_menu.dart';
@@ -38,7 +30,6 @@ import 'package:read_leaf/features/reader/presentation/managers/epub_highlight_m
 import 'package:read_leaf/features/reader/presentation/controllers/epub_layout_controller.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:read_leaf/features/reader/data/text_selection_service.dart';
-import 'package:read_leaf/features/companion_chat/presentation/widgets/floating_chat_head.dart';
 
 class EPUBViewerScreen extends StatefulWidget {
   const EPUBViewerScreen({super.key});
@@ -52,7 +43,6 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   late final _geminiService = GetIt.I<GeminiService>();
   late final _characterService = GetIt.I<AiCharacterService>();
   late final _metadataRepository = GetIt.I<BookMetadataRepository>();
-  late final _thumbnailService = GetIt.I<ThumbnailService>();
   late final _epubService = GetIt.I<EpubService>();
   final GlobalKey<FloatingChatWidgetState> _floatingChatKey = GlobalKey();
   final ItemScrollController _scrollController = ItemScrollController();
@@ -141,7 +131,6 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   double _loadingProgress = 0.0;
 
   // Track the last calculated page to prevent rapid changes
-  int _lastCalculatedPage = 1;
   Timer? _pageCalculationDebouncer;
   double _currentPosition = 0.0;
 
@@ -152,8 +141,6 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   OverlayEntry? _selectionMenuEntry;
   // Track selection gestures to improve handle behavior
   bool _isSelectionInProgress = false;
-  DateTime? _selectionStartTime;
-  Offset? _selectionStartPosition;
   Timer? _selectionTimer;
 
   // Variables for detecting text selection handle drags
@@ -576,7 +563,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   }
 
   // Add this property to prevent scroll updates during mode transitions
-  bool _preventScrollUpdate = false;
+  final bool _preventScrollUpdate = false;
 
   void _onScroll() {
     // Skip processing if position updates are locked
@@ -2379,8 +2366,9 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
     // Make sure quick actions stay within screen bounds
     if (quickActionsTop < 0) quickActionsTop = 0;
-    if (quickActionsTop > screenSize.height - 50)
+    if (quickActionsTop > screenSize.height - 50) {
       quickActionsTop = screenSize.height - 50;
+    }
 
     // Create overlay entry with both quick actions and main menu
     _floatingMenuEntry = OverlayEntry(
@@ -3845,16 +3833,6 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     });
   }
 
-  // Get current chapter title
-  String _getCurrentChapterTitle() {
-    if (_currentChapterIndex >= 0 &&
-        _currentChapterIndex < _flatChapters.length) {
-      return _flatChapters[_currentChapterIndex].Title ??
-          'Chapter ${_currentChapterIndex + 1}';
-    }
-    return 'Unknown Chapter';
-  }
-
   void _clearSelection() {
     _selectedText = null;
     // Attempt to clear text selection
@@ -3870,10 +3848,6 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       // Try to get the current selection from the SelectionOverlay
       final RenderObject? renderObject = context.findRenderObject();
       if (renderObject == null) return null;
-
-      // Use a simpler approach - estimate selection area based on the ancestor RenderBox
-      final RenderBox box = renderObject as RenderBox;
-      final Offset topLeft = box.localToGlobal(Offset.zero);
 
       // If we have a valid selection, create an estimated rectangle
       if (_selectedText != null && _selectedText!.isNotEmpty) {

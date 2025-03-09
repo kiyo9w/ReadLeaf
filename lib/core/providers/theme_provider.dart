@@ -16,8 +16,6 @@ enum AppThemeMode {
 }
 
 class ThemeProvider extends ChangeNotifier {
-  static const String _themeBoxName = 'theme_box';
-  static const String _isDarkModeKey = 'is_dark_mode';
   final UserPreferencesService _preferencesService;
   late ThemeData _theme;
   AppThemeMode _currentThemeMode;

@@ -22,13 +22,13 @@ class ContinuousReaderView extends StatefulWidget {
   final Function(String)? onLinkTap;
 
   const ContinuousReaderView({
-    Key? key,
+    super.key,
     required this.pages,
     required this.fontSize,
     required this.scrollController,
     required this.positionsListener,
     this.onLinkTap,
-  }) : super(key: key);
+  });
 
   @override
   State<ContinuousReaderView> createState() => _ContinuousReaderViewState();

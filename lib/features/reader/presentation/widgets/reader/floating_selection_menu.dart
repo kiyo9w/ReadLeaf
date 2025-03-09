@@ -524,7 +524,7 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
         color: Theme.of(context).colorScheme.secondary,
       ),
       body: Text(
-        'Translate "${selectionText}" into another language.',
+        'Translate "$selectionText" into another language.',
         style: Theme.of(context).textTheme.bodyMedium,
       ),
       bottomRow: [
@@ -566,7 +566,7 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
         color: Theme.of(context).colorScheme.secondary,
       ),
       body: Text(
-        'Save "${selectionText}" for future reference.\n'
+        'Save "$selectionText" for future reference.\n'
         'Organize and revisit your highlights anytime.',
         style: Theme.of(context).textTheme.bodyMedium,
       ),
@@ -607,7 +607,7 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
       dictionaryContent = _buildDictionaryContent();
     } else {
       dictionaryContent = Text(
-        'No dictionary result for "${selectionText}".',
+        'No dictionary result for "$selectionText".',
         style: Theme.of(context).textTheme.bodyMedium,
       );
     }
@@ -705,7 +705,7 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
       );
     } else {
       wikiContent = Text(
-        'No Wikipedia snippet found for "${selectionText}".',
+        'No Wikipedia snippet found for "$selectionText".',
         style: Theme.of(context).textTheme.bodyMedium,
       );
     }
@@ -756,7 +756,7 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
         color: Theme.of(context).colorScheme.secondary,
       ),
       body: Text(
-        'Convert "${selectionText}" to speech. Listen or download for offline use.',
+        'Convert "$selectionText" to speech. Listen or download for offline use.',
         style: Theme.of(context).textTheme.bodyMedium,
       ),
       bottomRow: [
@@ -791,7 +791,7 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
         color: Theme.of(context).colorScheme.secondary,
       ),
       body: Text(
-        'Create AI-generated images from "${selectionText}". '
+        'Create AI-generated images from "$selectionText". '
         'Experiment with styles and variations.',
         style: Theme.of(context).textTheme.bodyMedium,
       ),

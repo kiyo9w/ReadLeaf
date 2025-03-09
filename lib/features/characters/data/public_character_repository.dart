@@ -397,7 +397,7 @@ class PublicCharacterRepository {
           .from('public_characters')
           .select('*, character_likes(user_id)')
           .eq('is_public', true)
-          .or('name.ilike.%${query}%,summary.ilike.%${query}%,tags.cs.{${query}}');
+          .or('name.ilike.%$query%,summary.ilike.%$query%,tags.cs.{$query}');
 
       if (category != null && category.isNotEmpty && category != 'All') {
         dbQuery = dbQuery.eq('category', category);
