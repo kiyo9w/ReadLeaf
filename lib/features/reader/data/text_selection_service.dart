@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 import 'package:read_leaf/features/companion_chat/data/gemini_service.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
@@ -10,11 +10,25 @@ import 'package:read_leaf/features/reader/presentation/widgets/reader/floating_s
 class TextSelectionService {
   final GeminiService _geminiService = GetIt.I<GeminiService>();
   final _logger = Logger('TextSelectionService');
+  final Dio _dio = Dio();
 
   // API endpoints
   static const String _dictionaryApiUrl =
       'https://api.dictionaryapi.dev/api/v2/entries';
   static const String _wikipediaApiBaseUrl = 'https://api.rest.v1/page/summary';
+
+  TextSelectionService() {
+    _dio.options.connectTimeout = const Duration(seconds: 5);
+    _dio.options.receiveTimeout = const Duration(seconds: 5);
+    _dio.options.headers = {
+      'User-Agent': 'ReadLeaf/1.0 (hello@readleaf.app)',
+      'Accept': 'application/json',
+    };
+
+    _dio.options.validateStatus = (status) {
+      return true;
+    };
+  }
 
   /// Look up a word or phrase in a dictionary
   /// [word] - The word to look up
@@ -77,16 +91,18 @@ class TextSelectionService {
         final url =
             'https://$language.wikipedia.org/api/rest_v1/page/summary/$encodedTerm';
 
-        final response = await http.get(
-          Uri.parse(url),
-          headers: {
-            'User-Agent': 'ReadLeaf/1.0 (hello@readleaf.app)',
-            'Accept': 'application/json',
-          },
-        ).timeout(const Duration(seconds: 5));
+        final response = await _dio.get(
+          url,
+          options: Options(
+            headers: {
+              'User-Agent': 'ReadLeaf/1.0 (hello@readleaf.app)',
+              'Accept': 'application/json',
+            },
+          ),
+        );
 
         if (response.statusCode == 200) {
-          final data = json.decode(response.body);
+          final data = response.data;
           return {
             'success': true,
             'source': 'wikipedia-api',
@@ -94,9 +110,10 @@ class TextSelectionService {
             'term': cleanTerm,
             'language': language,
           };
+        } else {
+          _logger.info(
+              'Wikipedia API returned status code ${response.statusCode}, falling back to Gemini');
         }
-
-        _logger.info('Wikipedia API failed, falling back to Gemini');
       } catch (apiError) {
         _logger
             .warning('Wikipedia API error, falling back to Gemini: $apiError');
@@ -245,7 +262,8 @@ Text excerpt:
           break;
 
         default:
-          prompt = customPrompt ?? '''Analyze this text and provide insights. 
+          prompt = customPrompt ??
+              '''Analyze this text and provide insights. 
           
 Text:
 """$text"""
@@ -298,15 +316,17 @@ Text:
       String word, String language) async {
     try {
       final url = '$_dictionaryApiUrl/$language/$word';
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'Accept': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 5));
+      final response = await _dio.get(
+        url,
+        options: Options(
+          headers: {
+            'Accept': 'application/json',
+          },
+        ),
+      );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
+        final List<dynamic> data = response.data;
         return {
           'success': true,
           'source': 'dictionary-api',
@@ -314,10 +334,12 @@ Text:
           'word': word,
           'language': language,
         };
+      } else {
+        _logger.info(
+            'Dictionary API returned status code ${response.statusCode} for "$word", falling back to Gemini');
+        throw Exception(
+            'Word not found in dictionary (status: ${response.statusCode})');
       }
-
-      _logger.info('Dictionary API failed for "$word", falling back to Gemini');
-      throw Exception('Word not found in dictionary');
     } catch (e) {
       _logger.info('Dictionary API error: $e');
       rethrow; // Let the caller handle fallback
@@ -419,6 +441,7 @@ Format the response as if it were a Wikipedia entry with clear sections.
       'zh': 'Chinese',
       'ja': 'Japanese',
       'ar': 'Arabic',
+      'vi': 'Vietnamese',
     };
 
     return languageMap[code.toLowerCase()] ?? code;
@@ -513,6 +536,7 @@ Format the response as if it were a Wikipedia entry with clear sections.
       'Chinese': 'zh',
       'Japanese': 'ja',
       'Arabic': 'ar',
+      'Vietnamese': 'vi',
     };
 
     return codeMap[language] ?? 'en';

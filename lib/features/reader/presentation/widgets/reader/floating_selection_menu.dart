@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 import 'dart:ui';
+import 'package:flutter/material.dart';
 import 'package:read_leaf/core/constants/responsive_constants.dart';
 
 enum SelectionMenuType {
@@ -51,8 +51,10 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
   String _wikiExtract = '';
 
   // Add request cancellation tokens
-  http.Client? _dictionaryClient;
-  http.Client? _wikiClient;
+  Dio? _dictionaryDio;
+  Dio? _wikiDio;
+  CancelToken? _dictionaryCancelToken;
+  CancelToken? _wikiCancelToken;
 
   @override
   void initState() {
@@ -103,8 +105,8 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
   void dispose() {
     _pageController.dispose();
     // Cancel any pending API requests
-    _dictionaryClient?.close();
-    _wikiClient?.close();
+    _dictionaryCancelToken?.cancel("Widget disposed");
+    _wikiCancelToken?.cancel("Widget disposed");
     super.dispose();
   }
 
@@ -123,20 +125,32 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
     });
 
     // Cancel previous request if any
-    _dictionaryClient?.close();
-    _dictionaryClient = http.Client();
+    _dictionaryCancelToken?.cancel("New request made");
+    _dictionaryCancelToken = CancelToken();
+    _dictionaryDio = Dio();
+
+    _dictionaryDio!.options.validateStatus = (status) {
+      return true;
+    };
 
     try {
-      final url = Uri.parse(
-        'https://api.dictionaryapi.dev/api/v2/entries/en/$word',
+      final url = 'https://api.dictionaryapi.dev/api/v2/entries/en/$word';
+      final response = await _dictionaryDio!.get(
+        url,
+        cancelToken: _dictionaryCancelToken,
+        options: Options(
+          receiveTimeout: const Duration(seconds: 5),
+          headers: {
+            'Accept': 'application/json',
+          },
+        ),
       );
-      final response = await _dictionaryClient!.get(url);
 
       // Check if widget is still mounted before processing the response
       if (!mounted) return;
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
+        final List<dynamic> data = response.data;
         if (data.isNotEmpty) {
           final firstEntry = data[0] as Map<String, dynamic>;
 
@@ -200,21 +214,34 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
     });
 
     // Cancel previous request if any
-    _wikiClient?.close();
-    _wikiClient = http.Client();
+    _wikiCancelToken?.cancel("New request made");
+    _wikiCancelToken = CancelToken();
+    _wikiDio = Dio();
+
+    _wikiDio!.options.validateStatus = (status) {
+      return true;
+    };
 
     try {
-      final url = Uri.parse(
-        'https://en.wikipedia.org/w/api.php?action=query'
-        '&prop=extracts&explaintext&format=json&redirects=1&titles=$topic',
+      final url = 'https://en.wikipedia.org/w/api.php?action=query'
+          '&prop=extracts&explaintext&format=json&redirects=1&titles=$topic';
+
+      final response = await _wikiDio!.get(
+        url,
+        cancelToken: _wikiCancelToken,
+        options: Options(
+          receiveTimeout: const Duration(seconds: 5),
+          headers: {
+            'Accept': 'application/json',
+          },
+        ),
       );
-      final response = await _wikiClient!.get(url);
 
       // Check if widget is still mounted before processing the response
       if (!mounted) return;
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body) as Map<String, dynamic>;
+        final data = response.data as Map<String, dynamic>;
         if (data['query'] != null && data['query']['pages'] != null) {
           final pages = data['query']['pages'] as Map<String, dynamic>;
           if (pages.isNotEmpty) {
@@ -543,6 +570,13 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
           ),
         ),
         _buildTextButton(
+          label: 'Vietnamese',
+          onTap: () => widget.onMenuSelected(
+            SelectionMenuType.translate,
+            selectionText,
+          ),
+        ),
+        _buildTextButton(
           label: 'More...',
           onTap: () => widget.onMenuSelected(
             SelectionMenuType.translate,
@@ -637,7 +671,14 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
         _buildTextButton(
           label: 'English (US)',
           onTap: () => widget.onMenuSelected(
-            SelectionMenuType.translate,
+            SelectionMenuType.dictionary,
+            selectionText,
+          ),
+        ),
+        _buildTextButton(
+          label: 'Vietnamese',
+          onTap: () => widget.onMenuSelected(
+            SelectionMenuType.dictionary,
             selectionText,
           ),
         ),

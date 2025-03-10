@@ -10,8 +10,8 @@ import 'dart:ui';
 import 'package:read_leaf/core/constants/responsive_constants.dart';
 import 'package:read_leaf/core/themes/custom_theme_extension.dart';
 import 'package:read_leaf/features/characters/presentation/widgets/typing_indicator.dart';
-import 'package:provider/provider.dart';
-import 'package:read_leaf/core/providers/settings_provider.dart';
+import 'package:read_leaf/features/settings/presentation/blocs/settings_bloc.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// A custom painter that draws a subtle grid pattern
 class GridPatternPainter extends CustomPainter {
@@ -789,10 +789,9 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
 
   Widget _buildSettingsMenu(ThemeData theme, String characterName) {
     final isTablet = ResponsiveConstants.isTablet(context);
-    // Get the settings provider to check the actual reminders state
-    final settingsProvider =
-        Provider.of<SettingsProvider>(context, listen: false);
-    final bool remindersActive = settingsProvider.remindersEnabled;
+    // Get the settings state from BLoC instead of Provider
+    final settingsState = context.read<SettingsBloc>().state;
+    final bool remindersActive = settingsState.remindersEnabled;
 
     return Container(
       decoration: BoxDecoration(
@@ -854,7 +853,9 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
                   onTap: () {
                     _toggleSettings();
                     // Toggle the reminders setting in the provider
-                    settingsProvider.toggleReminders(!remindersActive);
+                    context.read<SettingsBloc>().add(RemindersToggled(
+                          !remindersActive,
+                        ));
 
                     // If we're turning reminders on, we need to generate a new message
                     if (!remindersActive) {

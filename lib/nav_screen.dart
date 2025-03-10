@@ -149,7 +149,8 @@ class _NavScreenState extends State<NavScreen> {
               navBarBuilder: (navBarConfig) => Style1BottomNavBar(
                 navBarConfig: navBarConfig,
                 navBarDecoration: NavBarDecoration(
-                  color: Theme.of(context).appBarTheme.backgroundColor!,
+                  color: Theme.of(context).appBarTheme.backgroundColor ??
+                      Theme.of(context).scaffoldBackgroundColor,
                 ),
               ),
             );

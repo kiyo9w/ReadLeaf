@@ -18,8 +18,7 @@ import 'package:read_leaf/features/search/presentation/blocs/search_bloc.dart';
 import 'package:read_leaf/core/utils/utils.dart';
 import 'package:read_leaf/features/library/presentation/widgets/refresh_animation.dart';
 import 'package:read_leaf/features/characters/presentation/widgets/minimized_character_slider.dart';
-import 'package:provider/provider.dart';
-import 'package:read_leaf/core/providers/settings_provider.dart';
+import 'package:read_leaf/features/settings/presentation/blocs/settings_bloc.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -173,10 +172,9 @@ class HomeScreenState extends State<HomeScreen> {
 
   Future<void> generateNewAIMessage() async {
     if (mounted) {
-      // Check if reminders are enabled
-      final settingsProvider =
-          Provider.of<SettingsProvider>(context, listen: false);
-      if (!settingsProvider.remindersEnabled) {
+      // Check if reminders are enabled using BLoC instead of Provider
+      final settingsState = context.read<SettingsBloc>().state;
+      if (!settingsState.remindersEnabled) {
         // If reminders are disabled, clear any existing message but don't generate a new one
         setState(() {
           _aiMessage = null;
@@ -217,9 +215,8 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildCharacterSlider() {
-    // Check if reading reminders are enabled in the settings
-    final settingsProvider =
-        Provider.of<SettingsProvider>(context, listen: false);
+    // Check if reading reminders are enabled in the settings using BLoC
+    final settingsState = context.read<SettingsBloc>().state;
 
     if (!_isCharacterSliderMinimized) {
       return AiCharacterSlider(
@@ -230,7 +227,7 @@ class HomeScreenState extends State<HomeScreen> {
           });
         },
         // Only pass the AI message if reminders are enabled
-        aiMessage: settingsProvider.remindersEnabled ? _aiMessage : null,
+        aiMessage: settingsState.remindersEnabled ? _aiMessage : null,
         isGeneratingMessage: _isGeneratingMessage,
         onContinueReading: () {
           final state = context.read<FileBloc>().state;
@@ -243,9 +240,8 @@ class HomeScreenState extends State<HomeScreen> {
           }
         },
         onRemove: () {
-          // Update the settings provider instead of theme provider
-          Provider.of<SettingsProvider>(context, listen: false)
-              .toggleReminders(false);
+          // Update the SettingsBloc instead of SettingsProvider
+          context.read<SettingsBloc>().add(const RemindersToggled(false));
         },
         onUpdatePrompt: (newPrompt) async {
           await _geminiService.setCustomEncouragementPrompt(newPrompt);
@@ -289,9 +285,8 @@ class HomeScreenState extends State<HomeScreen> {
             onRefresh: () async {
               await _refreshScreen();
               await _loadBookOfTheDay();
-              final settingsProvider =
-                  Provider.of<SettingsProvider>(context, listen: false);
-              if (settingsProvider.remindersEnabled) {
+              final settingsState = context.read<SettingsBloc>().state;
+              if (settingsState.remindersEnabled) {
                 await generateNewAIMessage();
               }
               setState(() {

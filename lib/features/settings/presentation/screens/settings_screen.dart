@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:provider/provider.dart';
-import 'package:read_leaf/core/providers/theme_provider.dart';
-import 'package:read_leaf/core/providers/settings_provider.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:read_leaf/features/settings/presentation/blocs/theme_bloc.dart';
+import 'package:read_leaf/features/settings/presentation/blocs/settings_bloc.dart';
 import '../../../auth/presentation/blocs/auth_bloc.dart';
 import '../../../auth/presentation/blocs/auth_event.dart';
 import '../../../auth/presentation/blocs/auth_state.dart';
@@ -185,7 +184,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                         child: Icon(
                           icon,
-                          color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white
+                              : Colors.black,
                           size: 22,
                         ),
                       ),
@@ -301,10 +302,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Text(
             title,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white
+                    : Colors.black),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -318,7 +320,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showThemeSelector(BuildContext context, ThemeProvider themeProvider) {
+  void _showThemeSelector(BuildContext context, ThemeState themeState) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NavScreen.globalKey.currentState?.hideNavBar(true);
     });
@@ -402,7 +404,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildSystemThemeOption(context, themeProvider),
+                    _buildSystemThemeOption(context, themeState),
                     const SizedBox(height: 32),
                     _buildThemeSectionHeader(context, 'Default Themes'),
                     const SizedBox(height: 16),
@@ -418,11 +420,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         const Color(0xFF4C6A43),
                         const Color(0xFFC4D9C7),
                       ],
-                      isSelected: themeProvider.currentThemeMode ==
+                      isSelected: themeState.currentThemeMode ==
                           AppThemeMode.readLeafLight,
                       isDark: false,
                       onTap: () {
-                        themeProvider.setThemeMode(AppThemeMode.readLeafLight);
+                        context
+                            .read<ThemeBloc>()
+                            .add(ThemeModeChanged(AppThemeMode.readLeafLight));
                         Navigator.pop(context);
                       },
                     ),
@@ -439,11 +443,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         const Color(0xFF353165),
                         const Color(0xFF5C58A7),
                       ],
-                      isSelected: themeProvider.currentThemeMode ==
+                      isSelected: themeState.currentThemeMode ==
                           AppThemeMode.mysteriousDark,
                       isDark: true,
                       onTap: () {
-                        themeProvider.setThemeMode(AppThemeMode.mysteriousDark);
+                        context
+                            .read<ThemeBloc>()
+                            .add(ThemeModeChanged(AppThemeMode.mysteriousDark));
                         Navigator.pop(context);
                       },
                     ),
@@ -487,27 +493,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           const Color(0xFFFFEBF1),
                         ],
                       },
-                    ]
-                        .map((themeData) => Column(
-                              children: [
-                                _buildModernThemeOption(
-                                  context,
-                                  mode: themeData['mode'] as AppThemeMode,
-                                  name: themeData['name'] as String,
-                                  colors: themeData['colors'] as List<Color>,
-                                  isSelected: themeProvider.currentThemeMode ==
-                                      themeData['mode'],
-                                  isDark: false,
-                                  onTap: () {
-                                    themeProvider.setThemeMode(
-                                        themeData['mode'] as AppThemeMode);
-                                    Navigator.pop(context);
-                                  },
-                                ),
-                                const SizedBox(height: 12),
-                              ],
-                            ))
-                        ,
+                    ].map((themeData) => Column(
+                          children: [
+                            _buildModernThemeOption(
+                              context,
+                              mode: themeData['mode'] as AppThemeMode,
+                              name: themeData['name'] as String,
+                              colors: themeData['colors'] as List<Color>,
+                              isSelected: themeState.currentThemeMode ==
+                                  themeData['mode'],
+                              isDark: false,
+                              onTap: () {
+                                context.read<ThemeBloc>().add(ThemeModeChanged(
+                                    themeData['mode'] as AppThemeMode));
+                                Navigator.pop(context);
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                        )),
                     const SizedBox(height: 32),
                     _buildThemeSectionHeader(context, 'Dark Themes'),
                     const SizedBox(height: 16),
@@ -548,27 +552,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           const Color(0xFFBB86FC),
                         ],
                       },
-                    ]
-                        .map((themeData) => Column(
-                              children: [
-                                _buildModernThemeOption(
-                                  context,
-                                  mode: themeData['mode'] as AppThemeMode,
-                                  name: themeData['name'] as String,
-                                  colors: themeData['colors'] as List<Color>,
-                                  isSelected: themeProvider.currentThemeMode ==
-                                      themeData['mode'],
-                                  isDark: true,
-                                  onTap: () {
-                                    themeProvider.setThemeMode(
-                                        themeData['mode'] as AppThemeMode);
-                                    Navigator.pop(context);
-                                  },
-                                ),
-                                const SizedBox(height: 12),
-                              ],
-                            ))
-                        ,
+                    ].map((themeData) => Column(
+                          children: [
+                            _buildModernThemeOption(
+                              context,
+                              mode: themeData['mode'] as AppThemeMode,
+                              name: themeData['name'] as String,
+                              colors: themeData['colors'] as List<Color>,
+                              isSelected: themeState.currentThemeMode ==
+                                  themeData['mode'],
+                              isDark: true,
+                              onTap: () {
+                                context.read<ThemeBloc>().add(ThemeModeChanged(
+                                    themeData['mode'] as AppThemeMode));
+                                Navigator.pop(context);
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                        )),
                   ],
                 ),
               ),
@@ -583,18 +585,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  Widget _buildSystemThemeOption(
-      BuildContext context, ThemeProvider themeProvider) {
+  Widget _buildSystemThemeOption(BuildContext context, ThemeState themeState) {
     return AnimatedContainer(
+      key: ValueKey<bool>(themeState.useSystemTheme),
       duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
-        color: themeProvider.useSystemTheme
+        color: themeState.useSystemTheme
             ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.2)
             : Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           width: 2,
-          color: themeProvider.useSystemTheme
+          color: themeState.useSystemTheme
               ? Theme.of(context).colorScheme.primary
               : Theme.of(context).colorScheme.outline.withOpacity(0.1),
         ),
@@ -604,16 +606,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () {
-            final newValue = !themeProvider.useSystemTheme;
+            final newValue = !themeState.useSystemTheme;
             if (newValue) {
-              themeProvider.setSystemTheme();
+              context.read<ThemeBloc>().add(SystemThemeEnabled());
             } else {
               // When turning off system theme, use the appropriate theme
               final brightness = MediaQuery.of(context).platformBrightness;
-              themeProvider.setThemeMode(brightness == Brightness.dark
-                  ? (themeProvider.lastDarkTheme ?? AppThemeMode.mysteriousDark)
-                  : (themeProvider.lastLightTheme ??
-                      AppThemeMode.readLeafLight));
+              final themeMode = brightness == Brightness.dark
+                  ? (themeState.lastDarkTheme ?? AppThemeMode.mysteriousDark)
+                  : (themeState.lastLightTheme ?? AppThemeMode.readLeafLight);
+              context.read<ThemeBloc>().add(ThemeModeChanged(themeMode));
             }
           },
           child: Padding(
@@ -665,20 +667,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const SizedBox(width: 8),
                 Switch.adaptive(
-                  value: themeProvider.useSystemTheme,
+                  value: themeState.useSystemTheme,
                   activeColor: Theme.of(context).colorScheme.primary,
                   onChanged: (bool value) {
                     if (value) {
-                      themeProvider.setSystemTheme();
+                      context.read<ThemeBloc>().add(SystemThemeEnabled());
                     } else {
                       // When turning off system theme, use the appropriate theme
                       final brightness =
                           MediaQuery.of(context).platformBrightness;
-                      themeProvider.setThemeMode(brightness == Brightness.dark
-                          ? (themeProvider.lastDarkTheme ??
+                      final themeMode = brightness == Brightness.dark
+                          ? (themeState.lastDarkTheme ??
                               AppThemeMode.mysteriousDark)
-                          : (themeProvider.lastLightTheme ??
-                              AppThemeMode.readLeafLight));
+                          : (themeState.lastLightTheme ??
+                              AppThemeMode.readLeafLight);
+                      context
+                          .read<ThemeBloc>()
+                          .add(ThemeModeChanged(themeMode));
                     }
                   },
                 ),
@@ -762,9 +767,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: isDark
-                            ? colors[5]
-                            : colors[5],
+                        color: isDark ? colors[5] : colors[5],
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
@@ -993,7 +996,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   //       ),
                                   //     ),
                                   //   ),
-                                  // ),
                                 ],
                               ),
                             ),
@@ -1049,103 +1051,119 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final settingsProvider = Provider.of<SettingsProvider>(context);
-    final themeProvider = Provider.of<ThemeProvider>(context);
-
     return Scaffold(
       body: SafeArea(
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            SliverAppBar(
-              pinned: true,
-              expandedHeight: 120,
-              flexibleSpace: FlexibleSpaceBar(
-                title: Text(
-                  'Settings',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurface,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                centerTitle: false,
-                titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
-              ),
-              backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-              elevation: 0,
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSectionHeader('Account'),
-                    BlocBuilder<AuthBloc, AuthState>(
-                      builder: (context, state) {
-                        return _buildAccountSection(context, state);
-                      },
+        child: BlocBuilder<SettingsBloc, SettingsState>(
+          builder: (context, settingsState) {
+            return BlocBuilder<ThemeBloc, ThemeState>(
+              builder: (context, themeState) {
+                return CustomScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  slivers: [
+                    SliverAppBar(
+                      pinned: true,
+                      expandedHeight: 120,
+                      flexibleSpace: FlexibleSpaceBar(
+                        title: Text(
+                          'Settings',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        centerTitle: false,
+                        titlePadding:
+                            const EdgeInsets.only(left: 16, bottom: 16),
+                      ),
+                      backgroundColor:
+                          Theme.of(context).scaffoldBackgroundColor,
+                      elevation: 0,
                     ),
-                    _buildSectionHeader('Appearance'),
-                    _buildThemeCard(
-                      icon: themeProvider.isDarkMode
-                          ? Icons.dark_mode
-                          : Icons.light_mode,
-                      title: 'Theme',
-                      subtitle: themeProvider.currentThemeName,
-                      value: themeProvider.isDarkMode,
-                      onToggle: (value) => themeProvider.toggleTheme(),
-                      onCardTap: () {
-                        _showThemeSelector(context, themeProvider);
-                      },
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildSectionHeader('Account'),
+                            BlocBuilder<AuthBloc, AuthState>(
+                              builder: (context, state) {
+                                return _buildAccountSection(context, state);
+                              },
+                            ),
+                            _buildSectionHeader('Appearance'),
+                            _buildThemeCard(
+                              icon: themeState.isDarkMode
+                                  ? Icons.dark_mode
+                                  : Icons.light_mode,
+                              title: 'Theme',
+                              subtitle: themeState.currentThemeName,
+                              value: themeState.isDarkMode,
+                              onToggle: (value) =>
+                                  context.read<ThemeBloc>().add(ThemeToggled()),
+                              onCardTap: () {
+                                _showThemeSelector(context, themeState);
+                              },
+                            ),
+                            _buildSectionHeader('Reading'),
+                            _buildSwitchSettingCard(
+                              icon: Icons.hourglass_empty,
+                              title: 'Loading Screen',
+                              subtitle: 'Show book loading transition screen',
+                              value: settingsState.showLoadingScreen,
+                              onChanged: (value) {
+                                context
+                                    .read<SettingsBloc>()
+                                    .add(LoadingScreenToggled(value));
+                              },
+                            ),
+                            _buildSwitchSettingCard(
+                              icon: Icons.notifications,
+                              title: 'Reading Reminders',
+                              subtitle: 'Get encouraged to continue reading',
+                              value: settingsState.remindersEnabled,
+                              onChanged: (value) {
+                                context
+                                    .read<SettingsBloc>()
+                                    .add(RemindersToggled(value));
+                              },
+                            ),
+                            _buildSectionHeader('About'),
+                            _buildSettingsCard(
+                              icon: Icons.coffee,
+                              title: 'Buy me a coffee',
+                              subtitle: 'Support the developer',
+                              onTap: () =>
+                                  _launchURL('https://www.buymeacoffee.com/'),
+                              trailing:
+                                  const Icon(Icons.arrow_forward_ios, size: 16),
+                            ),
+                            _buildSettingsCard(
+                              icon: Icons.code,
+                              title: 'Support this open source project',
+                              subtitle: 'Contribute on GitHub',
+                              onTap: () => _launchURL('https://github.com/'),
+                              trailing:
+                                  const Icon(Icons.arrow_forward_ios, size: 16),
+                            ),
+                            _buildSettingsCard(
+                              icon: Icons.share,
+                              title: 'Share this app with friends',
+                              subtitle: 'Spread the word',
+                              onTap: _shareApp,
+                              trailing:
+                                  const Icon(Icons.arrow_forward_ios, size: 16),
+                            ),
+                            const SizedBox(height: 24),
+                          ],
+                        ),
+                      ),
                     ),
-                    _buildSectionHeader('Reading'),
-                    _buildSwitchSettingCard(
-                      icon: Icons.hourglass_empty,
-                      title: 'Loading Screen',
-                      subtitle: 'Show book loading transition screen',
-                      value: settingsProvider.showLoadingScreen,
-                      onChanged: (value) {
-                        settingsProvider.toggleLoadingScreen(value);
-                      },
-                    ),
-                    _buildSwitchSettingCard(
-                      icon: Icons.notifications,
-                      title: 'Reading Reminders',
-                      subtitle: 'Get encouraged to continue reading',
-                      value: settingsProvider.remindersEnabled,
-                      onChanged: (value) {
-                        settingsProvider.toggleReminders(value);
-                      },
-                    ),
-                    _buildSectionHeader('About'),
-                    _buildSettingsCard(
-                      icon: Icons.coffee,
-                      title: 'Buy me a coffee',
-                      subtitle: 'Support the developer',
-                      onTap: () => _launchURL('https://www.buymeacoffee.com/'),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    ),
-                    _buildSettingsCard(
-                      icon: Icons.code,
-                      title: 'Support this open source project',
-                      subtitle: 'Contribute on GitHub',
-                      onTap: () => _launchURL('https://github.com/'),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    ),
-                    _buildSettingsCard(
-                      icon: Icons.share,
-                      title: 'Share this app with friends',
-                      subtitle: 'Spread the word',
-                      onTap: _shareApp,
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    ),
-                    const SizedBox(height: 24),
                   ],
-                ),
-              ),
-            ),
-          ],
+                );
+              },
+            );
+          },
         ),
       ),
     );

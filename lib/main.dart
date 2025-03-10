@@ -5,13 +5,12 @@ import 'package:read_leaf/features/search/presentation/blocs/search_bloc.dart';
 import 'package:read_leaf/features/reader/presentation/blocs/reader_bloc.dart';
 import 'package:read_leaf/features/auth/presentation/blocs/auth_bloc.dart';
 import 'package:read_leaf/features/auth/presentation/blocs/auth_event.dart';
+import 'package:read_leaf/features/settings/presentation/blocs/theme_bloc.dart';
+import 'package:read_leaf/features/settings/presentation/blocs/settings_bloc.dart';
 import 'package:read_leaf/nav_screen.dart';
 import 'package:read_leaf/features/reader/presentation/screens/pdf_viewer.dart';
 import 'package:read_leaf/features/reader/presentation/screens/epub_viewer.dart';
 import 'package:read_leaf/features/reader/presentation/screens/reader_loading_screen_route.dart';
-import 'package:provider/provider.dart';
-import 'package:read_leaf/core/providers/theme_provider.dart';
-import 'package:read_leaf/core/providers/settings_provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:read_leaf/features/library/presentation/screens/splash_screen.dart';
@@ -33,24 +32,7 @@ void main() async {
     await _initializeSupabase();
     await configureDependencies();
     await CharacterSuggestionService.initialize();
-    runApp(
-      MultiProvider(
-        providers: [
-          ChangeNotifierProvider(
-            create: (_) => getIt<ThemeProvider>(),
-          ),
-          ChangeNotifierProvider(
-            create: (_) {
-              final settingsProvider = getIt<SettingsProvider>();
-              // Load settings immediately after creating the provider
-              settingsProvider.loadSettings();
-              return settingsProvider;
-            },
-          ),
-        ],
-        child: const MyApp(),
-      ),
-    );
+    runApp(const MyApp());
   } catch (e) {
     print('Initialization error: $e');
     runApp(
@@ -102,42 +84,57 @@ class MyApp extends StatelessWidget {
         BlocProvider<AuthBloc>(
           create: (context) => getIt<AuthBloc>()..add(AuthCheckRequested()),
         ),
+        BlocProvider<ThemeBloc>(
+          create: (context) => getIt<ThemeBloc>()..add(ThemeInitialized()),
+        ),
+        BlocProvider<SettingsBloc>(
+          create: (context) =>
+              getIt<SettingsBloc>()..add(SettingsInitialized()),
+        ),
       ],
-      child: Consumer2<ThemeProvider, SettingsProvider>(
-        builder: (context, themeProvider, settingsProvider, child) {
-          return MaterialApp(
-            debugShowCheckedModeBanner: false,
-            routes: {
-              '/pdf_viewer': (context) => const PDFViewerScreen(),
-              '/epub_viewer': (context) => const EPUBViewerScreen(),
-              '/reader_loading': (context) {
-                final args = ModalRoute.of(context)!.settings.arguments
-                    as Map<String, dynamic>;
+      child: BlocConsumer<ThemeBloc, ThemeState>(
+        listener: (context, themeState) {
+          // Debug print to verify theme changes
+          print('Theme changed to: ${themeState.currentThemeName}');
+        },
+        builder: (context, themeState) {
+          return BlocBuilder<SettingsBloc, SettingsState>(
+            builder: (context, settingsState) {
+              return MaterialApp(
+                debugShowCheckedModeBanner: false,
+                routes: {
+                  '/pdf_viewer': (context) => const PDFViewerScreen(),
+                  '/epub_viewer': (context) => const EPUBViewerScreen(),
+                  '/reader_loading': (context) {
+                    final args = ModalRoute.of(context)!.settings.arguments
+                        as Map<String, dynamic>;
 
-                // If loading screen is disabled, navigate directly to the target route
-                if (!settingsProvider.showLoadingScreen) {
-                  // We need to use a post-frame callback to navigate
-                  // after this build cycle completes
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    Navigator.pushReplacementNamed(
-                      context,
-                      args['targetRoute'],
-                      arguments: {'filePath': args['filePath']},
+                    // If loading screen is disabled, navigate directly to the target route
+                    if (!settingsState.showLoadingScreen) {
+                      // We need to use a post-frame callback to navigate
+                      // after this build cycle completes
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        Navigator.pushReplacementNamed(
+                          context,
+                          args['targetRoute'],
+                          arguments: {'filePath': args['filePath']},
+                        );
+                      });
+                      // Return an empty container while we're transitioning
+                      return Container(
+                          color: themeState.theme.scaffoldBackgroundColor);
+                    }
+
+                    return ReaderLoadingScreenRoute(
+                      filePath: args['filePath'],
+                      targetRoute: args['targetRoute'],
                     );
-                  });
-                  // Return an empty container while we're transitioning
-                  return Container(
-                      color: themeProvider.theme.scaffoldBackgroundColor);
-                }
-
-                return ReaderLoadingScreenRoute(
-                  filePath: args['filePath'],
-                  targetRoute: args['targetRoute'],
-                );
-              },
+                  },
+                },
+                theme: themeState.theme,
+                home: NavScreen(key: NavScreen.globalKey),
+              );
             },
-            theme: themeProvider.theme,
-            home: NavScreen(key: NavScreen.globalKey),
           );
         },
       ),
