@@ -9,6 +9,7 @@ import 'package:read_leaf/features/settings/presentation/screens/settings_screen
 import 'package:read_leaf/features/characters/presentation/screens/character_screen.dart';
 import 'package:read_leaf/features/library/presentation/blocs/file_bloc.dart';
 import 'package:read_leaf/features/reader/presentation/blocs/reader_bloc.dart';
+import 'package:read_leaf/features/settings/presentation/blocs/settings_bloc.dart';
 
 class NavScreen extends StatefulWidget {
   const NavScreen({super.key});
@@ -70,15 +71,25 @@ class _NavScreenState extends State<NavScreen> {
               return;
           }
 
-          // Navigate to loading screen first
-          Navigator.pushNamed(
-            context,
-            '/reader_loading',
-            arguments: {
-              'filePath': state.filePath,
-              'targetRoute': targetRoute,
-            },
-          );
+          final settingsState = context.read<SettingsBloc>().state;
+          final showLoadingScreen = settingsState.showLoadingScreen;
+
+          if (!showLoadingScreen) {
+            Navigator.pushNamed(
+              context,
+              targetRoute,
+              arguments: {'filePath': state.filePath},
+            );
+          } else {
+            Navigator.pushNamed(
+              context,
+              '/reader_loading',
+              arguments: {
+                'filePath': state.filePath,
+                'targetRoute': targetRoute,
+              },
+            );
+          }
         }
       },
       child: Scaffold(

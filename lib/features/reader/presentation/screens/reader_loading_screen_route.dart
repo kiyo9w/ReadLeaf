@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:read_leaf/features/reader/presentation/widgets/reader/reader_loading_screen.dart';
 import 'package:read_leaf/features/library/data/thumbnail_service.dart';
 import 'package:get_it/get_it.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:read_leaf/features/settings/presentation/blocs/settings_bloc.dart';
 
 class ReaderLoadingScreenRoute extends StatefulWidget {
   final String filePath;
@@ -23,12 +25,22 @@ class _ReaderLoadingScreenRouteState extends State<ReaderLoadingScreenRoute> {
   bool _isCompleted = false;
   bool _isThumbnailLoaded = false;
   bool _isNavigating = false;
+  bool _initialized = false;
 
   @override
   void initState() {
     super.initState();
-    _preloadThumbnail();
-    _simulateLoading();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    if (!_initialized) {
+      _initialized = true;
+      _preloadThumbnail();
+      _simulateLoading();
+    }
   }
 
   Future<void> _preloadThumbnail() async {
@@ -87,6 +99,7 @@ class _ReaderLoadingScreenRouteState extends State<ReaderLoadingScreenRoute> {
   }
 
   void _navigateWhenReady() {
+    // Don't navigate if we're already in the process of navigating
     if (_isNavigating) return;
 
     // Wait for both loading to complete and thumbnail to be loaded (or timeout)
@@ -96,7 +109,7 @@ class _ReaderLoadingScreenRouteState extends State<ReaderLoadingScreenRoute> {
       // If thumbnail isn't loaded yet, wait a bit longer but not too long
       if (!_isThumbnailLoaded) {
         Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) {
+          if (mounted && ModalRoute.of(context)?.isCurrent == true) {
             // Use pushReplacementNamed with the correct arguments format
             Navigator.of(context).pushReplacementNamed(
               widget.targetRoute,
@@ -107,7 +120,7 @@ class _ReaderLoadingScreenRouteState extends State<ReaderLoadingScreenRoute> {
       } else {
         // If thumbnail is already loaded, add a small delay for smooth transition
         Future.delayed(const Duration(milliseconds: 300), () {
-          if (mounted) {
+          if (mounted && ModalRoute.of(context)?.isCurrent == true) {
             // Use pushReplacementNamed with the correct arguments format
             Navigator.of(context).pushReplacementNamed(
               widget.targetRoute,
