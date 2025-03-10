@@ -6,6 +6,7 @@ import 'package:read_leaf/features/characters/data/default_character_loader.dart
 import 'package:read_leaf/features/characters/data/public_character_repository.dart';
 import 'package:logging/logging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:convert';
 import 'dart:async';
 
@@ -19,7 +20,7 @@ class AiCharacterService {
   List<AiCharacter> _characters = [];
   List<AiCharacter> _publicCharacters = [];
 
-  // Add stream controller for character updates
+  // Stream controller for character updates
   final _characterUpdateController = StreamController<void>.broadcast();
   Stream<void> get onCharacterUpdate => _characterUpdateController.stream;
 
@@ -58,8 +59,7 @@ class AiCharacterService {
         // Try to find Amelia first
         _selectedCharacter = _characters.firstWhere(
           (c) => c.name == 'Amelia',
-          orElse: () =>
-              _characters[0], // If Amelia not found, use first character
+          orElse: () => _characters[0],
         );
         _log.info('Selected default character: ${_selectedCharacter?.name}');
       }
@@ -73,23 +73,28 @@ class AiCharacterService {
     try {
       _selectedCharacter = character;
 
-      // Save selection to server
-      await _syncManager.syncCharacterPreferences(
-        character.name,
-        {
-          'character_name': character.name,
-          'last_used': DateTime.now().toIso8601String(),
-          'custom_settings': character.tags.contains('Custom')
-              ? {
-                  'personality': character.personality,
-                  'summary': character.summary,
-                  'scenario': character.scenario,
-                  'greeting_message': character.greetingMessage,
-                  'system_prompt': character.systemPrompt,
-                }
-              : {},
-        },
-      );
+      // Save selection to server if authenticated
+      if (_syncManager.isAuthenticated) {
+        await _syncManager.syncCharacterPreferences(
+          character.name,
+          {
+            'character_name': character.name,
+            'last_used': DateTime.now().toIso8601String(),
+            'custom_settings': character.tags.contains('Custom')
+                ? {
+                    'personality': character.personality,
+                    'summary': character.summary,
+                    'scenario': character.scenario,
+                    'greeting_message': character.greetingMessage,
+                    'system_prompt': character.systemPrompt,
+                  }
+                : {},
+          },
+        );
+      }
+
+      // Store preferences locally for all characters, not just community ones
+      await _saveCharacterPreference(character.name);
 
       // Notify listeners of the update
       _characterUpdateController.add(null);
@@ -112,39 +117,42 @@ class AiCharacterService {
           await DefaultCharacterLoader.loadDefaultCharacters();
       _log.info('Loaded ${defaultCharacters.length} default characters');
 
-      // If not authenticated, return only default characters
-      if (_syncManager.isAuthenticated != true) {
-        _log.info('User not authenticated, returning only default characters');
-        _characters = defaultCharacters;
-        return defaultCharacters;
-      }
-
+      // Load public characters regardless of authentication status
+      List<AiCharacter> publicCharacters = [];
       try {
-        // Get user's custom characters
-        final customCharacters = await _templateService.getUserTemplates();
-        _log.info('Loaded ${customCharacters.length} custom characters');
-
-        // Get public characters
-        final publicCharacters = await _loadPublicCharacters();
+        publicCharacters = await _loadPublicCharacters();
         _log.info('Loaded ${publicCharacters.length} public characters');
         _publicCharacters = publicCharacters;
-
-        // Combine all characters, removing duplicates by name
-        final allCharacters = {
-          ...Map.fromEntries(defaultCharacters.map((c) => MapEntry(c.name, c))),
-          ...Map.fromEntries(customCharacters.map((c) => MapEntry(c.name, c))),
-          ...Map.fromEntries(publicCharacters.map((c) => MapEntry(c.name, c))),
-        }.values.toList();
-
-        _characters = allCharacters;
-        _log.info('Returning ${allCharacters.length} total characters');
-        return allCharacters;
       } catch (e) {
-        _log.warning('Error getting custom/public characters: $e');
-        // Return default characters if custom/public character fetch fails
-        _characters = defaultCharacters;
-        return defaultCharacters;
+        _log.warning('Error loading public characters: $e');
+        publicCharacters = [];
       }
+
+      // Start with defaults + publics for all users
+      Map<String, AiCharacter> combinedCharacters = {
+        ...Map.fromEntries(defaultCharacters.map((c) => MapEntry(c.name, c))),
+        ...Map.fromEntries(publicCharacters.map((c) => MapEntry(c.name, c))),
+      };
+
+      // If authenticated, add user's custom characters
+      if (_syncManager.isAuthenticated) {
+        try {
+          final customCharacters = await _templateService.getUserTemplates();
+          _log.info('Loaded ${customCharacters.length} custom characters');
+
+          // Add custom characters to the combined map
+          combinedCharacters.addAll(
+            Map.fromEntries(customCharacters.map((c) => MapEntry(c.name, c))),
+          );
+        } catch (e) {
+          _log.warning('Error loading custom characters: $e');
+        }
+      }
+
+      final allCharacters = combinedCharacters.values.toList();
+      _characters = allCharacters;
+      _log.info('Returning ${allCharacters.length} total characters');
+      return allCharacters;
     } catch (e, stack) {
       _log.severe('Error getting all characters', e, stack);
       // Return empty list as last resort
@@ -160,11 +168,20 @@ class AiCharacterService {
           await _publicCharacterRepository.getAllPublicCharacters(
         limit: 100,
         sortBy: 'created_at',
-        descending: true,
+        descending: true, // Ensure newest characters show first
       );
 
-      // Convert to AiCharacter objects
-      return publicCharacters.map((pc) => pc.toAiCharacter()).toList();
+      // Convert to AiCharacter objects and add Community tag
+      return publicCharacters.map((pc) {
+        final character = pc.toAiCharacter();
+        // Add a special tag that this is from the community
+        if (!character.tags.contains('Community')) {
+          return character.copyWith(
+            tags: [...character.tags, 'Community'],
+          );
+        }
+        return character;
+      }).toList();
     } catch (e, stack) {
       _log.severe('Error loading public characters', e, stack);
       return [];
@@ -188,9 +205,16 @@ class AiCharacterService {
         limit: 50,
       );
 
-      // Convert to AiCharacter objects
-      final categoryCharacters =
-          publicCharacters.map((pc) => pc.toAiCharacter()).toList();
+      // Convert to AiCharacter objects and add Community tag
+      final categoryCharacters = publicCharacters.map((pc) {
+        final character = pc.toAiCharacter();
+        if (!character.tags.contains('Community')) {
+          return character.copyWith(
+            tags: [...character.tags, 'Community'],
+          );
+        }
+        return character;
+      }).toList();
 
       // Add any local characters with matching tags
       final localCategoryCharacters = _characters
@@ -211,34 +235,85 @@ class AiCharacterService {
     return _characters;
   }
 
+  /// Get only user-selected characters sorted by last used time
+  List<AiCharacter> getUserSelectedCharacters() {
+    try {
+      // Start with built-in default characters
+      final defaultCharacters = _characters
+          .where((c) =>
+              !c.tags.contains('Community') ||
+              _characterPreferences.containsKey(c.name))
+          .toList();
+
+      // Sort by last used time if we have preferences
+      if (_characterPreferences.isNotEmpty) {
+        defaultCharacters.sort((a, b) {
+          final aLastUsed = _characterPreferences[a.name]?['last_used'];
+          final bLastUsed = _characterPreferences[b.name]?['last_used'];
+
+          if (aLastUsed == null && bLastUsed == null) return 0;
+          if (aLastUsed == null) return 1; // b comes first
+          if (bLastUsed == null) return -1; // a comes first
+
+          // Compare timestamps, newer first
+          return DateTime.parse(bLastUsed).compareTo(DateTime.parse(aLastUsed));
+        });
+      }
+
+      _log.info(
+          'Returning ${defaultCharacters.length} user-selected characters');
+      return defaultCharacters;
+    } catch (e) {
+      _log.warning('Error getting user-selected characters: $e');
+      // Return empty list as fallback
+      return _characters.where((c) => !c.tags.contains('Community')).toList();
+    }
+  }
+
   Future<void> addCustomCharacter(AiCharacter character,
       {bool isPublic = false, String category = 'Custom'}) async {
     try {
       _log.info('Adding custom character: ${character.name}');
 
-      // Save to template service
-      await _templateService.saveTemplate(
-        character,
-        isPublic: isPublic,
-        category: category,
-      );
-
-      // Add to local list
+      // Add to local list first for immediate feedback
       _characters = [
         character,
         ..._characters.where((c) => c.name != character.name),
       ];
 
+      // Only try saving to server if user is authenticated
+      if (_syncManager.isAuthenticated) {
+        try {
+          await _templateService.saveTemplate(
+            character,
+            isPublic: isPublic,
+            category: category,
+          );
+          _log.info('Successfully saved character to server');
+        } catch (e) {
+          // If it's a duplicate, just continue with local version
+          if (e is PostgrestException && e.code == '23505') {
+            _log.info(
+                'Character already exists in database. Using local version.');
+          } else {
+            _log.warning('Failed to save character to server: $e');
+          }
+        }
+      }
+
       // Update selected character if none is selected
       if (_selectedCharacter == null) {
         _selectedCharacter = character;
-        _log.info('Setting newly created character as selected');
+        _log.info('Setting new character as selected');
       }
+
+      // Save to local preferences
+      await _saveCharacterPreference(character.name);
 
       // Notify listeners of the update
       _characterUpdateController.add(null);
 
-      _log.info('Successfully added custom character: ${character.name}');
+      _log.info('Successfully added character: ${character.name}');
     } catch (e, stack) {
       _log.severe('Error adding custom character', e, stack);
       rethrow;
@@ -248,11 +323,14 @@ class AiCharacterService {
   Future<void> updateCharacter(AiCharacter character,
       {bool isPublic = false, String category = 'Custom'}) async {
     try {
-      await _templateService.saveTemplate(
-        character,
-        isPublic: isPublic,
-        category: category,
-      );
+      // Try to save to server if authenticated
+      if (_syncManager.isAuthenticated) {
+        await _templateService.saveTemplate(
+          character,
+          isPublic: isPublic,
+          category: category,
+        );
+      }
 
       // Update selected character if it's the same one
       if (_selectedCharacter?.name == character.name) {
@@ -264,6 +342,9 @@ class AiCharacterService {
         character,
         ..._characters.where((c) => c.name != character.name),
       ];
+
+      // Save to local preferences
+      await _saveCharacterPreference(character.name);
 
       // Notify listeners of the update
       _characterUpdateController.add(null);
@@ -277,7 +358,10 @@ class AiCharacterService {
 
   Future<void> deleteCharacter(String name) async {
     try {
-      await _templateService.deleteTemplate(name);
+      // Try to delete from server if authenticated
+      if (_syncManager.isAuthenticated) {
+        await _templateService.deleteTemplate(name);
+      }
 
       // If deleted character was selected, switch to default
       if (_selectedCharacter?.name == name) {
@@ -291,6 +375,10 @@ class AiCharacterService {
 
       // Remove from local list
       _characters = _characters.where((c) => c.name != name).toList();
+
+      // Remove from preferences
+      _characterPreferences.remove(name);
+      await _saveAllPreferences();
 
       // Notify listeners of the update
       _characterUpdateController.add(null);
@@ -332,11 +420,13 @@ class AiCharacterService {
   Future<void> updateCharacterPublicity(String name, bool isPublic,
       {String category = 'Custom'}) async {
     try {
-      await _templateService.updateTemplatePublicity(
-        name,
-        isPublic,
-        category: category,
-      );
+      if (_syncManager.isAuthenticated) {
+        await _templateService.updateTemplatePublicity(
+          name,
+          isPublic,
+          category: category,
+        );
+      }
 
       // Refresh the character list
       await getAllCharacters();
@@ -377,6 +467,37 @@ class AiCharacterService {
     }
   }
 
+  // Helper method to save a character preference
+  Future<void> _saveCharacterPreference(String characterName) async {
+    try {
+      // Store preferences locally
+      _characterPreferences[characterName] = {
+        'last_used': DateTime.now().toIso8601String(),
+        'custom_settings': {},
+      };
+
+      await _saveAllPreferences();
+    } catch (e) {
+      _log.warning('Failed to save character preference: $e');
+    }
+  }
+
+  // Helper method to save all preferences
+  Future<void> _saveAllPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+          'character_preferences', json.encode(_characterPreferences));
+
+      // Also save selected character if we have one
+      if (_selectedCharacter != null) {
+        await prefs.setString('selected_character', _selectedCharacter!.name);
+      }
+    } catch (e) {
+      _log.warning('Failed to save preferences: $e');
+    }
+  }
+
   Future<void> updatePreferenceFromServer(
     String characterName,
     DateTime lastUsed,
@@ -388,13 +509,63 @@ class AiCharacterService {
         'custom_settings': customSettings,
       };
 
-      // Save to local storage
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-          'character_preferences', json.encode(_characterPreferences));
+      await _saveAllPreferences();
     } catch (e, stack) {
       _log.warning('Error updating preference from server', e, stack);
       // Non-fatal error
+    }
+  }
+
+  Future<AiCharacter> addPublicCharacterToCollection(String characterId) async {
+    try {
+      _log.info('Adding public character to local collection: $characterId');
+
+      // Get the character from the public repository
+      final character =
+          await _publicCharacterRepository.getPublicCharacterById(characterId);
+
+      if (character == null) {
+        throw Exception('Character not found');
+      }
+
+      final aiCharacter = character.toAiCharacter();
+
+      // Add the 'Community' tag if not present
+      List<String> updatedTags = [...aiCharacter.tags];
+      if (!updatedTags.contains('Community')) {
+        updatedTags.add('Community');
+      }
+
+      final updatedCharacter = aiCharacter.copyWith(tags: updatedTags);
+
+      // Add to local list, replacing any existing character with same name
+      _characters = [
+        updatedCharacter,
+        ..._characters.where((c) => c.name != updatedCharacter.name),
+      ];
+
+      // Increment the download count on the server
+      if (_syncManager.isAuthenticated) {
+        try {
+          await _publicCharacterRepository.incrementDownloadCount(characterId);
+          _log.info('Incremented download count for character: $characterId');
+        } catch (e) {
+          _log.warning('Failed to increment download count: $e');
+        }
+      }
+
+      // Save to local preferences
+      await _saveCharacterPreference(updatedCharacter.name);
+
+      // Notify listeners of the update
+      _characterUpdateController.add(null);
+
+      _log.info(
+          'Added public character to collection: ${updatedCharacter.name}');
+      return updatedCharacter;
+    } catch (e, stack) {
+      _log.severe('Error adding public character to collection', e, stack);
+      rethrow;
     }
   }
 

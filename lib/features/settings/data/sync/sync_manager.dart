@@ -301,24 +301,85 @@ class SyncManager {
     _log.info('Reading progress sync response: $response');
   }
 
+  /// Sync character preferences to server
   Future<void> _syncCharacterPreferencesToServer(
-      Map<String, dynamic> data) async {
-    final userId = _supabase.auth.currentUser?.id;
-    if (userId == null) {
-      _log.severe('Cannot sync character preferences: User not authenticated');
-      throw Exception('User not authenticated');
+      Map<String, dynamic> preferences) async {
+    try {
+      if (_supabase.auth.currentUser == null) {
+        _log.warning(
+            'Cannot sync character preferences: User not authenticated');
+        return;
+      }
+
+      final userId = _supabase.auth.currentUser!.id;
+      final characterName = preferences['character_name'];
+
+      _log.info('Syncing preferences for character: $characterName');
+
+      try {
+        // Get the current timestamp for last_synced_at
+        final now = DateTime.now().toIso8601String();
+
+        // Check if the character exists in the unified characters table
+        final existingCharacters = await _supabase
+            .from('characters')
+            .select()
+            .eq('user_id', userId)
+            .eq('name', characterName);
+
+        if (existingCharacters.isNotEmpty) {
+          // Character exists, update its custom_settings
+          await _supabase
+              .from('characters')
+              .update({
+                'custom_settings': preferences['custom_settings'],
+                'last_used': preferences['last_used'],
+                'last_synced_at': now,
+              })
+              .eq('user_id', userId)
+              .eq('name', characterName);
+
+          _log.info('Updated existing character preferences');
+        } else {
+          // Character doesn't exist in unified table, create it with required fields
+          await _supabase.from('characters').insert({
+            'id': _uuid.v4(),
+            'user_id': userId,
+            'name': characterName,
+            // Required fields with default values
+            'summary': 'Character preference summary',
+            'personality': 'Character personality',
+            'scenario': 'Default scenario',
+            'greeting_message': 'Hello, I am $characterName!',
+            'example_messages': [],
+            'avatar_image_path':
+                'assets/images/ai_characters/default_avatar.png',
+            'character_version': '1.0.0',
+            'tags': ['Custom'],
+            'creator': 'User',
+            // Preference-specific fields
+            'custom_settings': preferences['custom_settings'],
+            'last_used': preferences['last_used'],
+            'is_template': false,
+            'is_public': false,
+            'category': 'Custom',
+            'created_at': now,
+            'updated_at': now,
+            'last_synced_at': now,
+          });
+
+          _log.info('Created new character preferences entry');
+        }
+
+        _log.info('Successfully synced preferences for $characterName');
+      } catch (e) {
+        _log.severe('Error in preferences upsert: $e');
+        rethrow;
+      }
+    } catch (e) {
+      _log.severe('Error syncing character preferences: $e');
+      rethrow;
     }
-
-    _log.info('Syncing preferences for character: ${data['character_name']}');
-    final payload = {
-      'user_id': userId,
-      ...data,
-      'last_synced_at': DateTime.now().toIso8601String(),
-    };
-
-    final response =
-        await _supabase.from('character_preferences').upsert(payload).select();
-    _log.info('Character preferences sync response: $response');
   }
 
   Future<void> _syncChatHistoryToServer(Map<String, dynamic> data) async {
@@ -483,18 +544,21 @@ class SyncManager {
         await chatService.updateFromServer(characterName, messages);
       }
 
-      // Fetch character preferences from server
-      final characterPrefs = await _supabase
-          .from('character_preferences')
-          .select()
-          .eq('user_id', userId);
+      // Fetch character preferences from server using the unified characters table
+      final characterPrefs =
+          await _supabase.from('characters').select().eq('user_id', userId);
+
+      _log.info(
+          'Fetched ${characterPrefs.length} character preferences from server');
 
       // Update character preferences in local storage
       final aiCharacterService = GetIt.instance<AiCharacterService>();
       for (final pref in characterPrefs) {
         await aiCharacterService.updatePreferenceFromServer(
-          pref['character_name'],
-          DateTime.parse(pref['last_used']),
+          pref['name'],
+          pref['last_used'] != null
+              ? DateTime.parse(pref['last_used'])
+              : DateTime.now(),
           pref['custom_settings'] ?? {},
         );
       }

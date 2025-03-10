@@ -1,27 +1,27 @@
 import 'package:read_leaf/features/characters/domain/models/ai_character.dart';
-import 'package:read_leaf/features/characters/domain/models/public_character.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:logging/logging.dart';
 import 'dart:async';
 
-class PublicCharacterRepository {
-  final _log = Logger('PublicCharacterRepository');
+class UnifiedCharacterRepository {
+  final _log = Logger('UnifiedCharacterRepository');
   final SupabaseClient _supabase;
 
   // Singleton instance
-  static PublicCharacterRepository? _instance;
+  static UnifiedCharacterRepository? _instance;
 
   // Factory constructor
-  factory PublicCharacterRepository() {
-    _instance ??= PublicCharacterRepository._internal(Supabase.instance.client);
+  factory UnifiedCharacterRepository() {
+    _instance ??=
+        UnifiedCharacterRepository._internal(Supabase.instance.client);
     return _instance!;
   }
 
   // Private constructor
-  PublicCharacterRepository._internal(this._supabase);
+  UnifiedCharacterRepository._internal(this._supabase);
 
   // Get all public characters
-  Future<List<PublicCharacter>> getAllPublicCharacters({
+  Future<List<AiCharacter>> getAllPublicCharacters({
     int limit = 50,
     int offset = 0,
     String sortBy = 'created_at',
@@ -32,7 +32,7 @@ class PublicCharacterRepository {
     try {
       _log.info('Getting all public characters');
 
-      // Start with base query - using the new unified 'characters' table
+      // Start with base query
       dynamic query =
           _supabase.from('characters').select('*').eq('is_public', true);
 
@@ -54,7 +54,7 @@ class PublicCharacterRepository {
       final response = await query;
       final userId = _supabase.auth.currentUser?.id;
 
-      // Separately check which characters are liked by the current user if logged in
+      // Check likes for the current user
       List<String> likedCharacterIds = [];
       if (userId != null) {
         try {
@@ -75,11 +75,7 @@ class PublicCharacterRepository {
         // Check if the character is liked by the current user
         final isLiked =
             userId != null && likedCharacterIds.contains(json['id']);
-
-        // Add isLiked field to the JSON
-        json['is_liked'] = isLiked;
-
-        return _convertToPublicCharacter(json);
+        return _convertToAiCharacter(json, isLiked);
       }).toList();
     } catch (e, stack) {
       _log.severe('Error getting public characters', e, stack);
@@ -87,140 +83,10 @@ class PublicCharacterRepository {
     }
   }
 
-  // Get public characters by category
-  Future<List<PublicCharacter>> getPublicCharactersByCategory(
-    String category, {
-    int limit = 20,
-    int offset = 0,
-  }) async {
+  // Get a specific character by ID
+  Future<AiCharacter?> getCharacterById(String id) async {
     try {
-      _log.info('Getting public characters by category: $category');
-
-      final response = await _supabase
-          .from('characters')
-          .select('*')
-          .eq('is_public', true)
-          .eq('category', category)
-          .order('created_at', ascending: false)
-          .range(offset, offset + limit - 1);
-
-      final userId = _supabase.auth.currentUser?.id;
-
-      // Separately check which characters are liked by the current user if logged in
-      List<String> likedCharacterIds = [];
-      if (userId != null) {
-        try {
-          final likes = await _supabase
-              .from('character_likes')
-              .select('character_id')
-              .eq('user_id', userId);
-
-          likedCharacterIds = (likes as List)
-              .map((like) => like['character_id'] as String)
-              .toList();
-        } catch (e) {
-          _log.warning('Error fetching likes: $e');
-        }
-      }
-
-      return (response as List).map((json) {
-        // Check if the character is liked by the current user
-        final isLiked =
-            userId != null && likedCharacterIds.contains(json['id']);
-
-        // Add isLiked field to the JSON
-        json['is_liked'] = isLiked;
-
-        return _convertToPublicCharacter(json);
-      }).toList();
-    } catch (e, stack) {
-      _log.severe('Error getting public characters by category', e, stack);
-      return [];
-    }
-  }
-
-  // Get trending public characters (most downloaded/liked)
-  Future<List<PublicCharacter>> getTrendingPublicCharacters({
-    int limit = 10,
-  }) async {
-    try {
-      _log.info('Getting trending public characters');
-
-      final response = await _supabase
-          .from('characters')
-          .select('*')
-          .eq('is_public', true)
-          .order('download_count', ascending: false)
-          .limit(limit);
-
-      final userId = _supabase.auth.currentUser?.id;
-
-      // Separately check which characters are liked by the current user if logged in
-      List<String> likedCharacterIds = [];
-      if (userId != null) {
-        try {
-          final likes = await _supabase
-              .from('character_likes')
-              .select('character_id')
-              .eq('user_id', userId);
-
-          likedCharacterIds = (likes as List)
-              .map((like) => like['character_id'] as String)
-              .toList();
-        } catch (e) {
-          _log.warning('Error fetching likes: $e');
-        }
-      }
-
-      return (response as List).map((json) {
-        // Check if the character is liked by the current user
-        final isLiked =
-            userId != null && likedCharacterIds.contains(json['id']);
-
-        // Add isLiked field to the JSON
-        json['is_liked'] = isLiked;
-
-        return _convertToPublicCharacter(json);
-      }).toList();
-    } catch (e, stack) {
-      _log.severe('Error getting trending public characters', e, stack);
-      return [];
-    }
-  }
-
-  // Get public characters created by the current user
-  Future<List<PublicCharacter>> getUserPublicCharacters() async {
-    try {
-      final userId = _supabase.auth.currentUser?.id;
-      if (userId == null) {
-        throw Exception('User not authenticated');
-      }
-
-      _log.info('Getting public characters for user: $userId');
-
-      final response = await _supabase
-          .from('characters')
-          .select('*')
-          .eq('user_id', userId)
-          .eq('is_public', true)
-          .order('created_at', ascending: false);
-
-      return (response as List).map((json) {
-        // Check if the character is liked by the current user (always true for own characters)
-        json['is_liked'] = true;
-
-        return _convertToPublicCharacter(json);
-      }).toList();
-    } catch (e, stack) {
-      _log.severe('Error getting user public characters', e, stack);
-      return [];
-    }
-  }
-
-  // Get a specific public character by ID
-  Future<PublicCharacter?> getPublicCharacterById(String id) async {
-    try {
-      _log.info('Getting public character by ID: $id');
+      _log.info('Getting character by ID: $id');
 
       final response =
           await _supabase.from('characters').select('*').eq('id', id).single();
@@ -244,20 +110,178 @@ class PublicCharacterRepository {
         }
       }
 
-      // Add isLiked field to the JSON
-      response['is_liked'] = isLiked;
-
-      return _convertToPublicCharacter(response);
+      return _convertToAiCharacter(response, isLiked);
     } catch (e, stack) {
-      _log.severe('Error getting public character by ID', e, stack);
+      _log.severe('Error getting character by ID', e, stack);
       return null;
     }
   }
 
-  // Publish a character to the public repository
-  Future<PublicCharacter?> publishCharacter(
+  // Get characters by category
+  Future<List<AiCharacter>> getCharactersByCategory(
+    String category, {
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    try {
+      _log.info('Getting characters by category: $category');
+
+      final response = await _supabase
+          .from('characters')
+          .select('*')
+          .eq('is_public', true)
+          .eq('category', category)
+          .order('created_at', ascending: false)
+          .range(offset, offset + limit - 1);
+
+      final userId = _supabase.auth.currentUser?.id;
+
+      // Check likes for the current user
+      List<String> likedCharacterIds = [];
+      if (userId != null) {
+        try {
+          final likes = await _supabase
+              .from('character_likes')
+              .select('character_id')
+              .eq('user_id', userId);
+
+          likedCharacterIds = (likes as List)
+              .map((like) => like['character_id'] as String)
+              .toList();
+        } catch (e) {
+          _log.warning('Error fetching likes: $e');
+        }
+      }
+
+      return (response as List).map((json) {
+        // Check if the character is liked by the current user
+        final isLiked =
+            userId != null && likedCharacterIds.contains(json['id']);
+        return _convertToAiCharacter(json, isLiked);
+      }).toList();
+    } catch (e, stack) {
+      _log.severe('Error getting characters by category', e, stack);
+      return [];
+    }
+  }
+
+  // Get trending characters
+  Future<List<AiCharacter>> getTrendingCharacters({int limit = 10}) async {
+    try {
+      _log.info('Getting trending characters');
+
+      final response = await _supabase
+          .from('characters')
+          .select('*')
+          .eq('is_public', true)
+          .order('download_count', ascending: false)
+          .limit(limit);
+
+      final userId = _supabase.auth.currentUser?.id;
+
+      // Check likes for the current user
+      List<String> likedCharacterIds = [];
+      if (userId != null) {
+        try {
+          final likes = await _supabase
+              .from('character_likes')
+              .select('character_id')
+              .eq('user_id', userId);
+
+          likedCharacterIds = (likes as List)
+              .map((like) => like['character_id'] as String)
+              .toList();
+        } catch (e) {
+          _log.warning('Error fetching likes: $e');
+        }
+      }
+
+      return (response as List).map((json) {
+        // Check if the character is liked by the current user
+        final isLiked =
+            userId != null && likedCharacterIds.contains(json['id']);
+        return _convertToAiCharacter(json, isLiked);
+      }).toList();
+    } catch (e, stack) {
+      _log.severe('Error getting trending characters', e, stack);
+      return [];
+    }
+  }
+
+  // Get user's characters
+  Future<List<AiCharacter>> getUserCharacters() async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      _log.info('Getting characters for user: $userId');
+
+      final response = await _supabase
+          .from('characters')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', ascending: false);
+
+      return (response as List).map((json) {
+        // User's own characters are considered "liked"
+        return _convertToAiCharacter(json, true);
+      }).toList();
+    } catch (e, stack) {
+      _log.severe('Error getting user characters', e, stack);
+      return [];
+    }
+  }
+
+  // Get template characters
+  Future<List<AiCharacter>> getTemplateCharacters() async {
+    try {
+      _log.info('Getting template characters');
+
+      final response = await _supabase
+          .from('characters')
+          .select('*')
+          .eq('is_template', true)
+          .order('created_at', ascending: false);
+
+      final userId = _supabase.auth.currentUser?.id;
+
+      // Check likes for the current user
+      List<String> likedCharacterIds = [];
+      if (userId != null) {
+        try {
+          final likes = await _supabase
+              .from('character_likes')
+              .select('character_id')
+              .eq('user_id', userId);
+
+          likedCharacterIds = (likes as List)
+              .map((like) => like['character_id'] as String)
+              .toList();
+        } catch (e) {
+          _log.warning('Error fetching likes: $e');
+        }
+      }
+
+      return (response as List).map((json) {
+        // Check if the character is liked by the current user
+        final isLiked =
+            userId != null && likedCharacterIds.contains(json['id']);
+        return _convertToAiCharacter(json, isLiked);
+      }).toList();
+    } catch (e, stack) {
+      _log.severe('Error getting template characters', e, stack);
+      return [];
+    }
+  }
+
+  // Save or update a character
+  Future<AiCharacter?> saveCharacter(
     AiCharacter character, {
-    required String category,
+    bool isPublic = false,
+    bool isTemplate = false,
+    String category = 'Custom',
   }) async {
     try {
       final userId = _supabase.auth.currentUser?.id;
@@ -265,9 +289,11 @@ class PublicCharacterRepository {
         throw Exception('User not authenticated');
       }
 
-      _log.info('Publishing character: ${character.name}');
+      _log.info('Saving character: ${character.name}');
 
-      // Create task_prompts JSONB object
+      final now = DateTime.now();
+
+      // Convert task prompts to JSONB
       final taskPrompts = {
         'greeting': character.greetingMessage,
         'summary': character.summary,
@@ -287,92 +313,33 @@ class PublicCharacterRepository {
         'system_prompt': character.systemPrompt,
         'tags': character.tags,
         'creator': character.creator,
-        'is_public': true,
-        'is_template': false,
+        'is_public': isPublic,
+        'is_template': isTemplate,
         'category': category,
         'task_prompts': taskPrompts,
         'created_at': character.createdAt.toIso8601String(),
-        'updated_at': character.updatedAt.toIso8601String(),
+        'updated_at': now.toIso8601String(),
       };
 
       final response =
           await _supabase.from('characters').upsert(payload).select().single();
 
-      // This character is implicitly liked by its creator
-      response['is_liked'] = true;
-
-      return _convertToPublicCharacter(response);
+      return _convertToAiCharacter(response, false);
     } catch (e, stack) {
-      _log.severe('Error publishing character', e, stack);
+      _log.severe('Error saving character', e, stack);
       return null;
     }
   }
 
-  // Update a public character
-  Future<PublicCharacter?> updatePublicCharacter(
-    PublicCharacter character,
-  ) async {
+  // Delete a character
+  Future<bool> deleteCharacter(String id) async {
     try {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) {
         throw Exception('User not authenticated');
       }
 
-      if (character.userId != userId) {
-        throw Exception('Cannot update a character you do not own');
-      }
-
-      _log.info('Updating public character: ${character.name}');
-
-      // Create task_prompts JSONB object
-      final taskPrompts = {
-        'greeting': character.greetingMessage,
-        'summary': character.summary,
-        'scenario': character.scenario,
-      };
-
-      final payload = {
-        'name': character.name,
-        'summary': character.summary,
-        'personality': character.personality,
-        'scenario': character.scenario,
-        'greeting_message': character.greetingMessage,
-        'example_messages': character.exampleMessages,
-        'avatar_image_path': character.avatarImagePath,
-        'character_version': character.characterVersion,
-        'system_prompt': character.systemPrompt,
-        'tags': character.tags,
-        'is_public': character.isPublic,
-        'category': character.category,
-        'task_prompts': taskPrompts,
-        'updated_at': DateTime.now().toIso8601String(),
-      };
-
-      final response = await _supabase
-          .from('characters')
-          .update(payload)
-          .eq('id', character.id)
-          .select()
-          .single();
-
-      response['is_liked'] = character.isLiked;
-
-      return _convertToPublicCharacter(response);
-    } catch (e, stack) {
-      _log.severe('Error updating public character', e, stack);
-      return null;
-    }
-  }
-
-  // Delete a public character
-  Future<bool> deletePublicCharacter(String id) async {
-    try {
-      final userId = _supabase.auth.currentUser?.id;
-      if (userId == null) {
-        throw Exception('User not authenticated');
-      }
-
-      _log.info('Deleting public character: $id');
+      _log.info('Deleting character: $id');
 
       await _supabase
           .from('characters')
@@ -382,7 +349,7 @@ class PublicCharacterRepository {
 
       return true;
     } catch (e, stack) {
-      _log.severe('Error deleting public character', e, stack);
+      _log.severe('Error deleting character', e, stack);
       return false;
     }
   }
@@ -448,14 +415,14 @@ class PublicCharacterRepository {
     }
   }
 
-  // Search public characters
-  Future<List<PublicCharacter>> searchPublicCharacters(
+  // Search characters
+  Future<List<AiCharacter>> searchCharacters(
     String query, {
     int limit = 20,
     String? category,
   }) async {
     try {
-      _log.info('Searching public characters: $query');
+      _log.info('Searching characters: $query');
 
       dynamic dbQuery = _supabase
           .from('characters')
@@ -472,7 +439,7 @@ class PublicCharacterRepository {
 
       final userId = _supabase.auth.currentUser?.id;
 
-      // Separately check which characters are liked by the current user if logged in
+      // Check likes for the current user
       List<String> likedCharacterIds = [];
       if (userId != null) {
         try {
@@ -493,22 +460,18 @@ class PublicCharacterRepository {
         // Check if the character is liked by the current user
         final isLiked =
             userId != null && likedCharacterIds.contains(json['id']);
-
-        // Add isLiked field to the JSON
-        json['is_liked'] = isLiked;
-
-        return _convertToPublicCharacter(json);
+        return _convertToAiCharacter(json, isLiked);
       }).toList();
     } catch (e, stack) {
-      _log.severe('Error searching public characters', e, stack);
+      _log.severe('Error searching characters', e, stack);
       return [];
     }
   }
 
-  // Helper method to convert JSON from the characters table to PublicCharacter model
-  PublicCharacter _convertToPublicCharacter(Map<String, dynamic> json) {
+  // Helper method to convert database record to AiCharacter
+  AiCharacter _convertToAiCharacter(Map<String, dynamic> json, bool isLiked) {
     try {
-      // Process example_messages
+      // Handle example_messages conversion
       List<String> exampleMessages = [];
       if (json['example_messages'] != null) {
         if (json['example_messages'] is List) {
@@ -518,7 +481,7 @@ class PublicCharacterRepository {
         }
       }
 
-      // Process tags
+      // Handle tags conversion
       List<String> tags = [];
       if (json['tags'] != null) {
         if (json['tags'] is List) {
@@ -526,12 +489,28 @@ class PublicCharacterRepository {
         }
       }
 
-      // Extract is_liked flag, defaulting to false if not present
-      final isLiked = json['is_liked'] ?? false;
+      // Add isLiked to tags if applicable
+      if (isLiked && !tags.contains('Liked')) {
+        tags.add('Liked');
+      }
 
-      return PublicCharacter(
-        id: json['id'],
-        userId: json['user_id'],
+      // Add category to tags if not already present
+      if (json['category'] != null &&
+          !tags.contains(json['category']) &&
+          json['category'] != 'Custom') {
+        tags.add(json['category']);
+      }
+
+      // Add template/public status to tags if applicable
+      if (json['is_template'] == true && !tags.contains('Template')) {
+        tags.add('Template');
+      }
+
+      if (json['is_public'] == true && !tags.contains('Public')) {
+        tags.add('Public');
+      }
+
+      return AiCharacter(
         name: json['name'],
         summary: json['summary'],
         personality: json['personality'],
@@ -545,16 +524,10 @@ class PublicCharacterRepository {
         creator: json['creator'],
         createdAt: DateTime.parse(json['created_at']),
         updatedAt: DateTime.parse(json['updated_at']),
-        isPublic: json['is_public'] ?? true,
-        downloadCount: json['download_count'] ?? 0,
-        likeCount: json['like_count'] ?? 0,
-        category: json['category'] ?? 'Custom',
-        isLiked: isLiked,
       );
     } catch (e, stack) {
-      _log.severe('Error converting to PublicCharacter: $e', e, stack);
-      throw Exception(
-          'Failed to convert database record to PublicCharacter: $e');
+      _log.severe('Error converting to AiCharacter: $e', e, stack);
+      throw Exception('Failed to convert database record to AiCharacter: $e');
     }
   }
 }
