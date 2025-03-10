@@ -4,7 +4,7 @@ import 'package:read_leaf/features/characters/domain/models/ai_character.dart';
 import 'package:read_leaf/features/companion_chat/data/chat_service.dart';
 import 'package:get_it/get_it.dart';
 import 'package:read_leaf/core/constants/responsive_constants.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:ui';
 
 class ChatScreen extends StatefulWidget {
@@ -210,10 +210,10 @@ class ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                           ),
                         ],
                       ),
-                      child: CircleAvatar(
-                        radius: ResponsiveConstants.isTablet(context) ? 24 : 20,
-                        backgroundImage:
-                            AssetImage(widget.character.avatarImagePath),
+                      child: _buildAvatarImage(
+                        widget.character.avatarImagePath,
+                        radius:
+                            ResponsiveConstants.isTablet(context) ? 24.0 : 20.0,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -502,9 +502,9 @@ class ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                     ),
                   ],
                 ),
-                child: CircleAvatar(
-                  radius: ResponsiveConstants.isTablet(context) ? 18 : 14,
-                  backgroundImage: AssetImage(widget.character.avatarImagePath),
+                child: _buildAvatarImage(
+                  widget.character.avatarImagePath,
+                  radius: ResponsiveConstants.isTablet(context) ? 18.0 : 14.0,
                 ),
               ),
             ),
@@ -592,97 +592,71 @@ class ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     );
   }
 
-  List<TextSpan> _parseText(String text) {
-    final List<TextSpan> spans = [];
-    final RegExp emotePattern = RegExp(r'\*(.*?)\*');
-    final RegExp importedTextPattern = RegExp(r'""".*?"""');
+  // Shared method to build avatar images with caching
+  Widget _buildAvatarImage(String imagePath, {required double radius}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    int currentPosition = 0;
-
-    while (currentPosition < text.length) {
-      // Try to find the next emote or imported text
-      final emoteMatch =
-          emotePattern.firstMatch(text.substring(currentPosition));
-      final importedMatch =
-          importedTextPattern.firstMatch(text.substring(currentPosition));
-
-      // Determine which pattern comes first
-      final emoteIndex = emoteMatch?.start ?? text.length;
-      final importedIndex = importedMatch?.start ?? text.length;
-
-      if (emoteIndex < importedIndex) {
-        // Add text before the emote
-        if (emoteIndex > 0) {
-          spans.add(TextSpan(
-            text: text.substring(currentPosition, currentPosition + emoteIndex),
-          ));
-        }
-        // Add the emote with special styling
-        spans.add(TextSpan(
-          text: emoteMatch![1],
-          style: TextStyle(
-            color: Colors.grey[600],
-            fontStyle: FontStyle.italic,
+    // Create the avatar widget
+    Widget buildAvatarContent() {
+      // For network images
+      if (imagePath.startsWith('http') ||
+          imagePath.startsWith('https') ||
+          imagePath.contains('avatars.charhub.io')) {
+        return CachedNetworkImage(
+          imageUrl: imagePath,
+          fit: BoxFit.cover,
+          placeholder: (context, url) => Container(
+            color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
           ),
-        ));
-        currentPosition += emoteMatch.end;
-      } else if (importedIndex < text.length) {
-        // Add text before the imported text
-        if (importedIndex > 0) {
-          spans.add(TextSpan(
-            text: text.substring(
-                currentPosition, currentPosition + importedIndex),
-          ));
-        }
-        // Add the entire imported text block including quotes with special styling
-        spans.add(TextSpan(
-          text: importedMatch![
-              0], // Use [0] to get the entire match including quotes
-          style: TextStyle(
-            color: Colors.grey[600],
-          ),
-        ));
-        currentPosition += importedMatch.end;
-      } else {
-        // Add the remaining text
-        spans.add(TextSpan(
-          text: text.substring(currentPosition),
-        ));
-        break;
-      }
-    }
-
-    return spans;
-  }
-
-  Future<void> _debugForceSync() async {
-    setState(() {
-      _isSyncing = true;
-    });
-
-    try {
-      final supabase = Supabase.instance.client;
-      final user = supabase.auth.currentUser;
-      print('DEBUG: Current user: ${user?.id ?? 'Not authenticated'}');
-
-      await _chatService.forceSync();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sync completed')),
+          errorWidget: (context, url, error) {
+            debugPrint('Error loading chat avatar: $url - $error');
+            return Container(
+              color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+              child: Icon(
+                Icons.person,
+                size: radius * 0.9,
+                color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+              ),
+            );
+          },
+          fadeInDuration: const Duration(milliseconds: 0),
+          memCacheHeight: (radius * 3).toInt(),
+          memCacheWidth: (radius * 3).toInt(),
+          cacheKey: 'chat_msg_avatar_$imagePath',
+          useOldImageOnUrlChange: true,
         );
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Sync failed: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSyncing = false;
-        });
-      }
+
+      // For asset images
+      return Image.asset(
+        imagePath,
+        fit: BoxFit.cover,
+        cacheHeight: (radius * 3).toInt(),
+        cacheWidth: (radius * 3).toInt(),
+        errorBuilder: (context, error, stackTrace) {
+          debugPrint('Error loading avatar asset in chat: $error');
+          return Container(
+            color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+            child: Icon(
+              Icons.person,
+              size: radius * 0.9,
+              color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+            ),
+          );
+        },
+      );
     }
+
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+      child: ClipOval(
+        child: SizedBox(
+          width: radius * 2,
+          height: radius * 2,
+          child: buildAvatarContent(),
+        ),
+      ),
+    );
   }
 }

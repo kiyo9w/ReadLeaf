@@ -1,7 +1,5 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:read_leaf/features/companion_chat/domain/models/chat_message.dart';
-import 'package:crypto/crypto.dart';
-import 'dart:convert';
 import 'package:uuid/uuid.dart';
 import 'dart:async';
 import 'package:logging/logging.dart';
@@ -11,7 +9,6 @@ import 'package:get_it/get_it.dart';
 import 'package:read_leaf/features/characters/data/ai_character_service.dart';
 
 class ChatService {
-  static const String _boxPrefix = 'character_chat_';
   static const int _maxMessagesPerCharacter = 200;
   static const int _batchSize = 50;
   final Map<String, Box<ChatMessage>> _boxes = {};
@@ -27,15 +24,6 @@ class ChatService {
     _syncTimer = Timer.periodic(const Duration(minutes: 5), (_) {
       _queueMessagesForSync();
     });
-  }
-
-  // Generate a box name for a character
-  String _getBoxName(String characterName) {
-    final bytes = utf8.encode(characterName);
-    final hash = sha256.convert(bytes);
-    final boxName = '$_boxPrefix${hash.toString().substring(0, 20)}';
-    print('Generated box name for character "$characterName": $boxName');
-    return boxName;
   }
 
   Future<void> init() async {
@@ -149,32 +137,6 @@ class ChatService {
     } catch (e) {
       _log.severe('Error adding message: $e');
       rethrow;
-    }
-  }
-
-  Future<void> _createSyncTask(String characterName) async {
-    try {
-      final messages = _pendingSync[characterName] ?? [];
-      if (messages.isEmpty) return;
-
-      _log.info(
-          'Creating sync task for ${messages.length} messages from $characterName');
-
-      final messageData = messages
-          .map((msg) => {
-                'text': msg.text,
-                'is_user': msg.isUser,
-                'timestamp': msg.timestamp.toIso8601String(),
-                'character_name': msg.characterName,
-                'book_id': msg.bookId,
-                'avatar_image_path': msg.avatarImagePath,
-              })
-          .toList();
-
-      await _syncManager.syncChatHistory(characterName, messageData);
-      _pendingSync[characterName]?.clear();
-    } catch (e) {
-      _log.severe('Error creating sync task: $e');
     }
   }
 

@@ -1,17 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:read_leaf/features/characters/domain/models/ai_character.dart';
 import 'package:read_leaf/features/characters/data/ai_character_service.dart';
 import 'package:read_leaf/injection/injection.dart';
-import 'package:read_leaf/features/characters/domain/models/ai_character.dart';
 import 'package:read_leaf/core/constants/ui_constants.dart';
+import 'package:flutter/services.dart';
+import 'package:read_leaf/core/utils/utils.dart';
+import 'package:read_leaf/core/constants/responsive_constants.dart';
+import 'package:read_leaf/features/characters/data/character_template_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:io';
+import 'package:read_leaf/core/themes/custom_theme_extension.dart';
 import 'package:read_leaf/widgets/typing_text.dart';
 import 'package:read_leaf/features/library/presentation/screens/home_screen.dart';
 import 'dart:async';
 import 'dart:ui';
-import 'package:read_leaf/core/constants/responsive_constants.dart';
-import 'package:read_leaf/core/themes/custom_theme_extension.dart';
 import 'package:read_leaf/features/characters/presentation/widgets/typing_indicator.dart';
 import 'package:read_leaf/features/settings/presentation/blocs/settings_bloc.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:read_leaf/features/characters/presentation/widgets/character_info_popup.dart';
 
 /// A custom painter that draws a subtle grid pattern
 class GridPatternPainter extends CustomPainter {
@@ -143,7 +149,8 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
 
   Future<void> _loadCharacters() async {
     try {
-      final loadedCharacters = await _characterService.getAllCharacters();
+      // Use getUserSelectedCharacters to only get characters the user has selected
+      final loadedCharacters = _characterService.getUserSelectedCharacters();
       final selectedCharacter = _characterService.getSelectedCharacter();
 
       if (!mounted) return;
@@ -178,11 +185,12 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
   }
 
   // Add a new character to the slider
-  void addCharacter(AiCharacter character) {
-    setState(() {
-      characters.add(character);
-      _selectedIndex = characters.length - 1;
-    });
+  void addCharacter(AiCharacter character) async {
+    // Use the service to properly select the character
+    await _characterService.setSelectedCharacter(character);
+
+    // Refresh the character list
+    _loadCharacters();
   }
 
   // Force a refresh of the character list
@@ -327,7 +335,6 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
   void _showSettingsOverlay() {
     final RenderBox renderBox = context.findRenderObject() as RenderBox;
     final settingsButtonPosition = renderBox.localToGlobal(Offset.zero);
-    final size = renderBox.size;
 
     // Calculate position for the settings menu
     final character = characters[_selectedIndex];
@@ -488,6 +495,8 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
                       children: [
                         GestureDetector(
                           onTap: _expand,
+                          onLongPress: () =>
+                              _showCharacterInfoPopup(context, character),
                           child: Hero(
                             tag: 'character_avatar_${character.name}',
                             child: Container(
@@ -514,10 +523,8 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
                                 ],
                               ),
                               child: ClipOval(
-                                child: Image.asset(
-                                  character.avatarImagePath,
-                                  fit: BoxFit.cover,
-                                ),
+                                child: _buildAvatarImage(
+                                    character.avatarImagePath),
                               ),
                             ),
                           ),
@@ -566,7 +573,7 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
                           Text(
                             character.name,
                             style: TextStyle(
-                              fontSize: isTablet ? 24.0 : 22.0,
+                              fontSize: isTablet ? 24.0 : 20.0,
                               fontWeight: FontWeight.bold,
                               color: messageTextColor,
                               shadows: [
@@ -578,6 +585,8 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
                               ],
                             ),
                             overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                            softWrap: false,
                           ),
                           SizedBox(height: isTablet ? 8.0 : 6.0),
                           Container(
@@ -648,44 +657,48 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
                 height: _isDescriptionVisible ? null : 0,
                 curve: Curves.easeInOut,
                 child: _isDescriptionVisible
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                          child: Padding(
-                            padding: EdgeInsets.fromLTRB(
-                                isTablet ? 20.0 : 16.0,
-                                0,
-                                isTablet ? 20.0 : 16.0,
-                                isTablet ? 10.0 : 8.0),
-                            child: Container(
-                              padding: EdgeInsets.all(isTablet ? 14.0 : 12.0),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.2),
-                                  width: 1,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.2),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
+                    ? GestureDetector(
+                        onLongPress: () =>
+                            _showCharacterInfoPopup(context, character),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                            child: Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                  isTablet ? 20.0 : 16.0,
+                                  0,
+                                  isTablet ? 20.0 : 16.0,
+                                  isTablet ? 10.0 : 8.0),
+                              child: Container(
+                                padding: EdgeInsets.all(isTablet ? 14.0 : 12.0),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.2),
+                                    width: 1,
                                   ),
-                                ],
-                              ),
-                              child: TypingText(
-                                text: character.personality,
-                                style: TextStyle(
-                                  fontSize: isTablet ? 14.0 : 13.0,
-                                  height: 1.4,
-                                  color: messageTextColor,
-                                  letterSpacing: 0.2,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.2),
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
                                 ),
-                                maxLines: isTablet ? 4 : 3,
-                                typingSpeed: const Duration(milliseconds: 15),
-                                overflow: TextOverflow.ellipsis,
+                                child: TypingText(
+                                  text: character.personality,
+                                  style: TextStyle(
+                                    fontSize: isTablet ? 14.0 : 13.0,
+                                    height: 1.4,
+                                    color: messageTextColor,
+                                    letterSpacing: 0.2,
+                                  ),
+                                  maxLines: isTablet ? 4 : 3,
+                                  typingSpeed: const Duration(milliseconds: 15),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                             ),
                           ),
@@ -1204,10 +1217,8 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
                               ],
                             ),
                             child: ClipOval(
-                              child: Image.asset(
-                                character.avatarImagePath,
-                                fit: BoxFit.cover,
-                              ),
+                              child:
+                                  _buildAvatarImage(character.avatarImagePath),
                             ),
                           ),
                         ),
@@ -1224,6 +1235,8 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
                         fontSize: isTablet ? 18.0 : 16.0,
                         letterSpacing: 0.3,
                       ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                     SizedBox(height: isTablet ? 8.0 : 6.0),
                     Container(
@@ -1337,6 +1350,20 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
     );
   }
 
+  void _showCharacterInfoPopup(BuildContext context, AiCharacter character) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (context) => CharacterInfoPopup(
+        character: character,
+        onClose: () => Navigator.of(context).pop(),
+        onSelect: () {
+          Navigator.of(context).pop();
+        },
+      ),
+    );
+  }
+
   void _onCharacterTap(int index) {
     if (_selectedIndex != index) {
       setState(() {
@@ -1409,5 +1436,89 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
       _isSettingsOpen = false;
     });
     _removeSettingsOverlay();
+  }
+
+  // Helper method to determine how to load the image based on the path
+  Widget _buildAvatarImage(String imagePath,
+      {double? width, double? height, BoxFit fit = BoxFit.cover}) {
+    // Handle network URLs
+    if (imagePath.startsWith('http') ||
+        imagePath.startsWith('https') ||
+        imagePath.contains('avatars.charhub.io')) {
+      return CachedNetworkImage(
+        imageUrl: imagePath,
+        width: width,
+        height: height,
+        fit: fit,
+        placeholder: (context, url) => Container(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: const Center(
+            child: CircularProgressIndicator(),
+          ),
+        ),
+        errorWidget: (context, url, error) {
+          debugPrint('Error loading avatar image: $url - $error');
+          return Image.asset(
+            'assets/images/ai_characters/amelia.png',
+            width: width,
+            height: height,
+            fit: fit,
+          );
+        },
+        httpHeaders: const {
+          'Accept': 'image/png,image/jpeg,image/webp,image/*,*/*;q=0.8',
+          'User-Agent': 'ReadLeaf/1.0',
+        },
+      );
+    }
+
+    // Handle asset images
+    else if (imagePath.startsWith('assets/')) {
+      return Image.asset(
+        imagePath,
+        width: width,
+        height: height,
+        fit: fit,
+        errorBuilder: (context, error, stackTrace) {
+          debugPrint('Error loading asset avatar image: $error');
+          return Image.asset(
+            'assets/images/ai_characters/amelia.png',
+            width: width,
+            height: height,
+            fit: fit,
+          );
+        },
+      );
+    }
+
+    // Handle local file paths
+    else {
+      try {
+        return Image.file(
+          File(imagePath),
+          width: width,
+          height: height,
+          fit: fit,
+          errorBuilder: (context, error, stackTrace) {
+            debugPrint('Error loading file avatar image: $error');
+            return Image.asset(
+              'assets/images/ai_characters/amelia.png',
+              width: width,
+              height: height,
+              fit: fit,
+            );
+          },
+        );
+      } catch (e) {
+        debugPrint('Error creating file image: $e');
+        // Fallback to a default avatar
+        return Image.asset(
+          'assets/images/ai_characters/amelia.png',
+          width: width,
+          height: height,
+          fit: fit,
+        );
+      }
+    }
   }
 }

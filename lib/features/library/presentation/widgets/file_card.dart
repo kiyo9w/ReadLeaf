@@ -90,11 +90,6 @@ class _FileCardState extends State<FileCard> {
     return 0.0;
   }
 
-  String _getProgressText() {
-    final progress = _getReadingProgress();
-    return '${(progress * 100).toInt()}%';
-  }
-
   Widget _buildThumbnail() {
     return FutureBuilder<ImageProvider>(
       future: _thumbnailFuture,
@@ -273,17 +268,6 @@ class _FileCardState extends State<FileCard> {
           ],
         ),
       ],
-    );
-  }
-
-  Widget _buildDot(Color color) {
-    return Container(
-      width: 3,
-      height: 3,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-      ),
     );
   }
 

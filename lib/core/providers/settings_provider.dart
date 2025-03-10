@@ -13,7 +13,7 @@ class SettingsProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
 
     // Load reader loading screen preference (default to true if not set)
-    _showLoadingScreen = prefs.getBool('show_loading_screen') ?? true;
+    _showLoadingScreen = prefs.getBool('show_loading_screen') ?? false;
 
     // Load reading reminders preference (default to true if not set)
     _remindersEnabled = prefs.getBool('reminders_enabled') ?? true;

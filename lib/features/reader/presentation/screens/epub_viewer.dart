@@ -55,13 +55,11 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   String? _selectedText;
   bool _isLoading = true;
   bool _showChapters = false;
-  ImageProvider? _coverImage;
   BookMetadata? _metadata;
   bool _isDisposed = false;
   EpubLayoutMode _layoutMode = EpubLayoutMode.longStrip;
   final bool _isRightToLeftReadingOrder = false;
   Timer? _sliderDwellTimer;
-  num? _lastSliderValue;
   bool _isSliderInteracting = false;
   final Map<int, List<EpubPageContent>> _chapterPagesCache = {};
   int _totalPages = 0;

@@ -55,7 +55,6 @@ class GeminiService {
 
   // Cache for conversation contexts to reduce database reads
   final Map<String, _CachedContext> _contextCache = {};
-  static const _cacheDuration = Duration(minutes: 5);
 
   static const _encouragementPromptKey = 'custom_encouragement_prompt';
   String? _customEncouragementPrompt;

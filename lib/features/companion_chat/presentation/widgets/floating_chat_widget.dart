@@ -4,6 +4,7 @@ import 'package:read_leaf/features/companion_chat/presentation/screens/chat_scre
 import 'package:read_leaf/features/characters/domain/models/ai_character.dart';
 import 'package:read_leaf/core/constants/responsive_constants.dart';
 import 'dart:ui';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class FloatingChatWidget extends StatefulWidget {
   final AiCharacter character;
@@ -47,9 +48,6 @@ class FloatingChatWidgetState extends State<FloatingChatWidget>
   double _chatWidth = 320;
   double _chatHeight = 480;
   bool _isResizing = false;
-
-  // Animation controller for the chat head
-  late AnimatedContainer _animatedChatHead;
 
   // Animation controller for opening/closing effects
   late AnimationController _animationController;
@@ -529,18 +527,72 @@ class FloatingChatWidgetState extends State<FloatingChatWidget>
               child: ClipOval(
                 child: Padding(
                   padding: EdgeInsets.all(_showChat ? 2 : 0),
-                  child: Image.asset(
-                    widget.character.avatarImagePath,
-                    width: _chatHeadSize,
-                    height: _chatHeadSize,
-                    fit: BoxFit.cover,
-                  ),
+                  child: _buildAvatar(),
                 ),
               ),
             ),
           ),
         ),
       ],
+    );
+  }
+
+  // Build avatar image with proper caching
+  Widget _buildAvatar() {
+    final imagePath = widget.character.avatarImagePath;
+
+    // Handle network images
+    if (imagePath.startsWith('http') ||
+        imagePath.startsWith('https') ||
+        imagePath.contains('avatars.charhub.io')) {
+      return CachedNetworkImage(
+        imageUrl: imagePath,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => Container(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: const Center(
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+        errorWidget: (context, url, error) {
+          debugPrint('Error loading avatar in chat head: $url - $error');
+          return Container(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: Icon(
+              Icons.person,
+              size: 30,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          );
+        },
+        fadeInDuration: const Duration(
+            milliseconds: 0), // No fade animation to prevent flicker
+        memCacheHeight: 150, // Sufficient for chat avatar
+        memCacheWidth: 150,
+        cacheKey:
+            'chat_avatar_${widget.character.name}', // Use stable cache key
+        useOldImageOnUrlChange:
+            true, // Keep showing old image while new one loads
+      );
+    }
+
+    // Handle asset images
+    return Image.asset(
+      imagePath,
+      fit: BoxFit.cover,
+      cacheHeight: 150,
+      cacheWidth: 150,
+      errorBuilder: (context, error, stackTrace) {
+        debugPrint('Error loading avatar asset: $error');
+        return Container(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: Icon(
+            Icons.person,
+            size: 30,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        );
+      },
     );
   }
 }

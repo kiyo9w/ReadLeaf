@@ -174,16 +174,6 @@ class _CreateCharacterScreenState extends State<CreateCharacterScreen> {
     });
   }
 
-  void _onTagDeleted(String tag) {
-    setState(() {
-      _selectedTraits.remove(tag);
-      _currentSuggestions = CharacterSuggestionService.getFilteredSuggestions(
-        'tags',
-        _selectedTraits,
-      );
-    });
-  }
-
   void _updateTaglineSuggestions() {
     if (_selectedTraits.isEmpty) return;
     final suggestions =
@@ -219,27 +209,6 @@ class _CreateCharacterScreenState extends State<CreateCharacterScreen> {
           _scenarioFocusNode.hasFocus && suggestions.isNotEmpty;
       _currentSuggestions = suggestions;
     });
-  }
-
-  void _updateSuggestionsBasedOnContext() {
-    if (_selectedContext != null) {
-      final contextualGreetings =
-          CharacterSuggestionService.getContextualGreetings(
-        _selectedTraits,
-        _selectedContext!,
-      );
-      if (contextualGreetings.isNotEmpty) {
-        _greetingController.text = contextualGreetings.values.first;
-      }
-      final contextualScenarios =
-          CharacterSuggestionService.getContextualScenarios(
-        _selectedTraits,
-        _selectedContext!,
-      );
-      if (contextualScenarios.isNotEmpty) {
-        _scenarioController.text = contextualScenarios.values.first;
-      }
-    }
   }
 
   void _onDescriptionChanged() {

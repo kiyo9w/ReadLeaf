@@ -10,6 +10,10 @@ import 'package:file_picker/file_picker.dart';
 import 'package:read_leaf/nav_screen.dart';
 import 'package:read_leaf/features/library/presentation/widgets/refresh_animation.dart';
 import 'package:flutter/rendering.dart';
+import 'package:read_leaf/features/characters/presentation/widgets/character_info_popup.dart';
+import 'package:read_leaf/core/constants/responsive_constants.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:io';
 
 class CharacterScreen extends StatefulWidget {
   final VoidCallback? onCharacterChanged;
@@ -801,6 +805,7 @@ class _CharacterScreenState extends State<CharacterScreen>
   }) {
     return GestureDetector(
       onTap: () => _selectCharacter(character),
+      onLongPress: () => _showCharacterInfoPopup(context, character),
       child: Container(
         width: 110,
         margin: const EdgeInsets.only(right: 8),
@@ -817,11 +822,12 @@ class _CharacterScreenState extends State<CharacterScreen>
             ClipRRect(
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(12)),
-              child: Image.asset(
+              child: _buildAvatarImage(
                 character.avatarImagePath,
                 height: 85,
                 width: double.infinity,
-                fit: BoxFit.cover,
+                memCacheHeight: 200,
+                memCacheWidth: 200,
               ),
             ),
             Padding(
@@ -840,7 +846,7 @@ class _CharacterScreenState extends State<CharacterScreen>
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    character.summary,
+                    character.summary.replaceAll('\n', ' '),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
                       fontSize: 11,
@@ -864,6 +870,7 @@ class _CharacterScreenState extends State<CharacterScreen>
   }) {
     return GestureDetector(
       onTap: () => _selectCharacter(character),
+      onLongPress: () => _showCharacterInfoPopup(context, character),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
@@ -872,28 +879,58 @@ class _CharacterScreenState extends State<CharacterScreen>
           border: isSelected
               ? Border.all(color: theme.primaryColor, width: 2)
               : null,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
-        child: ListTile(
-          contentPadding: const EdgeInsets.all(8),
-          leading: CircleAvatar(
-            radius: 24,
-            backgroundImage: AssetImage(character.avatarImagePath),
-          ),
-          title: Text(
-            character.name,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: ListTile(
+            contentPadding: const EdgeInsets.all(8),
+            leading: SizedBox(
+              width: 56,
+              height: 56,
+              child: CircleAvatar(
+                radius: 28,
+                backgroundColor: Colors.transparent,
+                child: ClipOval(
+                  child: _buildAvatarImage(
+                    character.avatarImagePath,
+                    fit: BoxFit.cover,
+                    memCacheWidth: 112,
+                    memCacheHeight: 112,
+                  ),
+                ),
+              ),
             ),
-          ),
-          subtitle: Text(
-            character.summary,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+            title: Text(
+              character.name,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
+            subtitle: Container(
+              margin: const EdgeInsets.only(top: 4),
+              child: Text(
+                character.summary.replaceAll('\n', ' '),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                  height: 1.3,
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            trailing: isSelected
+                ? Icon(Icons.check_circle, color: theme.primaryColor)
+                : const Icon(Icons.chevron_right),
           ),
-          trailing: isSelected
-              ? Icon(Icons.check_circle, color: theme.primaryColor)
-              : const Icon(Icons.chevron_right),
         ),
       ),
     );
@@ -906,6 +943,7 @@ class _CharacterScreenState extends State<CharacterScreen>
   }) {
     return GestureDetector(
       onTap: () => _selectCharacter(character),
+      onLongPress: () => _showCharacterInfoPopup(context, character),
       child: Container(
         decoration: BoxDecoration(
           color: theme.cardColor,
@@ -913,6 +951,13 @@ class _CharacterScreenState extends State<CharacterScreen>
           border: isSelected
               ? Border.all(color: theme.primaryColor, width: 2)
               : null,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -921,10 +966,12 @@ class _CharacterScreenState extends State<CharacterScreen>
               child: ClipRRect(
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(12)),
-                child: Image.asset(
+                child: _buildAvatarImage(
                   character.avatarImagePath,
                   width: double.infinity,
                   fit: BoxFit.cover,
+                  memCacheWidth: 300,
+                  memCacheHeight: 300,
                 ),
               ),
             ),
@@ -943,11 +990,12 @@ class _CharacterScreenState extends State<CharacterScreen>
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    character.summary,
+                    character.summary.replaceAll('\n', ' '),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                      height: 1.2,
                     ),
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
@@ -955,6 +1003,153 @@ class _CharacterScreenState extends State<CharacterScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // Helper method to extract trait from character tags
+  String _getCharacterTrait(AiCharacter character) {
+    // If character has a single tag, use it as trait
+    if (character.tags.isNotEmpty) {
+      return character.tags.first;
+    }
+
+    // Otherwise use the first sentence/part of the summary
+    final summary = character.summary;
+    if (summary.contains('.')) {
+      return summary.split('.').first.trim();
+    }
+
+    if (summary.contains('\n')) {
+      return summary.split('\n').first.trim();
+    }
+
+    // Fallback to a portion of the summary
+    if (summary.length > 30) {
+      return '${summary.substring(0, 30).trim()}...';
+    }
+
+    return summary.isEmpty ? 'Character' : summary;
+  }
+
+  // Helper method to determine how to load the image based on the path
+  Widget _buildAvatarImage(
+    String imagePath, {
+    double? width,
+    double? height,
+    BoxFit fit = BoxFit.cover,
+    bool useCircleAvatar = false,
+    int? memCacheWidth,
+    int? memCacheHeight,
+  }) {
+    // Handle network URLs
+    if (imagePath.startsWith('http') ||
+        imagePath.startsWith('https') ||
+        imagePath.contains('avatars.charhub.io')) {
+      return CachedNetworkImage(
+        imageUrl: imagePath,
+        width: width,
+        height: height,
+        fit: fit,
+        placeholder: (context, url) => Container(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: const Center(
+            child: CircularProgressIndicator(),
+          ),
+        ),
+        errorWidget: (context, url, error) {
+          debugPrint('Error loading avatar image: $url - $error');
+          return Container(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: Center(
+              child: Icon(
+                Icons.person,
+                size: 24,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+          );
+        },
+        memCacheHeight: memCacheHeight ?? (height?.toInt() ?? 200),
+        memCacheWidth: memCacheWidth ?? (width?.toInt() ?? 200),
+        fadeInDuration: const Duration(milliseconds: 200),
+        httpHeaders: const {
+          'Accept': 'image/png,image/jpeg,image/webp,image/*,*/*;q=0.8',
+          'User-Agent': 'ReadLeaf/1.0',
+          'Cache-Control': 'max-age=31536000',
+        },
+      );
+    }
+
+    // Handle asset images
+    else if (imagePath.startsWith('assets/')) {
+      return Image.asset(
+        imagePath,
+        width: width,
+        height: height,
+        fit: fit,
+        errorBuilder: (context, error, stackTrace) {
+          debugPrint('Error loading asset avatar image: $error');
+          return Container(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: Center(
+              child: Icon(
+                Icons.person,
+                size: 24,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    // Handle local file paths
+    else {
+      try {
+        return Image.file(
+          File(imagePath),
+          width: width,
+          height: height,
+          fit: fit,
+          errorBuilder: (context, error, stackTrace) {
+            debugPrint('Error loading file avatar image: $error');
+            return Container(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: Center(
+                child: Icon(
+                  Icons.person,
+                  size: 24,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+            );
+          },
+        );
+      } catch (e) {
+        debugPrint('Error creating file image: $e');
+        // Fallback to a default avatar
+        return Image.asset(
+          'assets/images/ai_characters/default_avatar.png',
+          width: width,
+          height: height,
+          fit: fit,
+        );
+      }
+    }
+  }
+
+  void _showCharacterInfoPopup(BuildContext context, AiCharacter character) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (context) => CharacterInfoPopup(
+        character: character,
+        onClose: () => Navigator.of(context).pop(),
+        onSelect: () {
+          Navigator.of(context).pop();
+          _selectCharacter(character);
+        },
       ),
     );
   }

@@ -49,6 +49,52 @@ class _ImportCharacterScreenState extends State<ImportCharacterScreen> {
     _loadCharacterData();
   }
 
+  // Helper method to get proper avatar URL
+  String _getFormattedAvatarUrl(String url) {
+    // Handle empty or null URLs
+    if (url.isEmpty) {
+      return url;
+    }
+
+    debugPrint('Processing avatar URL: $url');
+
+    // Ensure URLs are properly encoded, especially for charhub.io
+    if (url.contains('avatars.charhub.io')) {
+      try {
+        // Extract path components and properly encode them
+        final uri = Uri.parse(url);
+        final pathSegments = uri.pathSegments;
+
+        if (pathSegments.length >= 3) {
+          final creator = Uri.encodeComponent(pathSegments[1]);
+          final character = Uri.encodeComponent(pathSegments[2]);
+          final filename = pathSegments.length > 3
+              ? Uri.encodeComponent(pathSegments[3])
+              : 'chara_card_v2.png';
+
+          final formattedUrl =
+              'https://avatars.charhub.io/avatars/$creator/$character/$filename';
+          debugPrint('Formatted charhub URL: $formattedUrl');
+          return formattedUrl;
+        }
+      } catch (e) {
+        debugPrint('Error formatting avatar URL: $e');
+      }
+    }
+
+    // Handle URLs that might be missing the scheme
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      if (url.startsWith('//')) {
+        return 'https:$url';
+      } else if (!url.startsWith('/')) {
+        return 'https://$url';
+      }
+    }
+
+    debugPrint('Final avatar URL: $url');
+    return url;
+  }
+
   Future<void> _loadCharacterData() async {
     try {
       final characterTemplateService = getIt<CharacterTemplateService>();
@@ -101,15 +147,44 @@ class _ImportCharacterScreenState extends State<ImportCharacterScreen> {
           updatedAt: now,
         );
 
-        final aiCharacterService = getIt<AiCharacterService>();
-        await aiCharacterService.addCustomCharacter(
-          updatedCharacter,
-          isPublic: _isPublic,
-          category: _selectedCategory,
-        );
+        try {
+          final aiCharacterService = getIt<AiCharacterService>();
+          await aiCharacterService.addCustomCharacter(
+            updatedCharacter,
+            isPublic: _isPublic,
+            category: _selectedCategory,
+          );
 
-        if (mounted) {
-          Navigator.pop(context, true);
+          if (mounted) {
+            Navigator.pop(context, true);
+          }
+        } catch (e) {
+          // Check if this is a duplicate character error
+          if (e.toString().contains('23505') ||
+              e.toString().contains('duplicate') ||
+              e.toString().contains('unique constraint')) {
+            // Handle duplicate character gracefully
+            final aiCharacterService = getIt<AiCharacterService>();
+
+            // We'll use the public methods instead of accessing private fields
+            // First, set the character as selected if needed
+            if (aiCharacterService.getSelectedCharacter() == null) {
+              await aiCharacterService.setSelectedCharacter(updatedCharacter);
+            }
+
+            if (mounted) {
+              // Show success message and pop
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Character imported successfully'),
+                ),
+              );
+              Navigator.pop(context, true);
+            }
+          } else {
+            // For other errors, show the error message
+            Utils.showErrorSnackBar(context, 'Error importing character: $e');
+          }
         }
       } catch (e) {
         Utils.showErrorSnackBar(context, 'Error importing character: $e');
@@ -186,37 +261,7 @@ class _ImportCharacterScreenState extends State<ImportCharacterScreen> {
                       ],
                     ),
                     child: ClipOval(
-                      child: _importedCharacter!.avatarImagePath
-                              .startsWith('http')
-                          ? CachedNetworkImage(
-                              imageUrl: _importedCharacter!.avatarImagePath,
-                              placeholder: (context, url) => Container(
-                                color:
-                                    theme.colorScheme.surfaceContainerHighest,
-                                child: const Center(
-                                  child: CircularProgressIndicator(),
-                                ),
-                              ),
-                              errorWidget: (context, url, error) => Container(
-                                color:
-                                    theme.colorScheme.surfaceContainerHighest,
-                                child: Icon(
-                                  Icons.error_outline,
-                                  color: theme.colorScheme.error,
-                                ),
-                              ),
-                              fit: BoxFit.cover,
-                            )
-                          : _importedCharacter!.avatarImagePath
-                                  .startsWith('assets/')
-                              ? Image.asset(
-                                  _importedCharacter!.avatarImagePath,
-                                  fit: BoxFit.cover,
-                                )
-                              : Image.file(
-                                  File(_importedCharacter!.avatarImagePath),
-                                  fit: BoxFit.cover,
-                                ),
+                      child: _buildAvatarImage(theme),
                     ),
                   ),
                 ),
@@ -354,6 +399,120 @@ class _ImportCharacterScreenState extends State<ImportCharacterScreen> {
     _greetingController.dispose();
     _scenarioController.dispose();
     super.dispose();
+  }
+
+  Widget _buildAvatarImage(ThemeData theme) {
+    if (_importedCharacter?.avatarImagePath == null ||
+        _importedCharacter!.avatarImagePath.isEmpty) {
+      debugPrint('No avatar path available, showing default');
+      return _buildDefaultAvatar(theme);
+    }
+
+    final avatarPath = _importedCharacter!.avatarImagePath;
+    debugPrint('Building avatar image from path: $avatarPath');
+
+    // Check if it's a network URL (including protocol-relative URLs)
+    if (avatarPath.startsWith('http') ||
+        avatarPath.startsWith('//') ||
+        avatarPath.contains('://') ||
+        avatarPath.contains('avatars.charhub.io')) {
+      final formattedUrl = _getFormattedAvatarUrl(avatarPath);
+      debugPrint('Loading network image from: $formattedUrl');
+
+      return CachedNetworkImage(
+        imageUrl: formattedUrl,
+        placeholder: (context, url) {
+          debugPrint('Showing placeholder for: $url');
+          return Container(
+            color: theme.colorScheme.surfaceContainerHighest,
+            child: const Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        },
+        errorWidget: (context, url, error) {
+          debugPrint('Error loading image: $url - $error');
+          // Try reloading the image after a short delay
+          Future.delayed(const Duration(seconds: 1), () {
+            if (mounted) {
+              setState(() {
+                // This will trigger a rebuild and attempt to load the image again
+              });
+            }
+          });
+          return Container(
+            color: theme.colorScheme.surfaceContainerHighest,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    color: theme.colorScheme.error,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Image Error',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+        fit: BoxFit.cover,
+        fadeInDuration: const Duration(milliseconds: 300),
+        memCacheHeight: 200,
+        httpHeaders: const {
+          'Accept': 'image/png,image/jpeg,image/webp,image/*,*/*;q=0.8',
+          'User-Agent': 'ReadLeaf/1.0',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+        },
+        maxHeightDiskCache: 400,
+        cacheKey: formattedUrl,
+        useOldImageOnUrlChange: false,
+      );
+    } else if (avatarPath.startsWith('assets/')) {
+      debugPrint('Loading asset image: $avatarPath');
+      return Image.asset(
+        avatarPath,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          debugPrint('Error loading asset image: $error');
+          return _buildDefaultAvatar(theme);
+        },
+      );
+    } else {
+      debugPrint('Loading file image: $avatarPath');
+      try {
+        return Image.file(
+          File(avatarPath),
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            debugPrint('Error loading file image: $error');
+            return _buildDefaultAvatar(theme);
+          },
+        );
+      } catch (e) {
+        debugPrint('Error creating file image: $e');
+        return _buildDefaultAvatar(theme);
+      }
+    }
+  }
+
+  Widget _buildDefaultAvatar(ThemeData theme) {
+    return Container(
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Icon(
+        Icons.person,
+        size: 50,
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+    );
   }
 }
 

@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:read_leaf/features/companion_chat/data/gemini_service.dart';
 import 'package:get_it/get_it.dart';

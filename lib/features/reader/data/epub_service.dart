@@ -335,14 +335,6 @@ class ContentBlock {
   ContentBlock({required this.text, required this.tag, this.isHtml = false});
 }
 
-/// Helper class to store the result of paragraph splitting
-class _ParagraphSplitResult {
-  final String firstPart;
-  final String secondPart;
-
-  _ParagraphSplitResult(this.firstPart, this.secondPart);
-}
-
 /// A class to calculate and paginate EPUB content
 class EpubPageCalculator {
   static const double DEFAULT_FONT_SIZE = 23.0;

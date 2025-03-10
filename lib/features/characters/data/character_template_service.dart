@@ -178,10 +178,10 @@ class CharacterTemplateService {
         // Copy avatar image to local storage if it's not already there
         if (!character.avatarImagePath.startsWith('assets/')) {
           if (character.avatarImagePath.startsWith('http')) {
-            // For now, use default avatar for http URLs
-            return character.copyWith(
-                avatarImagePath:
-                    'assets/images/ai_characters/default_avatar.png');
+            // Keep network URLs as is
+            _log.info(
+                'Using network URL for avatar: ${character.avatarImagePath}');
+            return character;
           }
 
           final avatarFile = File(character.avatarImagePath);
@@ -312,29 +312,90 @@ class CharacterTemplateService {
         throw Exception('User not authenticated');
       }
 
-      await _supabase.from('character_templates').upsert({
-        'user_id': userId,
-        'name': character.name,
-        'summary': character.summary,
-        'personality': character.personality,
-        'scenario': character.scenario,
-        'greeting_message': character.greetingMessage,
-        'example_messages': character.exampleMessages,
-        'avatar_image_path': character.avatarImagePath,
-        'character_version': character.characterVersion,
-        'system_prompt': character.systemPrompt,
-        'tags': character.tags,
-        'creator': character.creator,
-        'is_public': isPublic,
-        'updated_at': DateTime.now().toIso8601String(),
-      });
+      // Log the operation
+      _log.info(
+          'Saving character template: ${character.name}, isPublic: $isPublic, category: $category');
 
-      // If the character is public, also save it to the public characters table
-      if (isPublic) {
-        await _publicCharacterRepository.publishCharacter(
-          character,
-          category: category,
-        );
+      // Make sure the characters table exists and can be accessed
+      try {
+        await _supabase.from('characters').select().limit(1);
+        _log.info('Successfully connected to characters table');
+      } catch (e) {
+        _log.severe('Error accessing characters table: $e');
+        throw Exception('Could not access characters table: $e');
+      }
+
+      // Create task prompts to JSONB
+      final taskPrompts = {
+        'greeting': character.greetingMessage,
+        'summary': character.summary,
+        'scenario': character.scenario,
+      };
+
+      try {
+        // Save to unified characters table
+        await _supabase.from('characters').upsert({
+          'user_id': userId,
+          'name': character.name,
+          'summary': character.summary,
+          'personality': character.personality,
+          'scenario': character.scenario,
+          'greeting_message': character.greetingMessage,
+          'example_messages': character.exampleMessages,
+          'avatar_image_path': character.avatarImagePath,
+          'character_version': character.characterVersion,
+          'system_prompt': character.systemPrompt,
+          'tags': character.tags,
+          'creator': character.creator,
+          'is_public': isPublic,
+          'is_template': true, // Mark as a template
+          'category': category,
+          'task_prompts': taskPrompts,
+          'created_at': character.createdAt.toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        });
+
+        _log.info('Successfully saved character to unified characters table');
+      } catch (e) {
+        // Check if this is a unique constraint violation
+        if (e is PostgrestException && e.code == '23505') {
+          _log.info(
+              'Character ${character.name} already exists for this user. Fetching from server.');
+
+          // Instead of throwing an error, fetch the existing character
+          final existingCharacter = await _supabase
+              .from('characters')
+              .select()
+              .eq('user_id', userId)
+              .eq('name', character.name)
+              .single();
+
+          _log.info(
+              'Successfully fetched existing character: ${existingCharacter['name']}');
+
+          // If the character's publicity settings differ from what the user wanted,
+          // update the server's record to match the user's desired settings
+          if (existingCharacter['is_public'] != isPublic ||
+              existingCharacter['category'] != category) {
+            _log.info('Updating existing character publicity settings');
+
+            await _supabase
+                .from('characters')
+                .update({
+                  'is_public': isPublic,
+                  'category': category,
+                  'updated_at': DateTime.now().toIso8601String(),
+                })
+                .eq('user_id', userId)
+                .eq('name', character.name);
+
+            _log.info('Successfully updated character publicity settings');
+          }
+        } else {
+          // For other errors, rethrow
+          _log.severe('Error saving character to unified characters table: $e');
+          rethrow;
+        }
       }
     } catch (e, stack) {
       _log.severe('Error saving template', e, stack);
@@ -350,14 +411,17 @@ class CharacterTemplateService {
         throw Exception('User not authenticated');
       }
 
+      // Query the unified characters table for the user's templates
       final response = await _supabase
-          .from('character_templates')
+          .from('characters')
           .select()
-          .eq('user_id', userId);
+          .eq('user_id', userId)
+          .eq('is_template', true);
 
-      return (response as List)
-          .map((json) => AiCharacter.fromJson(json))
-          .toList();
+      return (response as List).map((json) {
+        // Process any fields that might need conversion
+        return _convertToAiCharacter(json);
+      }).toList();
     } catch (e, stack) {
       _log.severe('Error getting user templates', e, stack);
       rethrow;
@@ -367,14 +431,16 @@ class CharacterTemplateService {
   // Get public templates
   Future<List<AiCharacter>> getPublicTemplates() async {
     try {
+      // Query the unified characters table for public templates
       final response = await _supabase
-          .from('character_templates')
+          .from('characters')
           .select()
-          .eq('is_public', true);
+          .eq('is_public', true)
+          .eq('is_template', true);
 
-      return (response as List)
-          .map((json) => AiCharacter.fromJson(json))
-          .toList();
+      return (response as List).map((json) {
+        return _convertToAiCharacter(json);
+      }).toList();
     } catch (e, stack) {
       _log.severe('Error getting public templates', e, stack);
       rethrow;
@@ -389,36 +455,15 @@ class CharacterTemplateService {
         throw Exception('User not authenticated');
       }
 
-      // Get the character to check if it's public
-      final character = await _supabase
-          .from('character_templates')
-          .select()
-          .eq('user_id', userId)
-          .eq('name', name)
-          .single();
-
-      // Delete from character_templates
+      // Delete from unified characters table
       await _supabase
-          .from('character_templates')
+          .from('characters')
           .delete()
           .eq('user_id', userId)
-          .eq('name', name);
+          .eq('name', name)
+          .eq('is_template', true);
 
-      // If the character was public, also delete it from public_characters
-      if (character['is_public'] == true) {
-        // Find the public character by name and user_id
-        final publicCharacters = await _supabase
-            .from('public_characters')
-            .select('id')
-            .eq('user_id', userId)
-            .eq('name', name);
-
-        if (publicCharacters.isNotEmpty) {
-          final publicCharacterId = publicCharacters[0]['id'];
-          await _publicCharacterRepository
-              .deletePublicCharacter(publicCharacterId);
-        }
-      }
+      _log.info('Successfully deleted template: $name');
     } catch (e, stack) {
       _log.severe('Error deleting template', e, stack);
       rethrow;
@@ -434,46 +479,72 @@ class CharacterTemplateService {
         throw Exception('User not authenticated');
       }
 
-      // Update in character_templates
+      // Update publicity in the unified characters table
       await _supabase
-          .from('character_templates')
-          .update({'is_public': isPublic})
-          .eq('user_id', userId)
-          .eq('name', name);
-
-      // Get the full character data
-      final characterData = await _supabase
-          .from('character_templates')
-          .select()
+          .from('characters')
+          .update({
+            'is_public': isPublic,
+            'category': category,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
           .eq('user_id', userId)
           .eq('name', name)
-          .single();
+          .eq('is_template', true);
 
-      final character = AiCharacter.fromJson(characterData);
-
-      // If making public, add to public_characters
-      if (isPublic) {
-        await _publicCharacterRepository.publishCharacter(
-          character,
-          category: category,
-        );
-      } else {
-        // If making private, remove from public_characters
-        final publicCharacters = await _supabase
-            .from('public_characters')
-            .select('id')
-            .eq('user_id', userId)
-            .eq('name', name);
-
-        if (publicCharacters.isNotEmpty) {
-          final publicCharacterId = publicCharacters[0]['id'];
-          await _publicCharacterRepository
-              .deletePublicCharacter(publicCharacterId);
-        }
-      }
+      _log.info(
+          'Successfully updated template publicity: $name, isPublic: $isPublic');
     } catch (e, stack) {
       _log.severe('Error updating template publicity', e, stack);
       rethrow;
+    }
+  }
+
+  // Helper method to convert database record to AiCharacter
+  AiCharacter _convertToAiCharacter(Map<String, dynamic> json) {
+    try {
+      // Handle example_messages conversion
+      List<String> exampleMessages = [];
+      if (json['example_messages'] != null) {
+        if (json['example_messages'] is List) {
+          exampleMessages = (json['example_messages'] as List)
+              .map((e) => e.toString())
+              .toList();
+        }
+      }
+
+      // Handle tags conversion
+      List<String> tags = [];
+      if (json['tags'] != null) {
+        if (json['tags'] is List) {
+          tags = (json['tags'] as List).map((e) => e.toString()).toList();
+        }
+      }
+
+      // Add category to tags if not already present
+      if (json['category'] != null &&
+          !tags.contains(json['category']) &&
+          json['category'] != 'Custom') {
+        tags.add(json['category']);
+      }
+
+      return AiCharacter(
+        name: json['name'],
+        summary: json['summary'],
+        personality: json['personality'],
+        scenario: json['scenario'],
+        greetingMessage: json['greeting_message'],
+        exampleMessages: exampleMessages,
+        avatarImagePath: json['avatar_image_path'],
+        characterVersion: json['character_version'],
+        systemPrompt: json['system_prompt'],
+        tags: tags,
+        creator: json['creator'],
+        createdAt: DateTime.parse(json['created_at']),
+        updatedAt: DateTime.parse(json['updated_at']),
+      );
+    } catch (e, stack) {
+      _log.severe('Error converting to AiCharacter: $e', e, stack);
+      throw Exception('Failed to convert database record to AiCharacter: $e');
     }
   }
 }

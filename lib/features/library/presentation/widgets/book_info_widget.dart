@@ -34,7 +34,6 @@ class BookInfoWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    bool hasRatings = ratings != null;
 
     return Container(
       padding: const EdgeInsets.all(20.0),
