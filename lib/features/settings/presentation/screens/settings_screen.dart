@@ -176,10 +176,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: Theme.of(context)
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Theme.of(context)
                               .colorScheme
                               .primaryContainer
-                              .withOpacity(0.7),
+                              .withOpacity(0.8)
+                              : Theme.of(context)
+                              .colorScheme
+                              .primaryContainer
+                              .withOpacity(0.2),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(

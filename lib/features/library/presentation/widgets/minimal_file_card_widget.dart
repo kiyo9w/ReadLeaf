@@ -51,7 +51,7 @@ class _MinimalFileCardState extends State<MinimalFileCard> {
   void _initThumbnailFuture() {
     _thumbnailFuture = widget.isInternetBook && widget.thumbnailUrl != null
         ? ThumbnailService().getNetworkThumbnail(widget.thumbnailUrl!)
-        : ThumbnailService().getPdfThumbnail(widget.filePath);
+        : ThumbnailService().getFileThumbnail(widget.filePath);
   }
 
   double _getReadingProgress() {

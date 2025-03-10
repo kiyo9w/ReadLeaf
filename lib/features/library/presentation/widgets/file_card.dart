@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:path/path.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -78,7 +77,7 @@ class _FileCardState extends State<FileCard> {
   void _initThumbnailFuture() {
     _thumbnailFuture = widget.isInternetBook && widget.thumbnailUrl != null
         ? ThumbnailService().getNetworkThumbnail(widget.thumbnailUrl!)
-        : ThumbnailService().getPdfThumbnail(widget.filePath);
+        : ThumbnailService().getFileThumbnail(widget.filePath);
   }
 
   double _getReadingProgress() {

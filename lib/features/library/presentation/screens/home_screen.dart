@@ -19,6 +19,7 @@ import 'package:read_leaf/core/utils/utils.dart';
 import 'package:read_leaf/features/library/presentation/widgets/refresh_animation.dart';
 import 'package:read_leaf/features/characters/presentation/widgets/minimized_character_slider.dart';
 import 'package:read_leaf/features/settings/presentation/blocs/settings_bloc.dart';
+import 'package:get_it/get_it.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -41,8 +42,8 @@ class HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _geminiService = getIt<GeminiService>();
-    _annasArchieve = getIt<AnnasArchieve>();
+    _geminiService = GetIt.I<GeminiService>();
+    _annasArchieve = GetIt.I<AnnasArchieve>();
     _initializeScreen();
   }
 
@@ -122,7 +123,7 @@ class HomeScreenState extends State<HomeScreen> {
         bookTitle = FileCard.extractFileName(lastReadBook.filePath);
 
         // Get actual page numbers from book metadata
-        final bookMetadataRepo = getIt<BookMetadataRepository>();
+        final bookMetadataRepo = GetIt.I<BookMetadataRepository>();
         final metadata = bookMetadataRepo.getMetadata(lastReadBook.filePath);
         if (metadata != null) {
           currentPage = metadata.lastOpenedPage;
@@ -440,23 +441,52 @@ class HomeScreenState extends State<HomeScreen> {
                       if (state is FileLoaded)
                         SizedBox(
                           height: 220,
-                          child: ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            scrollDirection: Axis.horizontal,
-                            itemCount: state.files.length,
-                            itemBuilder: (context, index) {
-                              final file = state.files[index];
-                              return MinimalFileCard(
-                                filePath: file.filePath,
-                                title: FileCard.extractFileName(file.filePath),
-                                onTap: () {
-                                  context
-                                      .read<FileBloc>()
-                                      .add(ViewFile(file.filePath));
-                                },
-                              );
-                            },
-                          ),
+                          child: Builder(builder: (context) {
+                            // Get the book metadata repository
+                            final bookMetadataRepo =
+                                GetIt.I<BookMetadataRepository>();
+
+                            // Create a copy of the files list that we can sort
+                            final sortedFiles =
+                                List<FileInfo>.from(state.files);
+
+                            // Sort the files by last read time (most recent first)
+                            sortedFiles.sort((a, b) {
+                              final metadataA =
+                                  bookMetadataRepo.getMetadata(a.filePath);
+                              final metadataB =
+                                  bookMetadataRepo.getMetadata(b.filePath);
+
+                              // If no metadata exists, consider it as oldest (DateTime.fromMillisecondsSinceEpoch(0))
+                              final timeA = metadataA?.lastReadTime ??
+                                  DateTime.fromMillisecondsSinceEpoch(0);
+                              final timeB = metadataB?.lastReadTime ??
+                                  DateTime.fromMillisecondsSinceEpoch(0);
+
+                              // Sort descending (newest first)
+                              return timeB.compareTo(timeA);
+                            });
+
+                            return ListView.builder(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              scrollDirection: Axis.horizontal,
+                              itemCount: sortedFiles.length,
+                              itemBuilder: (context, index) {
+                                final file = sortedFiles[index];
+                                return MinimalFileCard(
+                                  filePath: file.filePath,
+                                  title:
+                                      FileCard.extractFileName(file.filePath),
+                                  onTap: () {
+                                    context
+                                        .read<FileBloc>()
+                                        .add(ViewFile(file.filePath));
+                                  },
+                                );
+                              },
+                            );
+                          }),
                         ),
                     ],
                   ),
@@ -487,7 +517,7 @@ class HomeScreenState extends State<HomeScreen> {
                               FileUtils.handleBookClick(
                                 url: _bookOfTheDay!.link,
                                 context: context,
-                                searchBloc: getIt<SearchBloc>(),
+                                searchBloc: GetIt.I<SearchBloc>(),
                                 annasArchieve: _annasArchieve,
                               );
                             },
@@ -543,6 +573,10 @@ class HomeScreenState extends State<HomeScreen> {
                       if (filePath != null) {
                         if (mounted) {
                           context.read<FileBloc>().add(LoadFile(filePath));
+                          Future.delayed(const Duration(milliseconds: 1))
+                              .then((val) {
+                            context.read<FileBloc>().add(ViewFile(filePath));
+                          });
                         }
                       }
                     },
